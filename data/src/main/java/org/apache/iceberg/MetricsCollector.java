@@ -17,11 +17,14 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet;
+package org.apache.iceberg;
 
-import org.apache.iceberg.TestMetrics;
+import java.util.stream.Stream;
 
-/**
- * Test Metrics for Parquet.
- */
-public abstract class TestParquetMetrics extends TestMetrics {}
+public interface MetricsCollector<D> {
+  void add(D record);
+
+  Stream<FieldMetrics> getMetrics();
+
+  Long count();
+}

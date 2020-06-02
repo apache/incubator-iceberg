@@ -17,11 +17,35 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet;
+package org.apache.iceberg;
 
-import org.apache.iceberg.TestMetrics;
+import java.util.List;
+import java.util.stream.Stream;
 
-/**
- * Test Metrics for Parquet.
- */
-public abstract class TestParquetMetrics extends TestMetrics {}
+public abstract class MetricsCollectorBase<D> implements MetricsCollector<D> {
+
+  private List<MetricsCollector> collectors = null;
+  private Integer id;
+
+  public MetricsCollectorBase() { }
+
+  public MetricsCollectorBase(List<MetricsCollector> collectors) {
+    this.id = null;
+    this.collectors = collectors;
+  }
+
+  public MetricsCollectorBase(int id, List<MetricsCollector> collectors) {
+    this.id = id;
+    this.collectors = collectors;
+  }
+
+  @Override
+  public Stream<FieldMetrics> getMetrics() {
+    return collectors.stream().flatMap(MetricsCollector::getMetrics);
+  }
+
+  @Override
+  public Long count() {
+    throw new UnsupportedOperationException("count() only implemented for root metrics collector");
+  }
+}
