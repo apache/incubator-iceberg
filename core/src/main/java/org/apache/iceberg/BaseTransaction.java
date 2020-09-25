@@ -532,6 +532,16 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public Schema schemaForSnapshot(long snapshotId) {
+      throw new UnsupportedOperationException("Cannot get schema for a snapshot of a transaction table");
+    }
+
+    @Override
+    public Schema schemaForSnapshotAsOfTime(long timestampMillis) {
+      throw new UnsupportedOperationException("Cannot get schema for a snapshot of a transaction table");
+    }
+
+    @Override
     public PartitionSpec spec() {
       return current.spec();
     }

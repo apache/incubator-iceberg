@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Base {@link Table} implementation.
@@ -72,6 +73,45 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   @Override
   public Map<Integer, Schema> schemas() {
     return ops.current().schemasById();
+  }
+
+  @Override
+  public Schema schemaForSnapshot(long snapshotId) {
+    TableMetadata current = ops.current();
+    if (current.currentSnapshot() != null &&
+        current.currentSnapshot().snapshotId() == snapshotId) {
+      return current.schema();
+    }
+    Long snapshotTs = null;
+    for (HistoryEntry logEntry : current.snapshotLog()) {
+      if (logEntry.snapshotId() == snapshotId) {
+        snapshotTs = logEntry.timestampMillis();
+      }
+    }
+    Preconditions.checkArgument(snapshotTs != null,
+        "Cannot find a snapshot with id %s", snapshotId);
+    TableMetadata.MetadataLogEntry metadataLogEntry = null;
+    for (TableMetadata.MetadataLogEntry logEntry : current.previousFiles()) {
+      if (logEntry.timestampMillis() <= snapshotTs) {
+        metadataLogEntry = logEntry;
+      }
+    }
+    String metadataFile = metadataLogEntry.file();
+    TableMetadata metadata = TableMetadataParser.read(io(), metadataFile);
+    return metadata.schema();
+  }
+
+  @Override
+  public Schema schemaForSnapshotAsOfTime(long timestampMillis) {
+    Long snapshotId = null;
+    for (HistoryEntry logEntry : ops.current().snapshotLog()) {
+      if (logEntry.timestampMillis() <= timestampMillis) {
+        snapshotId = logEntry.snapshotId();
+      }
+    }
+    Preconditions.checkArgument(snapshotId != null,
+        "Cannot find a snapshot older than %s", timestampMillis);
+    return schemaForSnapshot(snapshotId);
   }
 
   @Override

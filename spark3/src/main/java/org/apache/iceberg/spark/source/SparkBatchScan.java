@@ -123,6 +123,16 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     return readSchema;
   }
 
+  private Schema getTableSchema() {
+    if (snapshotId != null) {
+      return table.schemaForSnapshot(snapshotId);
+    } else if (asOfTimestamp != null) {
+      return table.schemaForSnapshotAsOfTime(asOfTimestamp);
+    } else {
+      return table.schema();
+    }
+  }
+
   @Override
   public InputPartition[] planInputPartitions() {
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
@@ -195,7 +205,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
       LOG.debug("using table metadata to estimate table statistics");
       long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
           SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
-      Schema projectedSchema = expectedSchema != null ? expectedSchema : table.schema();
+      Schema projectedSchema = expectedSchema != null ? expectedSchema : getTableSchema();
       return new Stats(
           SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(projectedSchema), totalRecords),
           totalRecords);

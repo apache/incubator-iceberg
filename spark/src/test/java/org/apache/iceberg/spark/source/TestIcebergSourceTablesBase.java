@@ -41,6 +41,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
@@ -48,6 +49,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SaveMode;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -62,6 +64,17 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   private static final Schema SCHEMA = new Schema(
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
+  );
+
+  private static final Schema SCHEMA2 = new Schema(
+      optional(1, "id", Types.IntegerType.get()),
+      optional(2, "data", Types.StringType.get()),
+      optional(3, "category", Types.StringType.get())
+  );
+
+  private static final Schema SCHEMA3 = new Schema(
+      optional(1, "id", Types.IntegerType.get()),
+      optional(3, "category", Types.StringType.get())
   );
 
   @Rule
@@ -899,6 +912,146 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     for (int i = 0; i < 2; i += 1) {
       TestHelpers.assertEqualsSafe(partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
     }
+  }
+
+  @Test
+  public synchronized void testSnapshotReadAfterAddColumn() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<Row> expectedRecords = Lists.newArrayList(
+        RowFactory.create(1, "x"),
+        RowFactory.create(2, "y"),
+        RowFactory.create(3, "z"));
+
+    Dataset<Row> inputDf = spark.createDataFrame(expectedRecords, SparkSchemaUtil.convert(SCHEMA));
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    Dataset<Row> resultDf = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier));
+    List<Row> actualRecords = resultDf.orderBy("id")
+        .collectAsList();
+
+    Assert.assertEquals("Records should match", expectedRecords, actualRecords);
+    Snapshot snapshot1 = table.currentSnapshot();
+
+    table.updateSchema().addColumn("category", Types.StringType.get()).commit();
+
+    List<Row> newRecords = Lists.newArrayList(
+        RowFactory.create(4, "xy", "B"),
+        RowFactory.create(5, "xyz", "C"));
+
+    Dataset<Row> inputDf2 = spark.createDataFrame(newRecords, SparkSchemaUtil.convert(SCHEMA2));
+    inputDf2.select("id", "data", "category").write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    Dataset<Row> resultDf2 = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier));
+    List<Row> actualRecords2 = resultDf2.orderBy("id")
+        .collectAsList();
+
+    List<Row> expectedRecords2 = Lists.newArrayList(
+        RowFactory.create(1, "x", null),
+        RowFactory.create(2, "y", null),
+        RowFactory.create(3, "z", null),
+        RowFactory.create(4, "xy", "B"),
+        RowFactory.create(5, "xyz", "C"));
+    Assert.assertEquals("Records should match", expectedRecords2, actualRecords2);
+
+    Dataset<Row> resultDf3 = spark.read()
+        .format("iceberg")
+        .option("snapshot-id", snapshot1.snapshotId())
+        .load(loadLocation(tableIdentifier));
+    List<Row> actualRecords3 = resultDf3.orderBy("id")
+        .collectAsList();
+
+    Assert.assertEquals("Records should match", expectedRecords, actualRecords3);
+  }
+
+  @Test
+  public synchronized void testSnapshotReadAfterDropColumn() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
+    Table table = createTable(tableIdentifier, SCHEMA2, PartitionSpec.unpartitioned());
+
+    List<Row> expectedRecords = Lists.newArrayList(
+        RowFactory.create(1, "x", "A"),
+        RowFactory.create(2, "y", "A"),
+        RowFactory.create(3, "z", "B"));
+
+    Dataset<Row> inputDf = spark.createDataFrame(expectedRecords, SparkSchemaUtil.convert(SCHEMA2));
+    inputDf.select("id", "data", "category").write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    Dataset<Row> resultDf = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier));
+    List<Row> actualRecords = resultDf.orderBy("id")
+        .collectAsList();
+
+    Assert.assertEquals("Records should match", expectedRecords, actualRecords);
+
+    long ts1 = System.currentTimeMillis();
+    table.updateSchema().deleteColumn("data").commit();
+    long ts2 = System.currentTimeMillis();
+
+    List<Row> newRecords = Lists.newArrayList(
+        RowFactory.create(4, "B"),
+        RowFactory.create(5, "C"));
+
+    Dataset<Row> inputDf2 = spark.createDataFrame(newRecords, SparkSchemaUtil.convert(SCHEMA3));
+    inputDf2.select("id", "category").write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    Dataset<Row> resultDf2 = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier));
+    List<Row> actualRecords2 = resultDf2.orderBy("id")
+        .collectAsList();
+
+    List<Row> expectedRecords2 = Lists.newArrayList(
+        RowFactory.create(1, "A"),
+        RowFactory.create(2, "A"),
+        RowFactory.create(3, "B"),
+        RowFactory.create(4, "B"),
+        RowFactory.create(5, "C"));
+    Assert.assertEquals("Records should match", expectedRecords2, actualRecords2);
+
+    Dataset<Row> resultDf3 = spark.read()
+        .format("iceberg")
+        .option("as-of-timestamp", ts1)
+        .load(loadLocation(tableIdentifier));
+    List<Row> actualRecords3 = resultDf3.orderBy("id")
+        .collectAsList();
+
+    Assert.assertEquals("Records should match", expectedRecords, actualRecords3);
+
+    Dataset<Row> resultDf4 = spark.read()
+        .format("iceberg")
+        .option("as-of-timestamp", ts2)
+        .load(loadLocation(tableIdentifier));
+    List<Row> actualRecords4 = resultDf4.orderBy("id")
+        .collectAsList();
+
+    Assert.assertEquals("Records should match", expectedRecords, actualRecords4);
   }
 
   @Test

@@ -67,6 +67,16 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   @Override
+  public Schema schemaForSnapshot(long snapshotId) {
+    return schema();
+  }
+
+  @Override
+  public Schema schemaForSnapshotAsOfTime(long timestampMillis) {
+    return schema();
+  }
+
+  @Override
   MetadataTableType metadataTableType() {
     return MetadataTableType.PARTITIONS;
   }

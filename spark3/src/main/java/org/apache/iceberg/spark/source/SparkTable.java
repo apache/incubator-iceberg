@@ -77,22 +77,33 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   private final Table icebergTable;
   private final StructType requestedSchema;
+  private final Long snapshotId;
+  private final Long asOfTimestamp;
   private final boolean refreshEagerly;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
 
   public SparkTable(Table icebergTable, boolean refreshEagerly) {
-    this(icebergTable, null, refreshEagerly);
+    this(icebergTable, null, null, refreshEagerly);
   }
 
-  public SparkTable(Table icebergTable, StructType requestedSchema, boolean refreshEagerly) {
+  public SparkTable(Table icebergTable, StructType requestedSchema, Map<String, String> options,
+       boolean refreshEagerly) {
     this.icebergTable = icebergTable;
     this.requestedSchema = requestedSchema;
     this.refreshEagerly = refreshEagerly;
+    if (options != null) {
+      CaseInsensitiveStringMap cIOptions = new CaseInsensitiveStringMap(options);
+      this.snapshotId = Spark3Util.propertyAsLong(cIOptions, "snapshot-id", null);
+      this.asOfTimestamp = Spark3Util.propertyAsLong(cIOptions, "as-of-timestamp", null);
+    } else {
+      this.snapshotId = null;
+      this.asOfTimestamp = null;
+    }
 
     if (requestedSchema != null) {
       // convert the requested schema to throw an exception if any requested fields are unknown
-      SparkSchemaUtil.convert(icebergTable.schema(), requestedSchema);
+      SparkSchemaUtil.convert(getTableSchema(), requestedSchema);
     }
   }
 
@@ -113,13 +124,23 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     return icebergTable.toString();
   }
 
+  private Schema getTableSchema() {
+    if (snapshotId != null) {
+      return icebergTable.schemaForSnapshot(snapshotId);
+    } else if (asOfTimestamp != null) {
+      return icebergTable.schemaForSnapshotAsOfTime(asOfTimestamp);
+    } else {
+      return icebergTable.schema();
+    }
+  }
+
   @Override
   public StructType schema() {
     if (lazyTableSchema == null) {
       if (requestedSchema != null) {
-        this.lazyTableSchema = SparkSchemaUtil.convert(SparkSchemaUtil.prune(icebergTable.schema(), requestedSchema));
+        this.lazyTableSchema = SparkSchemaUtil.convert(SparkSchemaUtil.prune(getTableSchema(), requestedSchema));
       } else {
-        this.lazyTableSchema = SparkSchemaUtil.convert(icebergTable.schema());
+        this.lazyTableSchema = SparkSchemaUtil.convert(getTableSchema());
       }
     }
 

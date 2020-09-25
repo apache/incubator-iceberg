@@ -31,6 +31,7 @@ import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
@@ -52,6 +53,8 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   private final Table table;
   private final CaseInsensitiveStringMap options;
   private final List<String> metaColumns = Lists.newArrayList();
+  private final Long snapshotId;
+  private final Long asOfTimestamp;
 
   private Schema schema = null;
   private StructType requestedProjection;
@@ -64,16 +67,28 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     this.spark = spark;
     this.table = table;
     this.options = options;
+    this.snapshotId = Spark3Util.propertyAsLong(options, "snapshot-id", null);
+    this.asOfTimestamp = Spark3Util.propertyAsLong(options, "as-of-timestamp", null);
     this.caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+  }
+
+  private Schema getTableSchema() {
+    if (snapshotId != null) {
+      return table.schemaForSnapshot(snapshotId);
+    } else if (asOfTimestamp != null) {
+      return table.schemaForSnapshotAsOfTime(asOfTimestamp);
+    } else {
+      return table.schema();
+    }
   }
 
   private Schema lazySchema() {
     if (schema == null) {
       if (requestedProjection != null) {
         // the projection should include all columns that will be returned, including those only used in filters
-        this.schema = SparkSchemaUtil.prune(table.schema(), requestedProjection, filterExpression(), caseSensitive);
+        this.schema = SparkSchemaUtil.prune(getTableSchema(), requestedProjection, filterExpression(), caseSensitive);
       } else {
-        this.schema = table.schema();
+        this.schema = getTableSchema();
       }
     }
     return schema;
@@ -105,7 +120,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
       Expression expr = SparkFilters.convert(filter);
       if (expr != null) {
         try {
-          Binder.bind(table.schema().asStruct(), expr, caseSensitive);
+          Binder.bind(getTableSchema().asStruct(), expr, caseSensitive);
           expressions.add(expr);
           pushed.add(filter);
         } catch (ValidationException e) {
