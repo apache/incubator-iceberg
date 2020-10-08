@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -72,11 +73,11 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     this.caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
   }
 
-  private Schema getTableSchema() {
-    if (snapshotId != null) {
-      return table.schemaForSnapshot(snapshotId);
-    } else if (asOfTimestamp != null) {
-      return table.schemaForSnapshotAsOfTime(asOfTimestamp);
+  private Schema snapshotSchema() {
+    if (snapshotId != null && table instanceof BaseTable) {
+      return ((BaseTable) table).schemaForSnapshot(snapshotId);
+    } else if (asOfTimestamp != null && table instanceof BaseTable) {
+      return ((BaseTable) table).schemaForSnapshotAsOfTime(asOfTimestamp);
     } else {
       return table.schema();
     }
@@ -86,9 +87,9 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     if (schema == null) {
       if (requestedProjection != null) {
         // the projection should include all columns that will be returned, including those only used in filters
-        this.schema = SparkSchemaUtil.prune(getTableSchema(), requestedProjection, filterExpression(), caseSensitive);
+        this.schema = SparkSchemaUtil.prune(snapshotSchema(), requestedProjection, filterExpression(), caseSensitive);
       } else {
-        this.schema = getTableSchema();
+        this.schema = snapshotSchema();
       }
     }
     return schema;
@@ -120,7 +121,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
       Expression expr = SparkFilters.convert(filter);
       if (expr != null) {
         try {
-          Binder.bind(getTableSchema().asStruct(), expr, caseSensitive);
+          Binder.bind(snapshotSchema().asStruct(), expr, caseSensitive);
           expressions.add(expr);
           pushed.add(filter);
         } catch (ValidationException e) {

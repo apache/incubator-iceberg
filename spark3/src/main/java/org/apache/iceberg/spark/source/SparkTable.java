@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -84,26 +85,20 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   private SparkSession lazySpark = null;
 
   public SparkTable(Table icebergTable, boolean refreshEagerly) {
-    this(icebergTable, null, null, refreshEagerly);
+    this(icebergTable, null, null, null, refreshEagerly);
   }
 
-  public SparkTable(Table icebergTable, StructType requestedSchema, Map<String, String> options,
-       boolean refreshEagerly) {
+  public SparkTable(Table icebergTable, StructType requestedSchema,
+      Long snapshotId, Long asOfTimestamp, boolean refreshEagerly) {
     this.icebergTable = icebergTable;
     this.requestedSchema = requestedSchema;
+    this.snapshotId = snapshotId;
+    this.asOfTimestamp = asOfTimestamp;
     this.refreshEagerly = refreshEagerly;
-    if (options != null) {
-      CaseInsensitiveStringMap cIOptions = new CaseInsensitiveStringMap(options);
-      this.snapshotId = Spark3Util.propertyAsLong(cIOptions, "snapshot-id", null);
-      this.asOfTimestamp = Spark3Util.propertyAsLong(cIOptions, "as-of-timestamp", null);
-    } else {
-      this.snapshotId = null;
-      this.asOfTimestamp = null;
-    }
 
     if (requestedSchema != null) {
       // convert the requested schema to throw an exception if any requested fields are unknown
-      SparkSchemaUtil.convert(getTableSchema(), requestedSchema);
+      SparkSchemaUtil.convert(snapshotSchema(), requestedSchema);
     }
   }
 
@@ -124,11 +119,11 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     return icebergTable.toString();
   }
 
-  private Schema getTableSchema() {
-    if (snapshotId != null) {
-      return icebergTable.schemaForSnapshot(snapshotId);
-    } else if (asOfTimestamp != null) {
-      return icebergTable.schemaForSnapshotAsOfTime(asOfTimestamp);
+  private Schema snapshotSchema() {
+    if (snapshotId != null && icebergTable instanceof BaseTable) {
+      return ((BaseTable) icebergTable).schemaForSnapshot(snapshotId);
+    } else if (asOfTimestamp != null && icebergTable instanceof BaseTable) {
+      return ((BaseTable) icebergTable).schemaForSnapshotAsOfTime(asOfTimestamp);
     } else {
       return icebergTable.schema();
     }
@@ -138,9 +133,9 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   public StructType schema() {
     if (lazyTableSchema == null) {
       if (requestedSchema != null) {
-        this.lazyTableSchema = SparkSchemaUtil.convert(SparkSchemaUtil.prune(getTableSchema(), requestedSchema));
+        this.lazyTableSchema = SparkSchemaUtil.convert(SparkSchemaUtil.prune(snapshotSchema(), requestedSchema));
       } else {
-        this.lazyTableSchema = SparkSchemaUtil.convert(getTableSchema());
+        this.lazyTableSchema = SparkSchemaUtil.convert(snapshotSchema());
       }
     }
 

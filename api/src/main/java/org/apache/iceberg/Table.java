@@ -68,23 +68,6 @@ public interface Table {
   Map<Integer, Schema> schemas();
 
   /**
-   * Return the {@link Schema schema} for this table at the time of the snapshot
-   * specified by the snapshotId.
-   *
-   * @return this table's schema
-   */
-  Schema schemaForSnapshot(long snapshotId);
-
-  /**
-   * Return the {@link Schema schema} for this table at the time of the most recent
-   * snapshot as of the specified timestampMillis.
-   * Note: This is not necessarily the schema at the time of the specified timestampMillis.
-   *
-   * @return this table's schema
-   */
-  Schema schemaForSnapshotAsOfTime(long timestampMillis);
-
-  /**
    * Return the {@link PartitionSpec partition spec} for this table.
    *
    * @return this table's partition spec

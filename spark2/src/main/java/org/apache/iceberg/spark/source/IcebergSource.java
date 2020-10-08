@@ -68,8 +68,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
 
     Reader reader = new Reader(lazySparkSession(), table, Boolean.parseBoolean(caseSensitive), options);
     if (readSchema != null) {
-      // convert() will fail if readSchema contains fields not in table.schema()
-      SparkSchemaUtil.convert(table.schema(), readSchema);
+      // convert() will fail if readSchema contains fields not in reader.snapshotSchema()
+      SparkSchemaUtil.convert(reader.snapshotSchema(), readSchema);
       reader.pruneColumns(readSchema);
     }
 

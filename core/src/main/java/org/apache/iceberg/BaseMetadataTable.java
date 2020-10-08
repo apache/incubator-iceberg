@@ -64,16 +64,6 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   }
 
   @Override
-  public Schema schemaForSnapshot(long snapshotId) {
-    throw new UnsupportedOperationException("Cannot get schema for a snapshot of a metadata table");
-  }
-
-  @Override
-  public Schema schemaForSnapshotAsOfTime(long timestampMillis) {
-    throw new UnsupportedOperationException("Cannot get schema for a snapshot of a metadata table");
-  }
-
-  @Override
   public FileIO io() {
     return table().io();
   }

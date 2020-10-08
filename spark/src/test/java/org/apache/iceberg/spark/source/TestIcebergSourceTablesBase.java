@@ -1055,6 +1055,60 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   @Test
+  public synchronized void testSnapshotReadAfterAddAndDropColumn() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<Row> expectedRecords = Lists.newArrayList(
+        RowFactory.create(1, "x"),
+        RowFactory.create(2, "y"),
+        RowFactory.create(3, "z"));
+
+    Dataset<Row> inputDf = spark.createDataFrame(expectedRecords, SparkSchemaUtil.convert(SCHEMA));
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    Dataset<Row> resultDf = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier));
+    List<Row> actualRecords = resultDf.orderBy("id")
+        .collectAsList();
+
+    Assert.assertEquals("Records should match", expectedRecords, actualRecords);
+    Snapshot snapshot1 = table.currentSnapshot();
+
+    table.updateSchema().addColumn("category", Types.StringType.get()).commit();
+
+    List<Row> newRecords = Lists.newArrayList(
+        RowFactory.create(4, "xy", "B"),
+        RowFactory.create(5, "xyz", "C"));
+
+    Dataset<Row> inputDf2 = spark.createDataFrame(newRecords, SparkSchemaUtil.convert(SCHEMA2));
+    inputDf2.select("id", "data", "category").write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    table.updateSchema().deleteColumn("data").commit();
+
+    Dataset<Row> resultDf3 = spark.read()
+        .format("iceberg")
+        .option("snapshot-id", snapshot1.snapshotId())
+        .schema("id INT, data STRING")
+        .load(loadLocation(tableIdentifier));
+    List<Row> actualRecords3 = resultDf3.orderBy("id")
+        .collectAsList();
+
+    Assert.assertEquals("Records should match", expectedRecords, actualRecords3);
+  }
+
+  @Test
   public void testRemoveOrphanFilesActionSupport() throws InterruptedException {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());

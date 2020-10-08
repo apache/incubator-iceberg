@@ -75,7 +75,12 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
     return ops.current().schemasById();
   }
 
-  @Override
+  /**
+   * Return the {@link Schema schema} for this table at the time of the snapshot
+   * specified by the snapshotId.
+   *
+   * @return the schema
+   */
   public Schema schemaForSnapshot(long snapshotId) {
     TableMetadata current = ops.current();
     if (current.currentSnapshot() != null &&
@@ -92,16 +97,25 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
         "Cannot find a snapshot with id %s", snapshotId);
     TableMetadata.MetadataLogEntry metadataLogEntry = null;
     for (TableMetadata.MetadataLogEntry logEntry : current.previousFiles()) {
-      if (logEntry.timestampMillis() <= snapshotTs) {
+      if (logEntry.timestampMillis() == snapshotTs) {
         metadataLogEntry = logEntry;
+        break;
       }
     }
+    Preconditions.checkArgument(metadataLogEntry != null,
+        "Cannot find a metadata log entry corresponding to the snapshot %s", snapshotId);
     String metadataFile = metadataLogEntry.file();
     TableMetadata metadata = TableMetadataParser.read(io(), metadataFile);
     return metadata.schema();
   }
 
-  @Override
+  /**
+   * Return the {@link Schema schema} for this table at the time of the most recent
+   * snapshot as of the specified timestampMillis.
+   * Note: This is not necessarily the schema at the time of the specified timestampMillis.
+   *
+   * @return the schema
+   */
   public Schema schemaForSnapshotAsOfTime(long timestampMillis) {
     Long snapshotId = null;
     for (HistoryEntry logEntry : ops.current().snapshotLog()) {
