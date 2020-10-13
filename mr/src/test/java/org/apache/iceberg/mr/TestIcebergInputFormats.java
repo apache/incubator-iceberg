@@ -72,7 +72,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @RunWith(Parameterized.class)
 public class TestIcebergInputFormats {
 
-  private static final List<TestInputFormat.Factory<Record>> TESTED_INPUT_FORMATS = ImmutableList.of(
+  public static final List<TestInputFormat.Factory<Record>> TESTED_INPUT_FORMATS = ImmutableList.of(
           TestInputFormat.newFactory("IcebergInputFormat", TestIcebergInputFormat::create),
           TestInputFormat.newFactory("MapredIcebergInputFormat", TestMapredIcebergInputFormat::create));
 
@@ -112,7 +112,7 @@ public class TestIcebergInputFormats {
     builder = new InputFormatConfig.ConfigBuilder(conf).readFrom(location.toString());
   }
 
-  @Parameterized.Parameters
+  @Parameterized.Parameters(name = "testInputFormat = {0}, fileFormat = {1}")
   public static Object[][] parameters() {
     Object[][] parameters = new Object[TESTED_INPUT_FORMATS.size() * TESTED_FILE_FORMATS.size()][2];
 
@@ -370,7 +370,8 @@ public class TestIcebergInputFormats {
     testInputFormat.create(builder.conf()).validate(expectedRecords);
   }
 
-  private abstract static class TestInputFormat<T> {
+  // TODO - Capture template type T in toString method: https://github.com/apache/iceberg/issues/1542
+  public abstract static class TestInputFormat<T> {
 
     private final List<IcebergSplit> splits;
     private final List<T> records;
@@ -407,6 +408,11 @@ public class TestIcebergInputFormats {
         @Override
         public TestInputFormat<T> create(Configuration conf) {
           return function.apply(conf);
+        }
+
+        @Override
+        public String toString() {
+          return String.format("Test%s<T>", name());
         }
       };
     }

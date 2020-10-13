@@ -48,9 +48,11 @@ nav:
     - How to Release: how-to-release.md
   - User docs:
     - Getting Started: getting-started.md
+    - Flink: flink.md
     - Spark: spark.md
     - Spark Streaming: spark-structured-streaming.md
     - Presto: presto.md
+    - Hive: hive.md
     - Maintenance: maintenance.md
     - Configuration: configuration.md
     - Schemas: schemas.md

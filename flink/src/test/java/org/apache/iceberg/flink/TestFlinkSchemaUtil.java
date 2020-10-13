@@ -252,7 +252,7 @@ public class TestFlinkSchemaUtil {
         Types.BinaryType.get(), new VarBinaryType(VarBinaryType.MAX_LENGTH),
         new VarBinaryType(100), Types.BinaryType.get());
     checkInconsistentType(
-        Types.TimeType.get(), new TimeType(6),
+        Types.TimeType.get(), new TimeType(),
         new TimeType(3), Types.TimeType.get());
     checkInconsistentType(
         Types.TimestampType.withoutZone(), new TimestampType(6),

@@ -74,7 +74,8 @@ public class TestHelper {
   }
 
   public Map<String, String> properties() {
-    return ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
+    return ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name(),
+        TableProperties.ENGINE_HIVE_ENABLED, "true");
   }
 
   public Table createTable(Schema theSchema, PartitionSpec theSpec) {

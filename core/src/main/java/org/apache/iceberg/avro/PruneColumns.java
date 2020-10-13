@@ -39,6 +39,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   private final NameMapping nameMapping;
 
   PruneColumns(Set<Integer> selectedIds, NameMapping nameMapping) {
+    Preconditions.checkNotNull(selectedIds, "Selected field ids cannot be null");
     this.selectedIds = selectedIds;
     this.nameMapping = nameMapping;
   }

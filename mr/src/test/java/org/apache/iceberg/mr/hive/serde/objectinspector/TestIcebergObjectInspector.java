@@ -28,6 +28,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -90,7 +91,13 @@ public class TestIcebergObjectInspector {
     Assert.assertEquals(3, dateField.getFieldID());
     Assert.assertEquals("date_field", dateField.getFieldName());
     Assert.assertEquals("date comment", dateField.getFieldComment());
-    Assert.assertEquals(IcebergDateObjectInspector.get(), dateField.getFieldObjectInspector());
+    if (MetastoreUtil.hive3PresentOnClasspath()) {
+      Assert.assertEquals("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3",
+              dateField.getFieldObjectInspector().getClass().getName());
+    } else {
+      Assert.assertEquals("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector",
+              dateField.getFieldObjectInspector().getClass().getName());
+    }
 
     // decimal
     StructField decimalField = soi.getStructFieldRef("decimal_field");
@@ -146,14 +153,24 @@ public class TestIcebergObjectInspector {
     Assert.assertEquals(11, timestampField.getFieldID());
     Assert.assertEquals("timestamp_field", timestampField.getFieldName());
     Assert.assertEquals("timestamp comment", timestampField.getFieldComment());
-    Assert.assertEquals(IcebergTimestampObjectInspector.get(false), timestampField.getFieldObjectInspector());
+    if (MetastoreUtil.hive3PresentOnClasspath()) {
+      Assert.assertTrue(timestampField.getFieldObjectInspector().getClass().getName()
+              .startsWith("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3"));
+    } else {
+      Assert.assertEquals(IcebergTimestampObjectInspector.get(false), timestampField.getFieldObjectInspector());
+    }
 
     // timestamp with tz
     StructField timestampTzField = soi.getStructFieldRef("timestamptz_field");
     Assert.assertEquals(12, timestampTzField.getFieldID());
     Assert.assertEquals("timestamptz_field", timestampTzField.getFieldName());
     Assert.assertEquals("timestamptz comment", timestampTzField.getFieldComment());
-    Assert.assertEquals(IcebergTimestampObjectInspector.get(true), timestampTzField.getFieldObjectInspector());
+    if (MetastoreUtil.hive3PresentOnClasspath()) {
+      Assert.assertTrue(timestampTzField.getFieldObjectInspector().getClass().getName()
+              .startsWith("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3"));
+    } else {
+      Assert.assertEquals(IcebergTimestampObjectInspector.get(true), timestampTzField.getFieldObjectInspector());
+    }
 
     // UUID
     StructField uuidField = soi.getStructFieldRef("uuid_field");

@@ -52,12 +52,9 @@ public class TestReplacePartitions extends TableTestBase {
       .withRecordCount(0)
       .build();
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
-    };
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
   }
 
   public TestReplacePartitions(int formatVersion) {

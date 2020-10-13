@@ -91,6 +91,8 @@ public class FlinkCatalog extends AbstractCatalog {
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
 
+  // TODO - Update baseNamespace to use Namespace class
+  // https://github.com/apache/iceberg/issues/1541
   public FlinkCatalog(
       String catalogName,
       String defaultDatabase,

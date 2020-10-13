@@ -74,12 +74,12 @@ public class TestIcebergStreamWriter {
   @Parameterized.Parameters(name = "format = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] {"avro", true},
-        new Object[] {"avro", false},
-        new Object[] {"orc", true},
-        new Object[] {"orc", false},
-        new Object[] {"parquet", true},
-        new Object[] {"parquet", false}
+        {"avro", true},
+        {"avro", false},
+        {"orc", true},
+        {"orc", false},
+        {"parquet", true},
+        {"parquet", false}
     };
   }
 

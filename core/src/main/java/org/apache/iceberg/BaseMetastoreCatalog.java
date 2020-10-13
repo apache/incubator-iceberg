@@ -129,8 +129,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
   }
 
   private Table loadMetadataTable(TableIdentifier identifier) {
-    String name = identifier.name();
-    MetadataTableType type = MetadataTableType.from(name);
+    String tableName = identifier.name();
+    MetadataTableType type = MetadataTableType.from(tableName);
     if (type != null) {
       TableIdentifier baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
       TableOperations ops = newTableOps(baseTableIdentifier);
@@ -138,7 +138,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new NoSuchTableException("Table does not exist: %s", baseTableIdentifier);
       }
 
-      return MetadataTableUtils.createMetadataTableInstance(ops, baseTableIdentifier, type);
+      return MetadataTableUtils.createMetadataTableInstance(ops, name(), baseTableIdentifier, identifier, type);
     } else {
       throw new NoSuchTableException("Table does not exist: %s", identifier);
     }
@@ -158,8 +158,6 @@ public abstract class BaseMetastoreCatalog implements Catalog {
   public String toString() {
     return getClass().getSimpleName() + "(" + name() + ")";
   }
-
-  protected abstract String name();
 
   protected abstract TableOperations newTableOps(TableIdentifier tableIdentifier);
 

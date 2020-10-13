@@ -550,4 +550,57 @@ public class TestTableMetadata {
         ValidationException.class, "Spec does not use sequential IDs that are required in v1",
         () -> metadata.updatePartitionSpec(spec));
   }
+
+  @Test
+  public void testSortOrder() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    TableMetadata meta = TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+    Assert.assertTrue("Should default to unsorted order", meta.sortOrder().isUnsorted());
+    Assert.assertSame("Should detect identical unsorted order", meta, meta.updateSortOrder(SortOrder.unsorted()));
+  }
+
+  @Test
+  public void testUpdateSortOrder() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    SortOrder order = SortOrder.builderFor(schema).asc("x").build();
+
+    TableMetadata sortedByX = TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), order, null, ImmutableMap.of());
+    Assert.assertEquals("Should have 1 sort order", 1, sortedByX.sortOrders().size());
+    Assert.assertEquals("Should use orderId 1", 1, sortedByX.sortOrder().orderId());
+    Assert.assertEquals("Should be sorted by one field", 1, sortedByX.sortOrder().fields().size());
+    Assert.assertEquals("Should use the table's field ids", 1, sortedByX.sortOrder().fields().get(0).sourceId());
+    Assert.assertEquals("Should be ascending",
+        SortDirection.ASC, sortedByX.sortOrder().fields().get(0).direction());
+    Assert.assertEquals("Should be nulls first",
+        NullOrder.NULLS_FIRST, sortedByX.sortOrder().fields().get(0).nullOrder());
+
+    // build an equivalent order with the correct schema
+    SortOrder newOrder = SortOrder.builderFor(sortedByX.schema()).asc("x").build();
+
+    TableMetadata alsoSortedByX = sortedByX.updateSortOrder(newOrder);
+    Assert.assertSame("Should detect current sortOrder and not update", alsoSortedByX, sortedByX);
+
+    TableMetadata unsorted = alsoSortedByX.updateSortOrder(SortOrder.unsorted());
+    Assert.assertEquals("Should have 2 sort orders", 2, unsorted.sortOrders().size());
+    Assert.assertEquals("Should use orderId 0", 0, unsorted.sortOrder().orderId());
+    Assert.assertTrue("Should be unsorted", unsorted.sortOrder().isUnsorted());
+
+    TableMetadata sortedByXDesc = unsorted.updateSortOrder(SortOrder.builderFor(unsorted.schema()).desc("x").build());
+    Assert.assertEquals("Should have 3 sort orders", 3, sortedByXDesc.sortOrders().size());
+    Assert.assertEquals("Should use orderId 2", 2, sortedByXDesc.sortOrder().orderId());
+    Assert.assertEquals("Should be sorted by one field", 1, sortedByXDesc.sortOrder().fields().size());
+    Assert.assertEquals("Should use the table's field ids", 1, sortedByXDesc.sortOrder().fields().get(0).sourceId());
+    Assert.assertEquals("Should be ascending",
+        SortDirection.DESC, sortedByXDesc.sortOrder().fields().get(0).direction());
+    Assert.assertEquals("Should be nulls first",
+        NullOrder.NULLS_FIRST, sortedByX.sortOrder().fields().get(0).nullOrder());
+  }
 }

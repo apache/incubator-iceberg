@@ -57,16 +57,18 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   private final Table icebergTable;
   private final StructType requestedSchema;
+  private final boolean refreshEagerly;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
 
-  public SparkTable(Table icebergTable) {
-    this(icebergTable, null);
+  public SparkTable(Table icebergTable, boolean refreshEagerly) {
+    this(icebergTable, null, refreshEagerly);
   }
 
-  public SparkTable(Table icebergTable, StructType requestedSchema) {
+  public SparkTable(Table icebergTable, StructType requestedSchema, boolean refreshEagerly) {
     this.icebergTable = icebergTable;
     this.requestedSchema = requestedSchema;
+    this.refreshEagerly = refreshEagerly;
 
     if (requestedSchema != null) {
       // convert the requested schema to throw an exception if any requested fields are unknown
@@ -135,6 +137,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
+    if (refreshEagerly) {
+      icebergTable.refresh();
+    }
+
     SparkScanBuilder scanBuilder = new SparkScanBuilder(sparkSession(), icebergTable, options);
 
     if (requestedSchema != null) {
@@ -166,5 +172,24 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public String toString() {
     return icebergTable.toString();
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    } else if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+
+    // use only name in order to correctly invalidate Spark cache
+    SparkTable that = (SparkTable) other;
+    return icebergTable.name().equals(that.icebergTable.name());
+  }
+
+  @Override
+  public int hashCode() {
+    // use only name in order to correctly invalidate Spark cache
+    return icebergTable.name().hashCode();
   }
 }

@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
@@ -47,11 +48,10 @@ public class FlinkSource {
 
   /**
    * Initialize a {@link Builder} to read the data from iceberg table. Equivalent to {@link TableScan}.
-   * See more options in {@link ScanOptions}.
+   * See more options in {@link ScanContext}.
    * <p>
    * The Source can be read static data in bounded mode. It can also continuously check the arrival of new data and
    * read records incrementally.
-   * The Bounded and Unbounded depends on the {@link Builder#options(ScanOptions)}:
    * <ul>
    *   <li>Without startSnapshotId: Bounded</li>
    *   <li>With startSnapshotId and with endSnapshotId: Bounded</li>
@@ -72,10 +72,9 @@ public class FlinkSource {
     private StreamExecutionEnvironment env;
     private Table table;
     private TableLoader tableLoader;
-    private TableSchema projectedSchema;
-    private ScanOptions options = ScanOptions.builder().build();
-    private List<Expression> filterExpressions;
     private Configuration hadoopConf;
+    private TableSchema projectedSchema;
+    private ScanContext context = new ScanContext();
 
     private RowDataTypeInfo rowTypeInfo;
 
@@ -89,8 +88,18 @@ public class FlinkSource {
       return this;
     }
 
-    public Builder filters(List<Expression> newFilters) {
-      this.filterExpressions = newFilters;
+    public Builder hadoopConf(Configuration newConf) {
+      this.hadoopConf = newConf;
+      return this;
+    }
+
+    public Builder env(StreamExecutionEnvironment newEnv) {
+      this.env = newEnv;
+      return this;
+    }
+
+    public Builder filters(List<Expression> filters) {
+      this.context = context.filterRows(filters);
       return this;
     }
 
@@ -99,18 +108,53 @@ public class FlinkSource {
       return this;
     }
 
-    public Builder options(ScanOptions newOptions) {
-      this.options = newOptions;
+    public Builder properties(Map<String, String> properties) {
+      this.context = context.fromProperties(properties);
       return this;
     }
 
-    public Builder hadoopConf(Configuration newConf) {
-      this.hadoopConf = newConf;
+    public Builder caseSensitive(boolean caseSensitive) {
+      this.context = context.setCaseSensitive(caseSensitive);
       return this;
     }
 
-    public Builder env(StreamExecutionEnvironment newEnv) {
-      this.env = newEnv;
+    public Builder snapshotId(Long snapshotId) {
+      this.context = context.useSnapshotId(snapshotId);
+      return this;
+    }
+
+    public Builder startSnapshotId(Long startSnapshotId) {
+      this.context = context.startSnapshotId(startSnapshotId);
+      return this;
+    }
+
+    public Builder endSnapshotId(Long endSnapshotId) {
+      this.context = context.endSnapshotId(endSnapshotId);
+      return this;
+    }
+
+    public Builder asOfTimestamp(Long asOfTimestamp) {
+      this.context = context.asOfTimestamp(asOfTimestamp);
+      return this;
+    }
+
+    public Builder splitSize(Long splitSize) {
+      this.context = context.splitSize(splitSize);
+      return this;
+    }
+
+    public Builder splitLookback(Integer splitLookback) {
+      this.context = context.splitLookback(splitLookback);
+      return this;
+    }
+
+    public Builder splitOpenFileCost(Long splitOpenFileCost) {
+      this.context = context.splitOpenFileCost(splitOpenFileCost);
+      return this;
+    }
+
+    public Builder nameMapping(String nameMapping) {
+      this.context = context.nameMapping(nameMapping);
       return this;
     }
 
@@ -144,23 +188,28 @@ public class FlinkSource {
               FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergSchema)) :
               projectedSchema).toRowDataType().getLogicalType());
 
-      Schema expectedSchema = icebergSchema;
-      if (projectedSchema != null) {
-        expectedSchema = FlinkSchemaUtil.convert(icebergSchema, projectedSchema);
-      }
+      context = context.project(projectedSchema == null ? icebergSchema :
+          FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
 
-      return new FlinkInputFormat(tableLoader, expectedSchema, io, encryption, filterExpressions, options,
-          new SerializableConfiguration(hadoopConf));
+      return new FlinkInputFormat(tableLoader, new SerializableConfiguration(hadoopConf), io, encryption, context);
     }
 
     public DataStream<RowData> build() {
       Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
       FlinkInputFormat format = buildFormat();
-      if (options.startSnapshotId() != null && options.endSnapshotId() == null) {
-        throw new UnsupportedOperationException("The Unbounded mode is not supported yet");
-      } else {
+      if (isBounded(context)) {
         return env.createInput(format, rowTypeInfo);
+      } else {
+        throw new UnsupportedOperationException("The Unbounded mode is not supported yet");
       }
     }
+  }
+
+  private static boolean isBounded(ScanContext context) {
+    return context.startSnapshotId() == null || context.endSnapshotId() != null;
+  }
+
+  public static boolean isBounded(Map<String, String> properties) {
+    return isBounded(new ScanContext().fromProperties(properties));
   }
 }

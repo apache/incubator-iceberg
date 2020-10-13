@@ -34,10 +34,16 @@ import org.apache.iceberg.types.TypeUtil;
 public class DataFilesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
+  private final String name;
 
-  public DataFilesTable(TableOperations ops, Table table) {
+  DataFilesTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".files");
+  }
+
+  DataFilesTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
+    this.name = name;
   }
 
   @Override
@@ -46,8 +52,8 @@ public class DataFilesTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "files";
+  public String name() {
+    return name;
   }
 
   @Override
@@ -59,8 +65,8 @@ public class DataFilesTable extends BaseMetadataTable {
   public Schema schema() {
     Schema schema = new Schema(DataFile.getType(table.spec().partitionType()).fields());
     if (table.spec().fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
-      return TypeUtil.selectNot(schema, Sets.newHashSet(102));
+      // avoid returning an empty struct, which is not always supported. instead, drop the partition field
+      return TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     } else {
       return schema;
     }

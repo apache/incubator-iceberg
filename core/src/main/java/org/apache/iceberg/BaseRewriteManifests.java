@@ -110,6 +110,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     summaryBuilder.set(KEPT_MANIFESTS_COUNT, String.valueOf(keptManifests.size()));
     summaryBuilder.set(REPLACED_MANIFESTS_COUNT, String.valueOf(rewrittenManifests.size() + deletedManifests.size()));
     summaryBuilder.set(PROCESSED_ENTRY_COUNT, String.valueOf(entryCount.get()));
+    summaryBuilder.setPartitionSummaryLimit(0); // do not include partition summaries because data did not change
     return summaryBuilder.build();
   }
 

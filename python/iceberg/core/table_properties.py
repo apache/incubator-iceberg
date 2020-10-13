@@ -67,6 +67,8 @@ class TableProperties(object):
 
     OBJECT_STORE_PATH = "write.object-storage.path"
 
+    WRITE_LOCATION_PROVIDER_IMPL = "write.location-provider.impl"
+
     WRITE_NEW_DATA_LOCATION = "write.folder-storage.path"
 
     WRITE_METADATA_LOCATION = "write.metadata.path"

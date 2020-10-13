@@ -87,12 +87,12 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     } catch (NoSuchTableException e) {
       if (currentMetadataWasAvailable) {
         LOG.warn("Could not find the table during refresh, setting current metadata to null", e);
+        shouldRefresh = true;
       }
 
       currentMetadata = null;
       currentMetadataLocation = null;
       version = -1;
-      shouldRefresh = false;
       throw e;
     }
     return current();

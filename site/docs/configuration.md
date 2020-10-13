@@ -41,11 +41,13 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.parquet.compression-codec    | gzip               | Parquet compression codec                          |
 | write.parquet.compression-level    | null               | Parquet compression level                          |
 | write.avro.compression-codec       | gzip               | Avro compression codec                             |
+| write.location-provider.impl       | null               | Optional custom implemention for LocationProvider  |
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
 | write.metadata.metrics.column.col1 | (not set)          | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full |
 | write.target-file-size-bytes       | Long.MAX_VALUE     | Controls the size of files generated to target about this many bytes |
 | write.wap.enabled                  | false              | Enables write-audit-publish writes |
+| write.summary.partition-limit      | 0                  | Includes partition-level summary stats in snapshot summaries if the changed partition count is less than this limit |
 | write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest version metadata files after commit |
 | write.metadata.previous-versions-max       | 100        | The max number of previous version metadata files to keep before deleting after commit |
 

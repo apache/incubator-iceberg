@@ -77,18 +77,18 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
   @Parameterized.Parameters(name = "format={0}, parallelism = {1}, partitioned = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] {"avro", 1, true},
-        new Object[] {"avro", 1, false},
-        new Object[] {"avro", 2, true},
-        new Object[] {"avro", 2, false},
-        new Object[] {"orc", 1, true},
-        new Object[] {"orc", 1, false},
-        new Object[] {"orc", 2, true},
-        new Object[] {"orc", 2, false},
-        new Object[] {"parquet", 1, true},
-        new Object[] {"parquet", 1, false},
-        new Object[] {"parquet", 2, true},
-        new Object[] {"parquet", 2, false}
+        {"avro", 1, true},
+        {"avro", 1, false},
+        {"avro", 2, true},
+        {"avro", 2, false},
+        {"orc", 1, true},
+        {"orc", 1, false},
+        {"orc", 2, true},
+        {"orc", 2, false},
+        {"parquet", 1, true},
+        {"parquet", 1, false},
+        {"parquet", 2, true},
+        {"parquet", 2, false}
     };
   }
 

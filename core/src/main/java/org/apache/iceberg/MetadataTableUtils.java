@@ -30,39 +30,42 @@ public class MetadataTableUtils {
     return MetadataTableType.from(identifier.name()) != null;
   }
 
-  public static Table createMetadataTableInstance(TableOperations originTableOps,
-                                                  String fullTableName,
+  public static Table createMetadataTableInstance(TableOperations ops,
+                                                  String baseTableName,
+                                                  String metadataTableName,
                                                   MetadataTableType type) {
-    Table baseTableForMetadata = new BaseTable(originTableOps, fullTableName);
+    Table baseTable = new BaseTable(ops, baseTableName);
     switch (type) {
       case ENTRIES:
-        return new ManifestEntriesTable(originTableOps, baseTableForMetadata);
+        return new ManifestEntriesTable(ops, baseTable, metadataTableName);
       case FILES:
-        return new DataFilesTable(originTableOps, baseTableForMetadata);
+        return new DataFilesTable(ops, baseTable, metadataTableName);
       case HISTORY:
-        return new HistoryTable(originTableOps, baseTableForMetadata);
+        return new HistoryTable(ops, baseTable, metadataTableName);
       case SNAPSHOTS:
-        return new SnapshotsTable(originTableOps, baseTableForMetadata);
+        return new SnapshotsTable(ops, baseTable, metadataTableName);
       case MANIFESTS:
-        return new ManifestsTable(originTableOps, baseTableForMetadata);
+        return new ManifestsTable(ops, baseTable, metadataTableName);
       case PARTITIONS:
-        return new PartitionsTable(originTableOps, baseTableForMetadata);
+        return new PartitionsTable(ops, baseTable, metadataTableName);
       case ALL_DATA_FILES:
-        return new AllDataFilesTable(originTableOps, baseTableForMetadata);
+        return new AllDataFilesTable(ops, baseTable, metadataTableName);
       case ALL_MANIFESTS:
-        return new AllManifestsTable(originTableOps, baseTableForMetadata);
+        return new AllManifestsTable(ops, baseTable, metadataTableName);
       case ALL_ENTRIES:
-        return new AllEntriesTable(originTableOps, baseTableForMetadata);
+        return new AllEntriesTable(ops, baseTable, metadataTableName);
       default:
-        throw new NoSuchTableException("Unknown metadata table type: %s for %s", type, fullTableName);
+        throw new NoSuchTableException("Unknown metadata table type: %s for %s", type, metadataTableName);
     }
   }
 
-  public static Table createMetadataTableInstance(TableOperations originTableOps,
-                                                  TableIdentifier originTableIdentifier,
+  public static Table createMetadataTableInstance(TableOperations ops,
+                                                  String catalogName,
+                                                  TableIdentifier baseTableIdentifier,
+                                                  TableIdentifier metadataTableIdentifier,
                                                   MetadataTableType type) {
-    return createMetadataTableInstance(originTableOps,
-        BaseMetastoreCatalog.fullTableName(type.name(), originTableIdentifier),
-        type);
+    String baseTableName = BaseMetastoreCatalog.fullTableName(catalogName, baseTableIdentifier);
+    String metadataTableName = BaseMetastoreCatalog.fullTableName(catalogName, metadataTableIdentifier);
+    return createMetadataTableInstance(ops, baseTableName, metadataTableName, type);
   }
 }

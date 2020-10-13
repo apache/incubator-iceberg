@@ -55,6 +55,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT;
 
+@SuppressWarnings("UnnecessaryAnonymousClass")
 abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
   static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
@@ -132,6 +133,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected abstract String operation();
 
   /**
+   * Validate the current metadata.
+   * <p>
+   * Child operations can override this to add custom validation.
+   *
+   * @param currentMetadata current table metadata to validate
+   */
+  protected void validate(TableMetadata currentMetadata) {
+  }
+
+  /**
    * Apply the update's changes to the base table metadata and return the new manifest list.
    *
    * @param metadataToUpdate the base table metadata to apply changes to
@@ -145,6 +156,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     Long parentSnapshotId = base.currentSnapshot() != null ?
         base.currentSnapshot().snapshotId() : null;
     long sequenceNumber = base.nextSequenceNumber();
+
+    // run validations from the child operation
+    validate(base);
 
     List<ManifestFile> manifests = apply(base);
 

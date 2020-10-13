@@ -61,12 +61,9 @@ public abstract class TestRewriteManifestsAction extends SparkTestBase {
       optional(3, "c3", Types.StringType.get())
   );
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { "true" },
-        new Object[] { "false" }
-    };
+  @Parameterized.Parameters(name = "snapshotIdInheritanceEnabled = {0}")
+  public static Object[] parameters() {
+    return new Object[] { "true", "false" };
   }
 
   @Rule

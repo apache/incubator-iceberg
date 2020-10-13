@@ -38,10 +38,16 @@ import org.apache.iceberg.types.TypeUtil;
 public class ManifestEntriesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
+  private final String name;
 
-  public ManifestEntriesTable(TableOperations ops, Table table) {
+  ManifestEntriesTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".entries");
+  }
+
+  ManifestEntriesTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
+    this.name = name;
   }
 
   @Override
@@ -50,8 +56,8 @@ public class ManifestEntriesTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "entries";
+  public String name() {
+    return name;
   }
 
   @Override

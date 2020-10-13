@@ -32,8 +32,13 @@ public class PartitionsTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
   private final Schema schema;
+  private final String name;
 
-  public PartitionsTable(TableOperations ops, Table table) {
+  PartitionsTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".partitions");
+  }
+
+  PartitionsTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
     this.schema = new Schema(
@@ -41,6 +46,7 @@ public class PartitionsTable extends BaseMetadataTable {
         Types.NestedField.required(2, "record_count", Types.LongType.get()),
         Types.NestedField.required(3, "file_count", Types.IntegerType.get())
     );
+    this.name = name;
   }
 
   @Override
@@ -49,8 +55,8 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "partitions";
+  public String name() {
+    return name;
   }
 
   @Override

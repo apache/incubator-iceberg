@@ -19,20 +19,18 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.SnapshotUtil;
 
 public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> implements OverwriteFiles {
   private boolean validateAddedFilesMatchOverwriteFilter = false;
-  private Long readSnapshotId = null;
+  private Long startingSnapshotId = null;
   private Expression conflictDetectionFilter = null;
+  private boolean caseSensitive = true;
 
   protected BaseOverwriteFiles(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -73,16 +71,36 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   }
 
   @Override
+  @Deprecated
   public OverwriteFiles validateNoConflictingAppends(Long newReadSnapshotId, Expression newConflictDetectionFilter) {
+    if (newReadSnapshotId != null) {
+      validateFromSnapshot(newReadSnapshotId);
+    }
+    validateNoConflictingAppends(newConflictDetectionFilter);
+    return this;
+  }
+
+  @Override
+  public OverwriteFiles validateFromSnapshot(long snapshotId) {
+    this.startingSnapshotId = snapshotId;
+    return this;
+  }
+
+  @Override
+  public OverwriteFiles caseSensitive(boolean isCaseSensitive) {
+    this.caseSensitive = isCaseSensitive;
+    return this;
+  }
+
+  public OverwriteFiles validateNoConflictingAppends(Expression newConflictDetectionFilter) {
     Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
-    this.readSnapshotId = newReadSnapshotId;
     this.conflictDetectionFilter = newConflictDetectionFilter;
     failMissingDeletePaths();
     return this;
   }
 
   @Override
-  public List<ManifestFile> apply(TableMetadata base) {
+  protected void validate(TableMetadata base) {
     if (validateAddedFilesMatchOverwriteFilter) {
       PartitionSpec spec = writeSpec();
       Expression rowFilter = rowFilter();
@@ -109,22 +127,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
     }
 
     if (conflictDetectionFilter != null && base.currentSnapshot() != null) {
-      PartitionSpec spec = writeSpec();
-      Expression inclusiveExpr = Projections.inclusive(spec).project(conflictDetectionFilter);
-      Evaluator inclusive = new Evaluator(spec.partitionType(), inclusiveExpr);
-
-      InclusiveMetricsEvaluator metrics = new InclusiveMetricsEvaluator(base.schema(), conflictDetectionFilter);
-
-      List<DataFile> newFiles = SnapshotUtil.newFiles(
-          readSnapshotId, base.currentSnapshot().snapshotId(), base::snapshot);
-      for (DataFile newFile : newFiles) {
-        ValidationException.check(
-            !inclusive.eval(newFile.partition()) || !metrics.eval(newFile),
-            "A file was appended that might contain data matching filter '%s': %s",
-            conflictDetectionFilter, newFile.path());
-      }
+      validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, caseSensitive);
     }
-
-    return super.apply(base);
   }
 }

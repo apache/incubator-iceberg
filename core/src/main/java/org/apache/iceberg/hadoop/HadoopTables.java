@@ -76,7 +76,7 @@ public class HadoopTables implements Tables, Configurable {
 
     if (parsedMetadataType != null) {
       // Load a metadata table
-      result = loadMetadataTable(parsedMetadataType.first(), parsedMetadataType.second());
+      result = loadMetadataTable(parsedMetadataType.first(), location, parsedMetadataType.second());
     } else {
       // Load a normal table
       TableOperations ops = newTableOps(location);
@@ -109,13 +109,13 @@ public class HadoopTables implements Tables, Configurable {
     }
   }
 
-  private Table loadMetadataTable(String location, MetadataTableType type) {
+  private Table loadMetadataTable(String location, String metadataTableName, MetadataTableType type) {
     TableOperations ops = newTableOps(location);
     if (ops.current() == null) {
       throw new NoSuchTableException("Table does not exist at location: %s", location);
     }
 
-    return MetadataTableUtils.createMetadataTableInstance(ops, location, type);
+    return MetadataTableUtils.createMetadataTableInstance(ops, location, metadataTableName, type);
   }
 
   /**

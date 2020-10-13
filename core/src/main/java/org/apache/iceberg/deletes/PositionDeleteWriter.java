@@ -22,6 +22,7 @@ package org.apache.iceberg.deletes;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
@@ -30,6 +31,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.CharSequenceSet;
 
 public class PositionDeleteWriter<T> implements Closeable {
   private final FileAppender<StructLike> appender;
@@ -39,6 +41,7 @@ public class PositionDeleteWriter<T> implements Closeable {
   private final StructLike partition;
   private final ByteBuffer keyMetadata;
   private final PositionDelete<T> delete;
+  private final Set<CharSequence> pathSet;
   private DeleteFile deleteFile = null;
 
   public PositionDeleteWriter(FileAppender<StructLike> appender, FileFormat format, String location,
@@ -50,6 +53,7 @@ public class PositionDeleteWriter<T> implements Closeable {
     this.partition = partition;
     this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
     this.delete = PositionDelete.create();
+    this.pathSet = CharSequenceSet.empty();
   }
 
   public void delete(CharSequence path, long pos) {
@@ -57,6 +61,7 @@ public class PositionDeleteWriter<T> implements Closeable {
   }
 
   public void delete(CharSequence path, long pos, T row) {
+    pathSet.add(path);
     appender.add(delete.set(path, pos, row));
   }
 
@@ -74,6 +79,10 @@ public class PositionDeleteWriter<T> implements Closeable {
           .withMetrics(appender.metrics())
           .build();
     }
+  }
+
+  public Set<CharSequence> referencedDataFiles() {
+    return pathSet;
   }
 
   public DeleteFile toDeleteFile() {

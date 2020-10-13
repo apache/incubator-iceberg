@@ -116,7 +116,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   }
 
   @Override
-  protected String name() {
+  public String name() {
     return catalogName;
   }
 

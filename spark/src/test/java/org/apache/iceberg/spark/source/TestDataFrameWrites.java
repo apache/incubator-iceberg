@@ -76,13 +76,9 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
 
   private final String format;
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { "parquet" },
-        new Object[] { "avro" },
-        new Object[] { "orc" }
-    };
+  @Parameterized.Parameters(name = "format = {0}")
+  public static Object[] parameters() {
+    return new Object[] { "parquet", "avro", "orc" };
   }
 
   public TestDataFrameWrites(String format) {

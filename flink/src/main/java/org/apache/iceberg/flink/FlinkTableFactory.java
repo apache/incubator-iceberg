@@ -24,11 +24,13 @@ import java.util.Map;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.factories.StreamTableSinkFactory;
-import org.apache.flink.table.sinks.StreamTableSink;
+import org.apache.flink.table.factories.TableSinkFactory;
+import org.apache.flink.table.factories.TableSourceFactory;
+import org.apache.flink.table.sinks.TableSink;
+import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.table.utils.TableSchemaUtils;
 
-public class FlinkTableFactory implements StreamTableSinkFactory<RowData> {
+public class FlinkTableFactory implements TableSinkFactory<RowData>, TableSourceFactory<RowData> {
   private final FlinkCatalog catalog;
 
   public FlinkTableFactory(FlinkCatalog catalog) {
@@ -36,10 +38,18 @@ public class FlinkTableFactory implements StreamTableSinkFactory<RowData> {
   }
 
   @Override
-  public StreamTableSink<RowData> createTableSink(Context context) {
+  public TableSource<RowData> createTableSource(TableSourceFactory.Context context) {
     ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
     TableLoader tableLoader = createTableLoader(objectPath);
-    TableSchema tableSchema = getPhysicalSchema(context);
+    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getTable().getSchema());
+    return new IcebergTableSource(tableLoader, catalog.getHadoopConf(), tableSchema, context.getTable().getOptions());
+  }
+
+  @Override
+  public TableSink<RowData> createTableSink(TableSinkFactory.Context context) {
+    ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
+    TableLoader tableLoader = createTableLoader(objectPath);
+    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getTable().getSchema());
     return new IcebergTableSink(context.isBounded(), tableLoader, catalog.getHadoopConf(), tableSchema);
   }
 
@@ -51,10 +61,6 @@ public class FlinkTableFactory implements StreamTableSinkFactory<RowData> {
   @Override
   public List<String> supportedProperties() {
     throw new UnsupportedOperationException("Iceberg Table Factory can not be loaded from Java SPI");
-  }
-
-  private TableSchema getPhysicalSchema(Context context) {
-    return TableSchemaUtils.getPhysicalSchema(context.getTable().getSchema());
   }
 
   private TableLoader createTableLoader(ObjectPath objectPath) {

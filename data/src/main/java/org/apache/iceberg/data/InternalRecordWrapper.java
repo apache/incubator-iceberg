@@ -31,7 +31,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 
-@SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
 public class InternalRecordWrapper implements StructLike {
   private final Function<Object, Object>[] transforms;
   private StructLike wrapped = null;

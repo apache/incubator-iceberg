@@ -43,10 +43,16 @@ public class HistoryTable extends BaseMetadataTable {
 
   private final TableOperations ops;
   private final Table table;
+  private final String name;
 
-  public HistoryTable(TableOperations ops, Table table) {
+  HistoryTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".history");
+  }
+
+  HistoryTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
+    this.name = name;
   }
 
   @Override
@@ -55,8 +61,8 @@ public class HistoryTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "history";
+  public String name() {
+    return name;
   }
 
   @Override

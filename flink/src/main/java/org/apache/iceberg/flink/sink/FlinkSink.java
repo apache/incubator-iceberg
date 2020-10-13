@@ -200,7 +200,7 @@ public class FlinkSink {
           .setMaxParallelism(1);
 
       return returnStream.addSink(new DiscardingSink())
-          .name(String.format("IcebergSink %s", table.toString()))
+          .name(String.format("IcebergSink %s", table.name()))
           .setParallelism(1);
     }
   }

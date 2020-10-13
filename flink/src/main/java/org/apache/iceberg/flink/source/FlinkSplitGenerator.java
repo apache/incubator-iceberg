@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -32,21 +31,11 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class FlinkSplitGenerator {
-
-  private final Table table;
-  private final Schema projectedSchema;
-  private final ScanOptions options;
-  private final List<Expression> filterExpressions;
-
-  FlinkSplitGenerator(Table table, Schema projectedSchema, ScanOptions options, List<Expression> filterExpressions) {
-    this.table = table;
-    this.projectedSchema = projectedSchema;
-    this.options = options;
-    this.filterExpressions = filterExpressions;
+  private FlinkSplitGenerator() {
   }
 
-  FlinkInputSplit[] createInputSplits() {
-    List<CombinedScanTask> tasks = tasks();
+  static FlinkInputSplit[] createInputSplits(Table table, ScanContext context) {
+    List<CombinedScanTask> tasks = tasks(table, context);
     FlinkInputSplit[] splits = new FlinkInputSplit[tasks.size()];
     for (int i = 0; i < tasks.size(); i++) {
       splits[i] = new FlinkInputSplit(i, tasks.get(i));
@@ -54,42 +43,42 @@ class FlinkSplitGenerator {
     return splits;
   }
 
-  private List<CombinedScanTask> tasks() {
+  private static List<CombinedScanTask> tasks(Table table, ScanContext context) {
     TableScan scan = table
         .newScan()
-        .caseSensitive(options.caseSensitive())
-        .project(projectedSchema);
+        .caseSensitive(context.caseSensitive())
+        .project(context.projectedSchema());
 
-    if (options.snapshotId() != null) {
-      scan = scan.useSnapshot(options.snapshotId());
+    if (context.snapshotId() != null) {
+      scan = scan.useSnapshot(context.snapshotId());
     }
 
-    if (options.asOfTimestamp() != null) {
-      scan = scan.asOfTime(options.asOfTimestamp());
+    if (context.asOfTimestamp() != null) {
+      scan = scan.asOfTime(context.asOfTimestamp());
     }
 
-    if (options.startSnapshotId() != null) {
-      if (options.endSnapshotId() != null) {
-        scan = scan.appendsBetween(options.startSnapshotId(), options.endSnapshotId());
+    if (context.startSnapshotId() != null) {
+      if (context.endSnapshotId() != null) {
+        scan = scan.appendsBetween(context.startSnapshotId(), context.endSnapshotId());
       } else {
-        scan = scan.appendsAfter(options.startSnapshotId());
+        scan = scan.appendsAfter(context.startSnapshotId());
       }
     }
 
-    if (options.splitSize() != null) {
-      scan = scan.option(TableProperties.SPLIT_SIZE, options.splitSize().toString());
+    if (context.splitSize() != null) {
+      scan = scan.option(TableProperties.SPLIT_SIZE, context.splitSize().toString());
     }
 
-    if (options.splitLookback() != null) {
-      scan = scan.option(TableProperties.SPLIT_LOOKBACK, options.splitLookback().toString());
+    if (context.splitLookback() != null) {
+      scan = scan.option(TableProperties.SPLIT_LOOKBACK, context.splitLookback().toString());
     }
 
-    if (options.splitOpenFileCost() != null) {
-      scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, options.splitOpenFileCost().toString());
+    if (context.splitOpenFileCost() != null) {
+      scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
     }
 
-    if (filterExpressions != null) {
-      for (Expression filter : filterExpressions) {
+    if (context.filterExpressions() != null) {
+      for (Expression filter : context.filterExpressions()) {
         scan = scan.filter(filter);
       }
     }

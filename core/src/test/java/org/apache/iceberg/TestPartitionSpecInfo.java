@@ -44,12 +44,9 @@ public class TestPartitionSpecInfo {
       required(2, "data", Types.StringType.get()));
   private File tableDir = null;
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
-    };
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
   }
 
   private final int formatVersion;

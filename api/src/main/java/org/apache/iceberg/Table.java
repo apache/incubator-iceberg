@@ -31,6 +31,15 @@ import org.apache.iceberg.io.LocationProvider;
 public interface Table {
 
   /**
+   * Return the full name for this table.
+   *
+   * @return this table's name
+   */
+  default String name() {
+    return toString();
+  }
+
+  /**
    * Refresh the current table metadata.
    */
   void refresh();

@@ -46,7 +46,7 @@ abstract class BaseAction<R> implements Action<R> {
   protected abstract Table table();
 
   protected String metadataTableName(MetadataTableType type) {
-    return metadataTableName(table().toString(), type);
+    return metadataTableName(table().name(), type);
   }
 
   protected String metadataTableName(String tableName, MetadataTableType type) {
@@ -99,7 +99,7 @@ abstract class BaseAction<R> implements Action<R> {
   }
 
   protected Dataset<Row> buildValidDataFileDF(SparkSession spark) {
-    return buildValidDataFileDF(spark, table().toString());
+    return buildValidDataFileDF(spark, table().name());
   }
 
   protected Dataset<Row> buildValidDataFileDF(SparkSession spark, String tableName) {
@@ -128,7 +128,7 @@ abstract class BaseAction<R> implements Action<R> {
 
   protected Dataset<Row> buildManifestListDF(SparkSession spark, String metadataFileLocation) {
     StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, table().io());
-    return buildManifestListDF(spark, new BaseTable(ops, table().toString()));
+    return buildManifestListDF(spark, new BaseTable(ops, table().name()));
   }
 
   protected Dataset<Row> buildOtherMetadataFileDF(SparkSession spark, TableOperations ops) {
@@ -137,7 +137,7 @@ abstract class BaseAction<R> implements Action<R> {
   }
 
   protected Dataset<Row> buildValidMetadataFileDF(SparkSession spark, Table table, TableOperations ops) {
-    Dataset<Row> manifestDF = buildManifestFileDF(spark, table.toString());
+    Dataset<Row> manifestDF = buildManifestFileDF(spark, table.name());
     Dataset<Row> manifestListDF = buildManifestListDF(spark, table);
     Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(spark, ops);
 

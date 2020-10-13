@@ -491,6 +491,43 @@ public class TableMetadata implements Serializable {
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
+  public TableMetadata updateSortOrder(SortOrder newOrder) {
+    SortOrder.checkCompatibility(newOrder, schema);
+
+    // determine the next order id
+    int newOrderId = INITIAL_SORT_ORDER_ID;
+    for (SortOrder order : sortOrders) {
+      if (order.sameOrder(newOrder)) {
+        newOrderId = order.orderId();
+        break;
+      } else if (newOrderId <= order.orderId()) {
+        newOrderId = order.orderId() + 1;
+      }
+    }
+
+    if (newOrderId == defaultSortOrderId) {
+      return this;
+    }
+
+    ImmutableList.Builder<SortOrder> builder = ImmutableList.builder();
+    builder.addAll(sortOrders);
+
+    if (!sortOrdersById.containsKey(newOrderId)) {
+      if (newOrder.isUnsorted()) {
+        newOrderId = SortOrder.unsorted().orderId();
+        builder.add(SortOrder.unsorted());
+      } else {
+        // rebuild the sort order using new column ids
+        builder.add(freshSortOrder(newOrderId, schema, newOrder));
+      }
+    }
+
+    return new TableMetadata(null, formatVersion, uuid, location,
+        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
+        newOrderId, builder.build(), properties, currentSnapshotId, snapshots, snapshotLog,
+        addPreviousFile(file, lastUpdatedMillis));
+  }
+
   public TableMetadata addStagedSnapshot(Snapshot snapshot) {
     ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() > lastSequenceNumber,
         "Cannot add snapshot with sequence number %s older than last sequence number %s",

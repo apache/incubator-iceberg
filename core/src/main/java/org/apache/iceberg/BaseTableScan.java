@@ -44,7 +44,6 @@ import org.slf4j.LoggerFactory;
 /**
  * Base class for {@link TableScan} implementations.
  */
-@SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
 abstract class BaseTableScan implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(TableScan.class);
 
@@ -207,7 +206,7 @@ abstract class BaseTableScan implements TableScan {
           context.rowFilter());
 
       Listeners.notifyAll(
-          new ScanEvent(table.toString(), snapshot.snapshotId(), context.rowFilter(), schema()));
+          new ScanEvent(table.name(), snapshot.snapshotId(), context.rowFilter(), schema()));
 
       return planFiles(ops, snapshot,
           context.rowFilter(), context.ignoreResiduals(), context.caseSensitive(), context.returnColumnStats());

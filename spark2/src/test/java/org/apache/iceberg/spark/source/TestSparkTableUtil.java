@@ -134,12 +134,9 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     @Rule
     public TemporaryFolder temp = new TemporaryFolder();
 
-    @Parameterized.Parameters
-    public static Object[][] parameters() {
-      return new Object[][] {
-          new Object[] { "parquet" },
-          new Object[] { "orc" }
-      };
+    @Parameterized.Parameters(name = "format = {0}")
+    public static Object[] parameters() {
+      return new Object[] { "parquet", "orc" };
     }
 
     public TableImport(String format) {

@@ -112,7 +112,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   @Override
-  protected String name() {
+  public String name() {
     return name;
   }
 

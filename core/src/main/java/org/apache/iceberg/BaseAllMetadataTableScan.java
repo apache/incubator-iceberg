@@ -39,7 +39,7 @@ abstract class BaseAllMetadataTableScan extends BaseTableScan {
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
     LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
-    Listeners.notifyAll(new ScanEvent(table().toString(), 0L, filter(), schema()));
+    Listeners.notifyAll(new ScanEvent(table().name(), 0L, filter(), schema()));
 
     return planFiles(tableOps(), snapshot(), filter(), shouldIgnoreResiduals(), isCaseSensitive(), colStats());
   }

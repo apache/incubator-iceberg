@@ -22,6 +22,7 @@ package org.apache.iceberg.data;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -96,9 +97,11 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(Pair.of(dataFile.path(), 0L));
     deletes.add(Pair.of(dataFile.path(), 1L));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes);
+    Pair<DeleteFile, Set<CharSequence>> posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), deletes);
     table.newRowDelta()
-        .addDeletes(posDeletes)
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
         .commit();
 
     List<FileScanTask> tasks;
@@ -121,9 +124,11 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(Pair.of("some-other-file.parquet", 0L));
     deletes.add(Pair.of("some-other-file.parquet", 1L));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes);
+    Pair<DeleteFile, Set<CharSequence>> posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), deletes);
     table.newRowDelta()
-        .addDeletes(posDeletes)
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
         .commit();
 
     List<FileScanTask> tasks;

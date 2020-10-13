@@ -20,10 +20,6 @@
 package org.apache.iceberg.mr.hive;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
-import org.apache.hadoop.hive.metastore.IMetaStoreClient;
-import org.apache.hadoop.hive.metastore.api.Table;
-import org.apache.thrift.TException;
 import org.junit.rules.TemporaryFolder;
 
 public class TestHiveIcebergStorageHandlerWithHiveCatalog extends HiveIcebergStorageHandlerBaseTest {
@@ -36,20 +32,6 @@ public class TestHiveIcebergStorageHandlerWithHiveCatalog extends HiveIcebergSto
   @Override
   protected void createHiveTable(String tableName, String location) {
     // The Hive catalog has already created the Hive table so there's no need to issue another
-    // 'CREATE TABLE ...' statement. However, we still need to set up the storage handler properly,
-    // which can't be done directly using the Hive DDL so we resort to the HMS API.
-    try {
-      IMetaStoreClient client = new HiveMetaStoreClient(metastore.hiveConf());
-      Table table = client.getTable("default", tableName);
-
-      table.getParameters().put("storage_handler", HiveIcebergStorageHandler.class.getName());
-      table.getSd().getSerdeInfo().setSerializationLib(HiveIcebergSerDe.class.getName());
-      table.getSd().setInputFormat(null);
-      table.getSd().setOutputFormat(null);
-
-      client.alter_table("default", tableName, table);
-    } catch (TException te) {
-      throw new RuntimeException(te);
-    }
+    // 'CREATE TABLE ...' statement.
   }
 }

@@ -20,7 +20,10 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -53,6 +56,329 @@ public class TestRowDelta extends V2TableTestBase {
         ids(snap.snapshotId(), snap.snapshotId()),
         files(FILE_A_DELETES, FILE_B_DELETES),
         statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @Test
+  public void testValidateDataFilesExistDefaults() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    // test changes to the table back to the snapshot where FILE_A and FILE_B existed
+    long validateFromSnapshotId = table.currentSnapshot().snapshotId();
+
+    // overwrite FILE_A
+    table.newOverwrite()
+        .deleteFile(FILE_A)
+        .addFile(FILE_A2)
+        .commit();
+
+    // delete FILE_B
+    table.newDelete()
+        .deleteFile(FILE_B)
+        .commit();
+
+    long deleteSnapshotId = table.currentSnapshot().snapshotId();
+
+    AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A is missing",
+        ValidationException.class, "Cannot commit, missing data files",
+        () -> table.newRowDelta()
+            .addDeletes(FILE_A_DELETES)
+            .validateFromSnapshot(validateFromSnapshotId)
+            .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+            .commit());
+
+    Assert.assertEquals("Table state should not be modified by failed RowDelta operation",
+        deleteSnapshotId, table.currentSnapshot().snapshotId());
+
+    Assert.assertEquals("Table should not have any delete manifests",
+        0, table.currentSnapshot().deleteManifests().size());
+
+    table.newRowDelta()
+        .addDeletes(FILE_B_DELETES)
+        .validateDataFilesExist(ImmutableList.of(FILE_B.path()))
+        .validateFromSnapshot(validateFromSnapshotId)
+        .commit();
+
+    Assert.assertEquals("Table should have one new delete manifest",
+        1, table.currentSnapshot().deleteManifests().size());
+    ManifestFile deletes = table.currentSnapshot().deleteManifests().get(0);
+    validateDeleteManifest(deletes,
+        seqs(4),
+        ids(table.currentSnapshot().snapshotId()),
+        files(FILE_B_DELETES),
+        statuses(Status.ADDED));
+  }
+
+  @Test
+  public void testValidateDataFilesExistOverwrite() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    // test changes to the table back to the snapshot where FILE_A and FILE_B existed
+    long validateFromSnapshotId = table.currentSnapshot().snapshotId();
+
+    // overwrite FILE_A
+    table.newOverwrite()
+        .deleteFile(FILE_A)
+        .addFile(FILE_A2)
+        .commit();
+
+    long deleteSnapshotId = table.currentSnapshot().snapshotId();
+
+    AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A is missing",
+        ValidationException.class, "Cannot commit, missing data files",
+        () -> table.newRowDelta()
+            .addDeletes(FILE_A_DELETES)
+            .validateFromSnapshot(validateFromSnapshotId)
+            .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+            .commit());
+
+    Assert.assertEquals("Table state should not be modified by failed RowDelta operation",
+        deleteSnapshotId, table.currentSnapshot().snapshotId());
+
+    Assert.assertEquals("Table should not have any delete manifests",
+        0, table.currentSnapshot().deleteManifests().size());
+  }
+
+  @Test
+  public void testValidateDataFilesExistReplacePartitions() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    // test changes to the table back to the snapshot where FILE_A and FILE_B existed
+    long validateFromSnapshotId = table.currentSnapshot().snapshotId();
+
+    // overwrite FILE_A's partition
+    table.newReplacePartitions()
+        .addFile(FILE_A2)
+        .commit();
+
+    long deleteSnapshotId = table.currentSnapshot().snapshotId();
+
+    AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A is missing",
+        ValidationException.class, "Cannot commit, missing data files",
+        () -> table.newRowDelta()
+            .addDeletes(FILE_A_DELETES)
+            .validateFromSnapshot(validateFromSnapshotId)
+            .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+            .commit());
+
+    Assert.assertEquals("Table state should not be modified by failed RowDelta operation",
+        deleteSnapshotId, table.currentSnapshot().snapshotId());
+
+    Assert.assertEquals("Table should not have any delete manifests",
+        0, table.currentSnapshot().deleteManifests().size());
+  }
+
+  @Test
+  public void testValidateDataFilesExistFromSnapshot() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    long appendSnapshotId = table.currentSnapshot().snapshotId();
+
+    // overwrite FILE_A's partition
+    table.newReplacePartitions()
+        .addFile(FILE_A2)
+        .commit();
+
+    // test changes to the table back to the snapshot where FILE_A was overwritten
+    long validateFromSnapshotId = table.currentSnapshot().snapshotId();
+    long replaceSnapshotId = table.currentSnapshot().snapshotId();
+
+    // even though FILE_A was deleted, it happened before the "from" snapshot, so the validation allows it
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(validateFromSnapshotId)
+        .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+        .commit();
+
+    Snapshot snap = table.currentSnapshot();
+    Assert.assertEquals("Commit should produce sequence number 2", 3, snap.sequenceNumber());
+    Assert.assertEquals("Last sequence number should be 3", 3, table.ops().current().lastSequenceNumber());
+
+    Assert.assertEquals("Should have 2 data manifests", 2, snap.dataManifests().size());
+    // manifest with FILE_A2 added
+    validateManifest(
+        snap.dataManifests().get(0),
+        seqs(2),
+        ids(replaceSnapshotId),
+        files(FILE_A2),
+        statuses(Status.ADDED));
+
+    // manifest with FILE_A deleted
+    validateManifest(
+        snap.dataManifests().get(1),
+        seqs(2, 1),
+        ids(replaceSnapshotId, appendSnapshotId),
+        files(FILE_A, FILE_B),
+        statuses(Status.DELETED, Status.EXISTING));
+
+    Assert.assertEquals("Should have 1 delete manifest", 1, snap.deleteManifests().size());
+    validateDeleteManifest(
+        snap.deleteManifests().get(0),
+        seqs(3),
+        ids(snap.snapshotId()),
+        files(FILE_A_DELETES),
+        statuses(Status.ADDED));
+  }
+
+  @Test
+  public void testValidateDataFilesExistRewrite() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    // test changes to the table back to the snapshot where FILE_A and FILE_B existed
+    long validateFromSnapshotId = table.currentSnapshot().snapshotId();
+
+    // rewrite FILE_A
+    table.newRewrite()
+        .rewriteFiles(Sets.newHashSet(FILE_A), Sets.newHashSet(FILE_A2))
+        .commit();
+
+    long deleteSnapshotId = table.currentSnapshot().snapshotId();
+
+    AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A is missing",
+        ValidationException.class, "Cannot commit, missing data files",
+        () -> table.newRowDelta()
+            .addDeletes(FILE_A_DELETES)
+            .validateFromSnapshot(validateFromSnapshotId)
+            .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+            .commit());
+
+    Assert.assertEquals("Table state should not be modified by failed RowDelta operation",
+        deleteSnapshotId, table.currentSnapshot().snapshotId());
+
+    Assert.assertEquals("Table should not have any delete manifests",
+        0, table.currentSnapshot().deleteManifests().size());
+  }
+
+  @Test
+  public void testValidateDataFilesExistValidateDeletes() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    // test changes to the table back to the snapshot where FILE_A and FILE_B existed
+    long validateFromSnapshotId = table.currentSnapshot().snapshotId();
+
+    // delete FILE_A
+    table.newDelete()
+        .deleteFile(FILE_A)
+        .commit();
+
+    long deleteSnapshotId = table.currentSnapshot().snapshotId();
+
+    AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A is missing",
+        ValidationException.class, "Cannot commit, missing data files",
+        () -> table.newRowDelta()
+            .addDeletes(FILE_A_DELETES)
+            .validateDeletedFiles()
+            .validateFromSnapshot(validateFromSnapshotId)
+            .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+            .commit());
+
+    Assert.assertEquals("Table state should not be modified by failed RowDelta operation",
+        deleteSnapshotId, table.currentSnapshot().snapshotId());
+
+    Assert.assertEquals("Table should not have any delete manifests",
+        0, table.currentSnapshot().deleteManifests().size());
+  }
+
+  @Test
+  public void testValidateNoConflicts() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    // test changes to the table back to the snapshot where FILE_A and FILE_B existed
+    long validateFromSnapshotId = table.currentSnapshot().snapshotId();
+
+    // delete FILE_A
+    table.newAppend()
+        .appendFile(FILE_A2)
+        .commit();
+
+    long appendSnapshotId = table.currentSnapshot().snapshotId();
+
+    AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A2 was added",
+        ValidationException.class, "Found conflicting files",
+        () -> table.newRowDelta()
+            .addDeletes(FILE_A_DELETES)
+            .validateFromSnapshot(validateFromSnapshotId)
+            .validateNoConflictingAppends(Expressions.equal("data", "u")) // bucket16("u") -> 0
+            .commit());
+
+    Assert.assertEquals("Table state should not be modified by failed RowDelta operation",
+        appendSnapshotId, table.currentSnapshot().snapshotId());
+
+    Assert.assertEquals("Table should not have any delete manifests",
+        0, table.currentSnapshot().deleteManifests().size());
+  }
+
+  @Test
+  public void testValidateNoConflictsFromSnapshot() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    long appendSnapshotId = table.currentSnapshot().snapshotId();
+
+    // delete FILE_A
+    table.newAppend()
+        .appendFile(FILE_A2)
+        .commit();
+
+    // even though FILE_A2 was added, it happened before the "from" snapshot, so the validation allows it
+    long validateFromSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateDeletedFiles()
+        .validateFromSnapshot(validateFromSnapshotId)
+        .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+        .validateNoConflictingAppends(Expressions.equal("data", "u")) // bucket16("u") -> 0
+        .commit();
+
+    Snapshot snap = table.currentSnapshot();
+    Assert.assertEquals("Commit should produce sequence number 2", 3, snap.sequenceNumber());
+    Assert.assertEquals("Last sequence number should be 3", 3, table.ops().current().lastSequenceNumber());
+
+    Assert.assertEquals("Should have 2 data manifests", 2, snap.dataManifests().size());
+    // manifest with FILE_A2 added
+    validateManifest(
+        snap.dataManifests().get(0),
+        seqs(2),
+        ids(validateFromSnapshotId),
+        files(FILE_A2),
+        statuses(Status.ADDED));
+
+    // manifest with FILE_A added
+    validateManifest(
+        snap.dataManifests().get(1),
+        seqs(1),
+        ids(appendSnapshotId),
+        files(FILE_A),
+        statuses(Status.ADDED));
+
+    Assert.assertEquals("Should have 1 delete manifest", 1, snap.deleteManifests().size());
+    validateDeleteManifest(
+        snap.deleteManifests().get(0),
+        seqs(3),
+        ids(snap.snapshotId()),
+        files(FILE_A_DELETES),
+        statuses(Status.ADDED));
   }
 
   @Test

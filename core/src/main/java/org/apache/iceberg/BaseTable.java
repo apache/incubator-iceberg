@@ -45,6 +45,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public String name() {
+    return name;
+  }
+
+  @Override
   public void refresh() {
     ops.refresh();
   }
@@ -201,6 +206,6 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public String toString() {
-    return name;
+    return name();
   }
 }

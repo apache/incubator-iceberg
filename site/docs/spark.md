@@ -45,6 +45,7 @@ This creates an Iceberg catalog named `hive_prod` that loads tables from a Hive 
 spark.sql.catalog.hive_prod = org.apache.iceberg.spark.SparkCatalog
 spark.sql.catalog.hive_prod.type = hive
 spark.sql.catalog.hive_prod.uri = thrift://metastore-host:port
+# omit uri to use the same URI as Spark: hive.metastore.uris in hive-site.xml
 ```
 
 Iceberg also supports a directory-based catalog in HDFS that can be configured using `type=hadoop`:
@@ -82,7 +83,6 @@ To add Iceberg table support to Spark's built-in catalog, configure `spark_catal
 ```plain
 spark.sql.catalog.spark_catalog = org.apache.iceberg.spark.SparkSessionCatalog
 spark.sql.catalog.spark_catalog.type = hive
-# omit uri to use the same URI as Spark: hive.metastore.uris in hive-site.xml
 ```
 
 Spark's built-in catalog supports existing v1 and v2 tables tracked in a Hive Metastore. This configures Spark to use Iceberg's `SparkSessionCatalog` as a wrapper around that session catalog. When a table is not an Iceberg table, the built-in catalog will be used to load it instead.
@@ -519,6 +519,97 @@ data.writeTo("prod.db.table")
     .createOrReplace()
 ```
 
+## Writing against partitioned table
+
+Iceberg requires the data to be sorted according to the partition spec per task (Spark partition) in prior to write
+against partitioned table. This applies both Writing with SQL and Writing with DataFrames.
+
+!!! Note
+    Explicit sort is necessary because Spark doesn't allow Iceberg to request a sort before writing as of Spark 3.0.
+    [SPARK-23889](https://issues.apache.org/jira/browse/SPARK-23889) is filed to enable Iceberg to require specific
+    distribution & sort order to Spark.
+
+!!! Note
+    Both global sort (`orderBy`/`sort`) and local sort (`sortWithinPartitions`) work for the requirement.
+
+Let's go through writing the data against below sample table:
+
+```sql
+CREATE TABLE prod.db.sample (
+    id bigint,
+    data string,
+    category string,
+    ts timestamp)
+USING iceberg
+PARTITIONED BY (days(ts), category)
+```
+
+To write data to the sample table, your data needs to be sorted by `days(ts), category`.
+
+If you're inserting data with SQL statement, you can use `ORDER BY` to achieve it, like below:
+
+```sql
+INSERT INTO prod.db.sample
+SELECT id, data, category, ts FROM another_table
+ORDER BY ts, category
+```
+
+If you're inserting data with DataFrame, you can use either `orderBy`/`sort` to trigger global sort, or `sortWithinPartitions`
+to trigger local sort. Local sort for example:
+
+```scala
+data.sortWithinPartitions("ts", "category")
+    .writeTo("prod.db.sample")
+    .append()
+```
+
+You can simply add the original column to the sort condition for the most partition transformations, except `bucket`.
+
+For `bucket` partition transformation, you need to register the Iceberg transform function in Spark to specify it during sort.
+
+Let's go through another sample table having bucket partition:
+
+```sql
+CREATE TABLE prod.db.sample (
+    id bigint,
+    data string,
+    category string,
+    ts timestamp)
+USING iceberg
+PARTITIONED BY (bucket(16, id))
+```
+
+You need to register the function to deal with bucket, like below:
+
+```scala
+import org.apache.iceberg.spark.IcebergSpark
+import org.apache.spark.sql.types.DataTypes
+
+IcebergSpark.registerBucketUDF(spark, "iceberg_bucket16", DataTypes.LongType, 16)
+```
+
+!!! Note
+    Explicit registration of the function is necessary because Spark doesn't allow Iceberg to provide functions.
+    [SPARK-27658](https://issues.apache.org/jira/browse/SPARK-27658) is filed to enable Iceberg to provide functions
+    which can be used in query.
+
+Here we just registered the bucket function as `iceberg_bucket16`, which can be used in sort clause.
+
+If you're inserting data with SQL statement, you can use the function like below:
+
+```sql
+INSERT INTO prod.db.sample
+SELECT id, data, category, ts FROM another_table
+ORDER BY iceberg_bucket16(id)
+```
+
+If you're inserting data with DataFrame, you can use the function like below:
+
+```scala
+data.sortWithinPartitions(expr("iceberg_bucket16(id)"))
+    .writeTo("prod.db.sample")
+    .append()
+```
 
 ## Inspecting tables
 

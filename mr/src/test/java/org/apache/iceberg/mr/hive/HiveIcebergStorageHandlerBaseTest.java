@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -37,8 +38,10 @@ import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -48,6 +51,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(StandaloneHiveRunner.class)
 public abstract class HiveIcebergStorageHandlerBaseTest {
+
+  private static final String DEFAULT_DATABASE_NAME = "default";
 
   @HiveSQL(files = {}, autoStart = false)
   private HiveShell shell;
@@ -79,16 +84,30 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
 
-  // before variables
-  protected TestHiveMetastore metastore;
+  protected static TestHiveMetastore metastore;
+
   private TestTables testTables;
 
   public abstract TestTables testTables(Configuration conf, TemporaryFolder tmp) throws IOException;
 
-  @Before
-  public void before() throws IOException {
+
+  @BeforeClass
+  public static void beforeClass() {
     metastore = new TestHiveMetastore();
     metastore.start();
+  }
+
+  @AfterClass
+  public static void afterClass() {
+    metastore.stop();
+    metastore = null;
+  }
+
+  @Before
+  public void before() throws IOException {
+    String metastoreUris = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS);
+    // in Hive3, setting this as a system prop ensures that it will be picked up whenever a new HiveConf is created
+    System.setProperty(HiveConf.ConfVars.METASTOREURIS.varname, metastoreUris);
 
     testTables = testTables(metastore.hiveConf(), temp);
 
@@ -96,9 +115,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       shell.setHiveConfValue(property.getKey(), property.getValue());
     }
 
-    String metastoreUris = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS);
     shell.setHiveConfValue(HiveConf.ConfVars.METASTOREURIS.varname, metastoreUris);
-
     String metastoreWarehouse = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE);
     shell.setHiveConfValue(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, metastoreWarehouse);
 
@@ -106,23 +123,80 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @After
-  public void after() {
-    metastore.stop();
-    metastore = null;
+  public void after() throws Exception {
+    Hive db = Hive.get(metastore.hiveConf());
+    for (String dbName : db.getAllDatabases()) {
+      for (String tblName : db.getAllTables(dbName)) {
+        db.dropTable(dbName, tblName);
+      }
+      if (!DEFAULT_DATABASE_NAME.equals(dbName)) {
+        // Drop cascade, functions dropped by cascade
+        db.dropDatabase(dbName, true, true, true);
+      }
+    }
+  }
+
+  // PARQUET
+
+  @Test
+  public void testScanEmptyTableParquet() throws IOException {
+    testScanEmptyTable(FileFormat.PARQUET);
   }
 
   @Test
-  public void testScanEmptyTable() throws IOException {
+  public void testScanTableParquet() throws IOException {
+    testScanTable(FileFormat.PARQUET);
+  }
+
+  @Test
+  public void testJoinTablesParquet() throws IOException {
+    testJoinTables(FileFormat.PARQUET);
+  }
+
+  // ORC
+
+  @Test
+  public void testScanEmptyTableORC() throws IOException {
+    testScanEmptyTable(FileFormat.ORC);
+  }
+
+  @Test
+  public void testScanTableORC() throws IOException {
+    testScanTable(FileFormat.ORC);
+  }
+
+  @Test
+  public void testJoinTablesORC() throws IOException {
+    testJoinTables(FileFormat.ORC);
+  }
+
+  // AVRO
+
+  @Test
+  public void testScanEmptyTableAvro() throws IOException {
+    testScanEmptyTable(FileFormat.AVRO);
+  }
+
+  @Test
+  public void testScanTableAvro() throws IOException {
+    testScanTable(FileFormat.AVRO);
+  }
+
+  @Test
+  public void testJoinTablesAvro() throws IOException {
+    testJoinTables(FileFormat.AVRO);
+  }
+
+  public void testScanEmptyTable(FileFormat format) throws IOException {
     Schema emptySchema = new Schema(required(1, "empty", Types.StringType.get()));
-    createTable("empty", emptySchema, ImmutableList.of());
+    createTable("empty", emptySchema, format, ImmutableList.of());
 
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.empty");
     Assert.assertEquals(0, rows.size());
   }
 
-  @Test
-  public void testScanTable() throws IOException {
-    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
+  public void testScanTable(FileFormat format) throws IOException {
+    createTable("customers", CUSTOMER_SCHEMA, format, CUSTOMER_RECORDS);
 
     // Single fetch task: no MR job.
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
@@ -141,10 +215,9 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertArrayEquals(new Object[] {0L, "Alice"}, descRows.get(2));
   }
 
-  @Test
-  public void testJoinTables() throws IOException {
-    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
-    createTable("orders", ORDER_SCHEMA, ORDER_RECORDS);
+  public void testJoinTables(FileFormat format) throws IOException {
+    createTable("customers", CUSTOMER_SCHEMA, format, CUSTOMER_RECORDS);
+    createTable("orders", ORDER_SCHEMA, format, ORDER_RECORDS);
 
     List<Object[]> rows = shell.executeStatement(
             "SELECT c.customer_id, c.first_name, o.order_id, o.total " +
@@ -157,17 +230,17 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertArrayEquals(new Object[] {1L, "Bob", 102L, 33.33d}, rows.get(2));
   }
 
-  protected void createTable(String tableName, Schema schema, List<Record> records)
+  protected void createTable(String tableName, Schema schema, FileFormat format, List<Record> records)
           throws IOException {
-    Table table = createIcebergTable(tableName, schema, records);
+    Table table = createIcebergTable(tableName, schema, format, records);
     createHiveTable(tableName, table.location());
   }
 
-  protected Table createIcebergTable(String tableName, Schema schema, List<Record> records)
+  protected Table createIcebergTable(String tableName, Schema schema, FileFormat format, List<Record> records)
           throws IOException {
     String identifier = testTables.identifier("default." + tableName);
     TestHelper helper = new TestHelper(
-            metastore.hiveConf(), testTables.tables(), identifier, schema, SPEC, FileFormat.PARQUET, temp);
+            metastore.hiveConf(), testTables.tables(), identifier, schema, SPEC, format, temp);
     Table table = helper.createTable();
 
     if (!records.isEmpty()) {

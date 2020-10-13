@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.util.Map;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
@@ -36,7 +37,29 @@ public class LocationProviders {
   }
 
   public static LocationProvider locationsFor(String location, Map<String, String> properties) {
-    if (PropertyUtil.propertyAsBoolean(properties,
+    if (properties.containsKey(TableProperties.WRITE_LOCATION_PROVIDER_IMPL)) {
+      String impl = properties.get(TableProperties.WRITE_LOCATION_PROVIDER_IMPL);
+      DynConstructors.Ctor<LocationProvider> ctor;
+      try {
+        ctor = DynConstructors.builder(LocationProvider.class)
+            .impl(impl, String.class, Map.class)
+            .impl(impl).buildChecked(); // fall back to no-arg constructor
+      } catch (NoSuchMethodException e) {
+        throw new IllegalArgumentException(String.format(
+            "Unable to find a constructor for implementation %s of %s. " +
+                "Make sure the implementation is in classpath, and that it either " +
+                "has a public no-arg constructor or a two-arg constructor " +
+                "taking in the string base table location and its property string map.",
+            impl, LocationProvider.class), e);
+      }
+      try {
+        return ctor.newInstance(location, properties);
+      } catch (ClassCastException e) {
+        throw new IllegalArgumentException(
+            String.format("Provided implementation for dynamic instantiation should implement %s.",
+                LocationProvider.class), e);
+      }
+    } else if (PropertyUtil.propertyAsBoolean(properties,
         TableProperties.OBJECT_STORE_ENABLED,
         TableProperties.OBJECT_STORE_ENABLED_DEFAULT)) {
       return new ObjectStoreLocationProvider(location, properties);

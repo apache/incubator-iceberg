@@ -139,6 +139,21 @@ public class TestHadoopTables {
     Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
   }
 
+  @Test
+  public void testTableName() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+        .bucket("data", 16)
+        .build();
+    String location = tableDir.toURI().toString();
+    TABLES.create(SCHEMA, spec, location);
+
+    Table table = TABLES.load(location);
+    Assert.assertEquals("Name must match", location, table.name());
+
+    Table snapshotsTable = TABLES.load(location + "#snapshots");
+    Assert.assertEquals("Name must match", location + "#snapshots", snapshotsTable.name());
+  }
+
   private static void createDummyTable(File tableDir, File dataDir) throws IOException {
     Table table = TABLES.create(SCHEMA, tableDir.toURI().toString());
     AppendFiles append = table.newAppend();

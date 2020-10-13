@@ -105,12 +105,12 @@ public class TestSparkParquetReadMetadataColumns {
     }
   }
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { false },
-        // new Object[] { true }
-    };
+  @Parameterized.Parameters(name =  "vectorized = {0}")
+  // Vectorized parquet reads not currently supported for reads on tables
+  // with row position stored in the metadata column.
+  // https://github.com/apache/iceberg/issues/1540
+  public static Object[] parameters() {
+    return new Object[] { false };
   }
 
   @Rule

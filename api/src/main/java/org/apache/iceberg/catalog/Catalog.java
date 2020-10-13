@@ -36,6 +36,15 @@ import org.apache.iceberg.exceptions.NotFoundException;
 public interface Catalog {
 
   /**
+   * Return the name for this catalog.
+   *
+   * @return this catalog's name
+   */
+  default String name() {
+    return toString();
+  }
+
+  /**
    * Return all the identifiers under this namespace.
    *
    * @param namespace a namespace

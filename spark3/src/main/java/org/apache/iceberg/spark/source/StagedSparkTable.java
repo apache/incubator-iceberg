@@ -26,7 +26,7 @@ public class StagedSparkTable extends SparkTable implements StagedTable {
   private final Transaction transaction;
 
   public StagedSparkTable(Transaction transaction) {
-    super(transaction.table());
+    super(transaction.table(), false);
     this.transaction = transaction;
   }
 

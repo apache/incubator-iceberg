@@ -56,6 +56,11 @@ public class CachingCatalog implements Catalog {
   }
 
   @Override
+  public String name() {
+    return catalog.name();
+  }
+
+  @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
     return catalog.listTables(namespace);
   }
@@ -78,7 +83,9 @@ public class CachingCatalog implements Catalog {
         TableOperations ops = ((HasTableOperations) originTable).operations();
         MetadataTableType type = MetadataTableType.from(canonicalized.name());
 
-        Table metadataTable = MetadataTableUtils.createMetadataTableInstance(ops, originTableIdentifier, type);
+        Table metadataTable = MetadataTableUtils.createMetadataTableInstance(
+            ops, catalog.name(), originTableIdentifier,
+            canonicalized, type);
         tableCache.put(canonicalized, metadataTable);
         return metadataTable;
       }

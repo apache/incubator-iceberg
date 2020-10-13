@@ -23,10 +23,19 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
 
 public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
+
+  // use appropriate ctor depending on whether we're working with Hive2 or Hive3 dependencies
+  // we need to do this because there is a breaking API change between Hive2 and Hive3
+  private static final DynConstructors.Ctor<HiveMetaStoreClient> CLIENT_CTOR = DynConstructors.builder()
+          .impl(HiveMetaStoreClient.class, HiveConf.class)
+          .impl(HiveMetaStoreClient.class, Configuration.class)
+          .build();
+
   private final HiveConf hiveConf;
 
   HiveClientPool(Configuration conf) {
@@ -41,7 +50,15 @@ public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> 
   @Override
   protected HiveMetaStoreClient newClient()  {
     try {
-      return new HiveMetaStoreClient(hiveConf);
+      try {
+        return CLIENT_CTOR.newInstance(hiveConf);
+      } catch (RuntimeException e) {
+        // any MetaException would be wrapped into RuntimeException during reflection, so let's double-check type here
+        if (e.getCause() instanceof MetaException) {
+          throw (MetaException) e.getCause();
+        }
+        throw e;
+      }
     } catch (MetaException e) {
       throw new RuntimeMetaException(e, "Failed to connect to Hive Metastore");
     } catch (Throwable t) {

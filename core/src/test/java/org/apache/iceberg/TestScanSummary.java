@@ -37,12 +37,9 @@ import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 
 @RunWith(Parameterized.class)
 public class TestScanSummary extends TableTestBase {
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
-    };
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
   }
 
   public TestScanSummary(int formatVersion) {

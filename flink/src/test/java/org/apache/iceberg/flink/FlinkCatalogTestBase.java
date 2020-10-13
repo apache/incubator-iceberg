@@ -64,7 +64,10 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     }
   }
 
-  @Parameterized.Parameters
+  @Parameterized.Parameters(name = "catalogName = {0} baseNamespace = {1}")
+  // baseNamespace comes out as a String[] memory reference due to lack
+  // of a meaningful toString method. We should convert baseNamespace to
+  // use Namespace instead: https://github.com/apache/iceberg/issues/1541
   public static Iterable<Object[]> parameters() {
     return Lists.newArrayList(
         new Object[] {"testhive", new String[0]},

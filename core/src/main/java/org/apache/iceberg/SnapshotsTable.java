@@ -40,10 +40,16 @@ public class SnapshotsTable extends BaseMetadataTable {
 
   private final TableOperations ops;
   private final Table table;
+  private final String name;
 
-  public SnapshotsTable(TableOperations ops, Table table) {
+  SnapshotsTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".snapshots");
+  }
+
+  SnapshotsTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
+    this.name = name;
   }
 
   @Override
@@ -52,8 +58,8 @@ public class SnapshotsTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "snapshots";
+  public String name() {
+    return name;
   }
 
   @Override

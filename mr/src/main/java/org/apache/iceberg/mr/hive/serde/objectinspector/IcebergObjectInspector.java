@@ -27,11 +27,32 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectInspector> {
+
+  // get the correct inspectors depending on whether we're working with Hive2 or Hive3 dependencies
+  // we need to do this because there is a breaking API change in Date/TimestampObjectInspector between Hive2 and Hive3
+  private static final ObjectInspector DATE_INSPECTOR = DynMethods.builder("get")
+      .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3")
+      .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector")
+      .buildStatic()
+      .invoke();
+
+  private static final ObjectInspector TIMESTAMP_INSPECTOR = DynMethods.builder("get")
+      .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3", boolean.class)
+      .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspector", boolean.class)
+      .buildStatic()
+      .invoke(false);
+
+  private static final ObjectInspector TIMESTAMP_INSPECTOR_WITH_TZ = DynMethods.builder("get")
+      .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3", boolean.class)
+      .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspector", boolean.class)
+      .buildStatic()
+      .invoke(true);
 
   public static ObjectInspector create(@Nullable Schema schema) {
     if (schema == null) {
@@ -72,7 +93,7 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
         primitiveTypeInfo = TypeInfoFactory.booleanTypeInfo;
         break;
       case DATE:
-        return IcebergDateObjectInspector.get();
+        return DATE_INSPECTOR;
       case DECIMAL:
         Types.DecimalType type = (Types.DecimalType) primitiveType;
         return IcebergDecimalObjectInspector.get(type.precision(), type.scale());
@@ -96,7 +117,7 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
         break;
       case TIMESTAMP:
         boolean adjustToUTC = ((Types.TimestampType) primitiveType).shouldAdjustToUTC();
-        return IcebergTimestampObjectInspector.get(adjustToUTC);
+        return adjustToUTC ? TIMESTAMP_INSPECTOR_WITH_TZ : TIMESTAMP_INSPECTOR;
 
       case TIME:
       default:

@@ -75,12 +75,9 @@ public abstract class TestParquetScan extends AvroDataTest {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { false },
-        new Object[] { true },
-    };
+  @Parameterized.Parameters(name = "vectorized = {0}")
+  public static Object[] parameters() {
+    return new Object[] { false, true };
   }
 
   private final boolean vectorized;

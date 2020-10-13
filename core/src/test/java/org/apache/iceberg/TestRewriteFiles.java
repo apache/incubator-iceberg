@@ -35,12 +35,9 @@ import static org.apache.iceberg.ManifestEntry.Status.EXISTING;
 
 @RunWith(Parameterized.class)
 public class TestRewriteFiles extends TableTestBase {
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
-    };
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
   }
 
   public TestRewriteFiles(int formatVersion) {

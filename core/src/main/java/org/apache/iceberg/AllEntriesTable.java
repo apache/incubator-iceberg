@@ -42,10 +42,16 @@ import org.apache.iceberg.util.ThreadPools;
 public class AllEntriesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
+  private final String name;
 
-  public AllEntriesTable(TableOperations ops, Table table) {
+  AllEntriesTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".all_entries");
+  }
+
+  AllEntriesTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
+    this.name = name;
   }
 
   @Override
@@ -54,8 +60,8 @@ public class AllEntriesTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "all_entries";
+  public String name() {
+    return name;
   }
 
   @Override
@@ -115,7 +121,8 @@ public class AllEntriesTable extends BaseMetadataTable {
 
   private static CloseableIterable<ManifestFile> allManifestFiles(List<Snapshot> snapshots) {
     try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
-        Iterables.transform(snapshots, Snapshot::allManifests), ThreadPools.getWorkerPool())) {
+        Iterables.transform(snapshots, snapshot -> (Iterable<ManifestFile>) () -> snapshot.allManifests().iterator()),
+        ThreadPools.getWorkerPool())) {
       return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close parallel iterable");

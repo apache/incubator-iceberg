@@ -80,13 +80,9 @@ public class TestLocalScan {
   @Rule
   public final TemporaryFolder temp = new TemporaryFolder();
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { "parquet" },
-        new Object[] { "orc" },
-        new Object[] { "avro" }
-    };
+  @Parameterized.Parameters(name = "format = {0}")
+  public static Object[] parameters() {
+    return new Object[] { "parquet", "orc", "avro" };
   }
 
   private final FileFormat format;

@@ -46,7 +46,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
   private final FileFormat format;
   private final boolean isStreamingJob;
 
-  @Parameterized.Parameters(name = "{index}: catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}")
+  @Parameterized.Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}")
   public static Iterable<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format : new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {

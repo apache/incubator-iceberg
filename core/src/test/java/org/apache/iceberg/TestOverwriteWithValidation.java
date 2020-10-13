@@ -119,12 +119,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
       greaterThanOrEqual("id", 5L),
       lessThanOrEqual("id", 9L));
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
-    };
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
   }
 
   public TestOverwriteWithValidation(int formatVersion) {
@@ -276,7 +273,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     long committedSnapshotId = table.currentSnapshot().snapshotId();
 
     AssertHelpers.assertThrows("Should reject commit",
-        ValidationException.class, "A file was appended",
+        ValidationException.class, "Found conflicting files",
         overwrite::commit);
 
     Assert.assertEquals("Should not create a new snapshot",
@@ -349,7 +346,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     long committedSnapshotId = table.currentSnapshot().snapshotId();
 
     AssertHelpers.assertThrows("Should reject commit",
-        ValidationException.class, "A file was appended",
+        ValidationException.class, "Found conflicting files",
         overwrite::commit);
 
     Assert.assertEquals("Should not create a new snapshot",
@@ -385,7 +382,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
   }
 
   @Test
-  public void testOverwriteIncompatibleRewriteValidated() {
+  public void testOverwriteCompatibleRewriteAllowed() {
     table.newAppend()
         .appendFile(FILE_DAY_1)
         .appendFile(FILE_DAY_2)
@@ -404,12 +401,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
         .commit();
     long committedSnapshotId = table.currentSnapshot().snapshotId();
 
-    AssertHelpers.assertThrows("Should reject commit",
-        ValidationException.class, "A file was appended",
-        overwrite::commit);
+    overwrite.commit();
 
-    Assert.assertEquals("Should not create a new snapshot",
-        committedSnapshotId, table.currentSnapshot().snapshotId());
+    Assert.assertNotEquals("Should successfully commit", committedSnapshotId, table.currentSnapshot().snapshotId());
   }
 
   @Test
@@ -611,7 +605,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     overwrite.commit();
 
     AssertHelpers.assertThrows("Should reject commit",
-        ValidationException.class, "A file was appended",
+        ValidationException.class, "Found conflicting files",
         txn::commitTransaction);
 
     Assert.assertEquals("Should not create a new snapshot",

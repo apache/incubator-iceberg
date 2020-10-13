@@ -67,4 +67,22 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     Assert.assertEquals(filesMetaTable2.currentSnapshot(), table.currentSnapshot());
     Assert.assertEquals(manifestsMetaTable2.currentSnapshot(), table.currentSnapshot());
   }
+
+  @Test
+  public void testTableName() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+
+    HadoopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
+    Catalog catalog = CachingCatalog.wrap(hadoopCatalog);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
+
+    Table table = catalog.loadTable(tableIdent);
+    Assert.assertEquals("Name must match", "hadoop.db.ns1.ns2.tbl", table.name());
+
+    TableIdentifier snapshotsTableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl", "snapshots");
+    Table snapshotsTable = catalog.loadTable(snapshotsTableIdent);
+    Assert.assertEquals("Name must match", "hadoop.db.ns1.ns2.tbl.snapshots", snapshotsTable.name());
+  }
 }

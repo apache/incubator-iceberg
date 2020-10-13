@@ -46,11 +46,17 @@ public class ManifestsTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
   private final PartitionSpec spec;
+  private final String name;
 
-  public ManifestsTable(TableOperations ops, Table table) {
+  ManifestsTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".manifests");
+  }
+
+  ManifestsTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
     this.spec = table.spec();
+    this.name = name;
   }
 
   @Override
@@ -59,8 +65,8 @@ public class ManifestsTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "manifests";
+  public String name() {
+    return name;
   }
 
   @Override

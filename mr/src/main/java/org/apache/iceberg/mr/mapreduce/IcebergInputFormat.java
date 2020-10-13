@@ -46,16 +46,20 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.data.GenericDeleteFilter;
 import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -129,7 +133,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           // TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
           checkResiduals(task);
         }
-        splits.add(new IcebergSplit(conf, task));
+        splits.add(new IcebergSplit(conf, task, table.io(), table.encryption()));
       });
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
@@ -165,6 +169,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private Iterator<FileScanTask> tasks;
     private T currentRow;
     private CloseableIterator<T> currentIterator;
+    private FileIO io;
+    private EncryptionManager encryptionManager;
 
     @Override
     public void initialize(InputSplit split, TaskAttemptContext newContext) {
@@ -172,6 +178,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       // For now IcebergInputFormat does its own split planning and does not accept FileSplit instances
       CombinedScanTask task = ((IcebergSplit) split).task();
       this.context = newContext;
+      this.io = ((IcebergSplit) split).io();
+      this.encryptionManager = ((IcebergSplit) split).encryptionManager();
       this.tasks = task.files().iterator();
       this.tableSchema = SchemaParser.fromJson(conf.get(InputFormatConfig.TABLE_SCHEMA));
       String readSchemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
@@ -225,10 +233,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       currentIterator.close();
     }
 
-    private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
+    private CloseableIterable<T> openTask(FileScanTask currentTask, Schema readSchema) {
       DataFile file = currentTask.file();
-      // TODO we should make use of FileIO to create inputFile
-      InputFile inputFile = HadoopInputFile.fromLocation(file.path(), context.getConfiguration());
+      InputFile inputFile = encryptionManager.decrypt(EncryptedFiles.encryptedInput(
+          io.newInputFile(file.path().toString()),
+          file.keyMetadata()));
+
       CloseableIterable<T> iterable;
       switch (file.format()) {
         case AVRO:
@@ -246,6 +256,22 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       }
 
       return iterable;
+    }
+
+    @SuppressWarnings("unchecked")
+    private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
+      switch (inMemoryDataModel) {
+        case PIG:
+        case HIVE:
+          // TODO: Support Pig and Hive object models for IcebergInputFormat
+          throw new UnsupportedOperationException("Pig and Hive object models are not supported.");
+        case GENERIC:
+          DeleteFilter deletes = new GenericDeleteFilter(io, currentTask, tableSchema, readSchema);
+          Schema requiredSchema = deletes.requiredSchema();
+          return deletes.filter(openTask(currentTask, requiredSchema));
+        default:
+          throw new UnsupportedOperationException("Unsupported memory model");
+      }
     }
 
     private CloseableIterable<T> applyResidualFiltering(CloseableIterable<T> iter, Expression residual,

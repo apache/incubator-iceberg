@@ -100,8 +100,10 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
       case DATE:
         return new DateType();
       case TIME:
-        // MICROS
-        return new TimeType(6);
+        // For the type: Flink only support TimeType with default precision (second) now. The precision of time is
+        // not supported in Flink, so we can think of it as a simple time type directly.
+        // For the data: Flink uses int that support mills to represent time data, so it supports mills precision.
+        return new TimeType();
       case TIMESTAMP:
         Types.TimestampType timestamp = (Types.TimestampType) primitive;
         if (timestamp.shouldAdjustToUTC()) {

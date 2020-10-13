@@ -53,12 +53,9 @@ public class TestSplitPlanning extends TableTestBase {
   public TemporaryFolder temp = new TemporaryFolder();
   private Table table = null;
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
-    };
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
   }
 
   public TestSplitPlanning(int formatVersion) {

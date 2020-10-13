@@ -88,6 +88,44 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
   OverwriteFiles validateAddedFilesMatchOverwriteFilter();
 
   /**
+   * Set the snapshot ID used in any reads for this operation.
+   * <p>
+   * Validations will check changes after this snapshot ID. If the from snapshot is not set, all ancestor snapshots
+   * through the table's initial snapshot are validated.
+   *
+   * @param snapshotId a snapshot ID
+   * @return this for method chaining
+   */
+  OverwriteFiles validateFromSnapshot(long snapshotId);
+
+  /**
+   * Enables or disables case sensitive expression binding for validations that accept expressions.
+   *
+   * @param caseSensitive whether expression binding should be case sensitive
+   * @return this for method chaining
+   */
+  OverwriteFiles caseSensitive(boolean caseSensitive);
+
+  /**
+   * Enables validation that files added concurrently do not conflict with this commit's operation.
+   * <p>
+   * This method should be called when the table is queried to determine which files to delete/append.
+   * If a concurrent operation commits a new file after the data was read and that file might
+   * contain rows matching the specified conflict detection filter, the overwrite operation
+   * will detect this during retries and fail.
+   * <p>
+   * Calling this method with a correct conflict detection filter is required to maintain
+   * serializable isolation for eager update/delete operations. Otherwise, the isolation level
+   * will be snapshot isolation.
+   * <p>
+   * Validation applies to files added to the table since the snapshot passed to {@link #validateFromSnapshot(long)}.
+   *
+   * @param conflictDetectionFilter an expression on rows in the table
+   * @return this for method chaining
+   */
+  OverwriteFiles validateNoConflictingAppends(Expression conflictDetectionFilter);
+
+  /**
    * Enables validation that files added concurrently do not conflict with this commit's operation.
    * <p>
    * This method should be called when the table is queried to determine which files to delete/append.
@@ -102,6 +140,9 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    * @param readSnapshotId the snapshot id that was used to read the data or null if the table was empty
    * @param conflictDetectionFilter an expression on rows in the table
    * @return this for method chaining
+   * @deprecated this will be removed in 0.11.0;
+   *             use {@link #validateNoConflictingAppends(Expression)} and {@link #validateFromSnapshot(long)} instead
    */
+  @Deprecated
   OverwriteFiles validateNoConflictingAppends(Long readSnapshotId, Expression conflictDetectionFilter);
 }

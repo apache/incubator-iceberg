@@ -132,7 +132,7 @@ class FlinkOrcWriters {
     public void nonNullWrite(int rowId, Integer millis, ColumnVector output) {
       // The time in flink is in millisecond, while the standard time in iceberg is microsecond.
       // So we need to transform it to microsecond.
-      ((LongColumnVector) output).vector[rowId] = millis * 1000;
+      ((LongColumnVector) output).vector[rowId] = millis * 1000L;
     }
   }
 

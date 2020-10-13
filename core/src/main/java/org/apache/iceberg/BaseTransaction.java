@@ -484,6 +484,12 @@ class BaseTransaction implements Transaction {
   }
 
   public class TransactionTable implements Table {
+
+    @Override
+    public String name() {
+      return tableName;
+    }
+
     @Override
     public void refresh() {
     }
@@ -636,6 +642,11 @@ class BaseTransaction implements Transaction {
     @Override
     public LocationProvider locationProvider() {
       return transactionOps.locationProvider();
+    }
+
+    @Override
+    public String toString() {
+      return name();
     }
   }
 

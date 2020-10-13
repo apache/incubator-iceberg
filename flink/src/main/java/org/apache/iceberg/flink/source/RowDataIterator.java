@@ -108,6 +108,7 @@ class RowDataIterator extends DataIterator<RowData> {
 
   private CloseableIterable<RowData> newParquetIterable(FileScanTask task, Map<Integer, ?> idToConstant) {
     Parquet.ReadBuilder builder = Parquet.read(getInputFile(task))
+        .reuseContainers()
         .split(task.start(), task.length())
         .project(projectedSchema)
         .createReaderFunc(fileSchema -> FlinkParquetReaders.buildReader(projectedSchema, fileSchema, idToConstant))

@@ -19,8 +19,19 @@
 
 package org.apache.iceberg;
 
-public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
-  public BaseRowDelta(String tableName, TableOperations ops) {
+import java.util.Set;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.CharSequenceSet;
+
+class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
+  private Long startingSnapshotId = null; // check all versions by default
+  private final Set<CharSequence> referencedDataFiles = CharSequenceSet.empty();
+  private boolean validateDeletes = false;
+  private Expression conflictDetectionFilter = null;
+  private boolean caseSensitive = true;
+
+  BaseRowDelta(String tableName, TableOperations ops) {
     super(tableName, ops);
   }
 
@@ -44,5 +55,49 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
   public RowDelta addDeletes(DeleteFile deletes) {
     add(deletes);
     return this;
+  }
+
+  @Override
+  public RowDelta validateFromSnapshot(long snapshotId) {
+    this.startingSnapshotId = snapshotId;
+    return this;
+  }
+
+  @Override
+  public RowDelta caseSensitive(boolean isCaseSensitive) {
+    this.caseSensitive = isCaseSensitive;
+    return this;
+  }
+
+  @Override
+  public RowDelta validateDeletedFiles() {
+    this.validateDeletes = true;
+    return this;
+  }
+
+  @Override
+  public RowDelta validateDataFilesExist(Iterable<? extends CharSequence> referencedFiles) {
+    referencedFiles.forEach(referencedDataFiles::add);
+    return this;
+  }
+
+  @Override
+  public RowDelta validateNoConflictingAppends(Expression newConflictDetectionFilter) {
+    Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
+    this.conflictDetectionFilter = newConflictDetectionFilter;
+    return this;
+  }
+
+  @Override
+  protected void validate(TableMetadata base) {
+    if (base.currentSnapshot() != null) {
+      if (!referencedDataFiles.isEmpty()) {
+        validateDataFilesExist(base, startingSnapshotId, referencedDataFiles, !validateDeletes);
+      }
+
+      if (conflictDetectionFilter != null) {
+        validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, caseSensitive);
+      }
+    }
   }
 }

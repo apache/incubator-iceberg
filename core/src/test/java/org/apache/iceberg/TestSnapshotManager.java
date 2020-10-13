@@ -45,12 +45,9 @@ public class TestSnapshotManager extends TableTestBase {
       .withRecordCount(1)
       .build();
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
-    };
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
   }
 
   public TestSnapshotManager(int formatVersion) {

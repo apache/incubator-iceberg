@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
@@ -32,6 +33,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
   private final Set<Integer> selectedIds;
 
   PruneColumns(Set<Integer> selectedIds) {
+    Preconditions.checkNotNull(selectedIds, "Selected field ids cannot be null");
     this.selectedIds = selectedIds;
   }
 

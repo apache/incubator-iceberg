@@ -45,8 +45,10 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
-import org.junit.BeforeClass;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
 import static org.apache.iceberg.expressions.Expressions.and;
@@ -107,24 +109,25 @@ public class TestDictionaryRowGroupFilter {
     TOO_LONG_FOR_STATS = sb.toString();
   }
 
-  private static final File PARQUET_FILE = new File("/tmp/stats-row-group-filter-test.parquet");
-  private static MessageType parquetSchema = null;
-  private static BlockMetaData rowGroupMetadata = null;
-  private static DictionaryPageReadStore dictionaryStore = null;
-
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
 
-  @BeforeClass
-  public static void createInputFile() throws IOException {
-    if (PARQUET_FILE.exists()) {
-      Assert.assertTrue(PARQUET_FILE.delete());
-    }
+  private MessageType parquetSchema = null;
+  private BlockMetaData rowGroupMetadata = null;
+  private DictionaryPageReadStore dictionaryStore = null;
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
+
+  @Before
+  public void createInputFile() throws IOException {
+    File parquetFile = temp.newFile();
+    Assert.assertTrue(parquetFile.delete());
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
 
-    OutputFile outFile = Files.localOutput(PARQUET_FILE);
+    OutputFile outFile = Files.localOutput(parquetFile);
     try (FileAppender<Record> appender = Parquet.write(outFile)
         .schema(FILE_SCHEMA)
         .build()) {
@@ -150,7 +153,7 @@ public class TestDictionaryRowGroupFilter {
       }
     }
 
-    InputFile inFile = Files.localInput(PARQUET_FILE);
+    InputFile inFile = Files.localInput(parquetFile);
 
     ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inFile));
 
@@ -158,8 +161,6 @@ public class TestDictionaryRowGroupFilter {
     rowGroupMetadata = reader.getRowGroups().get(0);
     parquetSchema = reader.getFileMetaData().getSchema();
     dictionaryStore = reader.getNextDictionaryReader();
-
-    PARQUET_FILE.deleteOnExit();
   }
 
   @Test

@@ -62,6 +62,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -86,12 +87,9 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @RunWith(Parameterized.class)
 public class TestMetricsRowGroupFilter {
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][]{
-        new Object[]{"parquet"},
-        new Object[]{"orc"}
-    };
+  @Parameterized.Parameters(name = "format = {0}")
+  public static Object[] parameters() {
+    return new Object[] { "parquet", "orc" };
   }
 
   private final FileFormat format;
@@ -141,14 +139,15 @@ public class TestMetricsRowGroupFilter {
     TOO_LONG_FOR_STATS_PARQUET = sb.toString();
   }
 
-  private static final File orcFile = new File("/tmp/stats-row-group-filter-test.orc");
-
-  private static final File parquetFile = new File("/tmp/stats-row-group-filter-test.parquet");
-  private static MessageType parquetSchema = null;
-  private static BlockMetaData rowGroupMetadata = null;
-
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
+
+  private File orcFile = null;
+  private MessageType parquetSchema = null;
+  private BlockMetaData rowGroupMetadata = null;
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   @Before
   public void createInputFile() throws IOException {
@@ -165,9 +164,8 @@ public class TestMetricsRowGroupFilter {
   }
 
   public void createOrcInputFile() throws IOException {
-    if (orcFile.exists()) {
-      Assert.assertTrue(orcFile.delete());
-    }
+    this.orcFile = temp.newFile();
+    Assert.assertTrue(orcFile.delete());
 
     OutputFile outFile = Files.localOutput(orcFile);
     try (FileAppender<GenericRecord> appender = ORC.write(outFile)
@@ -204,9 +202,8 @@ public class TestMetricsRowGroupFilter {
   }
 
   private void createParquetInputFile() throws IOException {
-    if (parquetFile.exists()) {
-      Assert.assertTrue(parquetFile.delete());
-    }
+    File parquetFile = temp.newFile();
+    Assert.assertTrue(parquetFile.delete());
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
@@ -738,12 +735,8 @@ public class TestMetricsRowGroupFilter {
     shouldRead = shouldRead(notIn("all_nulls", 1, 2));
     Assert.assertTrue("Should read: notIn on all nulls column", shouldRead);
 
-    // ORC-623: ORC seems to incorrectly skip a row group for a notIn(column, {X, ...}) predicate on a column which
-    // has only 1 non-null value X but also has nulls
-    if (format != FileFormat.ORC) {
-      shouldRead = shouldRead(notIn("some_nulls", "aaa", "some"));
-      Assert.assertTrue("Should read: notIn on some nulls column", shouldRead);
-    }
+    shouldRead = shouldRead(notIn("some_nulls", "aaa", "some"));
+    Assert.assertTrue("Should read: notIn on some nulls column", shouldRead);
 
     shouldRead = shouldRead(notIn("no_nulls", "aaa", ""));
     if (format == FileFormat.PARQUET) {
@@ -753,6 +746,12 @@ public class TestMetricsRowGroupFilter {
     } else {
       Assert.assertFalse("Should skip: notIn on no nulls column", shouldRead);
     }
+  }
+
+  @Test
+  public void testSomeNullsNotEq() {
+    boolean shouldRead = shouldRead(notEqual("some_nulls", "some"));
+    Assert.assertTrue("Should read: notEqual on some nulls column", shouldRead);
   }
 
   private boolean shouldRead(Expression expression) {

@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
-import java.util.List;
 import org.apache.flink.api.common.io.DefaultInputSplitAssigner;
 import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.io.RichInputFormat;
@@ -31,7 +30,6 @@ import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.io.FileIO;
@@ -45,30 +43,25 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   private static final long serialVersionUID = 1L;
 
   private final TableLoader tableLoader;
-  private final Schema projectedSchema;
-  private final ScanOptions options;
-  private final List<Expression> filterExpressions;
+  private final SerializableConfiguration serializableConf;
   private final FileIO io;
   private final EncryptionManager encryption;
-  private final SerializableConfiguration serializableConf;
+  private final ScanContext context;
 
   private transient RowDataIterator iterator;
 
-  FlinkInputFormat(
-      TableLoader tableLoader, Schema projectedSchema, FileIO io, EncryptionManager encryption,
-      List<Expression> filterExpressions, ScanOptions options, SerializableConfiguration serializableConf) {
+  FlinkInputFormat(TableLoader tableLoader, SerializableConfiguration serializableConf, FileIO io,
+                   EncryptionManager encryption, ScanContext context) {
     this.tableLoader = tableLoader;
-    this.projectedSchema = projectedSchema;
+    this.serializableConf = serializableConf;
     this.io = io;
     this.encryption = encryption;
-    this.filterExpressions = filterExpressions;
-    this.options = options;
-    this.serializableConf = serializableConf;
+    this.context = context;
   }
 
   @VisibleForTesting
   Schema projectedSchema() {
-    return projectedSchema;
+    return context.projectedSchema();
   }
 
   @Override
@@ -83,8 +76,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     tableLoader.open(serializableConf.get());
     try (TableLoader loader = tableLoader) {
       Table table = loader.loadTable();
-      FlinkSplitGenerator generator = new FlinkSplitGenerator(table, projectedSchema, options, filterExpressions);
-      return generator.createInputSplits();
+      return FlinkSplitGenerator.createInputSplits(table, context);
     }
   }
 
@@ -100,7 +92,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   @Override
   public void open(FlinkInputSplit split) {
     this.iterator = new RowDataIterator(
-        split.getTask(), io, encryption, projectedSchema, options.nameMapping(), options.caseSensitive());
+        split.getTask(), io, encryption, context.projectedSchema(), context.nameMapping(), context.caseSensitive());
   }
 
   @Override

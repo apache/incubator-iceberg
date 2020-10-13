@@ -31,6 +31,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
@@ -44,6 +45,9 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
   @SuppressWarnings("unchecked")
   static <T> Bucket<T> get(Type type, int numBuckets) {
+    Preconditions.checkArgument(numBuckets > 0,
+        "Invalid number of buckets: %s (must be > 0)", numBuckets);
+
     switch (type.typeId()) {
       case DATE:
       case INTEGER:

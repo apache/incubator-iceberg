@@ -159,4 +159,22 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
 
     assertEquals("Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
   }
+
+  @Test
+  public void testViewsReturnRecentResults() {
+    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
+
+    Dataset<Row> query = spark.sql("SELECT * FROM " + tableName + " WHERE id = 1");
+    query.createOrReplaceTempView("tmp");
+
+    assertEquals("View should have expected rows",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM tmp"));
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    assertEquals("View should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(1L, "a")),
+        sql("SELECT * FROM tmp"));
+  }
 }

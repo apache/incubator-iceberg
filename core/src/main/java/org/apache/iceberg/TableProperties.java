@@ -89,6 +89,8 @@ public class TableProperties {
 
   public static final String OBJECT_STORE_PATH = "write.object-storage.path";
 
+  public static final String WRITE_LOCATION_PROVIDER_IMPL = "write.location-provider.impl";
+
   // This only applies to files written after this property is set. Files previously written aren't
   // relocated to reflect this parameter.
   // If not set, defaults to a "data" folder underneath the root path of the table.
@@ -98,6 +100,9 @@ public class TableProperties {
   // relocated to reflect this parameter.
   // If not set, defaults to a "metadata" folder underneath the root path of the table.
   public static final String WRITE_METADATA_LOCATION = "write.metadata.path";
+
+  public static final String WRITE_PARTITION_SUMMARY_LIMIT = "write.summary.partition-limit";
+  public static final int WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT = 0;
 
   public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
   public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
@@ -126,4 +131,7 @@ public class TableProperties {
 
   public static final String SNAPSHOT_ID_INHERITANCE_ENABLED = "compatibility.snapshot-id-inheritance.enabled";
   public static final boolean SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT = false;
+
+  public static final String ENGINE_HIVE_ENABLED = "engine.hive.enabled";
+  public static final boolean ENGINE_HIVE_ENABLED_DEFAULT = false;
 }

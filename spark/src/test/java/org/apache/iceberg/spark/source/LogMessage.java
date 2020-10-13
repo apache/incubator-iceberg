@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LogMessage {
@@ -28,28 +29,53 @@ public class LogMessage {
     return new LogMessage(idCounter.getAndIncrement(), date, "DEBUG", message);
   }
 
+  static LogMessage debug(String date, String message, Instant timestamp) {
+    return new LogMessage(idCounter.getAndIncrement(), date, "DEBUG", message, timestamp);
+  }
+
   static LogMessage info(String date, String message) {
     return new LogMessage(idCounter.getAndIncrement(), date, "INFO", message);
+  }
+
+  static LogMessage info(String date, String message, Instant timestamp) {
+    return new LogMessage(idCounter.getAndIncrement(), date, "INFO", message, timestamp);
   }
 
   static LogMessage error(String date, String message) {
     return new LogMessage(idCounter.getAndIncrement(), date, "ERROR", message);
   }
 
+  static LogMessage error(String date, String message, Instant timestamp) {
+    return new LogMessage(idCounter.getAndIncrement(), date, "ERROR", message, timestamp);
+  }
+
   static LogMessage warn(String date, String message) {
     return new LogMessage(idCounter.getAndIncrement(), date, "WARN", message);
+  }
+
+  static LogMessage warn(String date, String message, Instant timestamp) {
+    return new LogMessage(idCounter.getAndIncrement(), date, "WARN", message, timestamp);
   }
 
   private int id;
   private String date;
   private String level;
   private String message;
+  private Instant timestamp;
 
   private LogMessage(int id, String date, String level, String message) {
     this.id = id;
     this.date = date;
     this.level = level;
     this.message = message;
+  }
+
+  private LogMessage(int id, String date, String level, String message, Instant timestamp) {
+    this.id = id;
+    this.date = date;
+    this.level = level;
+    this.message = message;
+    this.timestamp = timestamp;
   }
 
   public int getId() {
@@ -82,5 +108,13 @@ public class LogMessage {
 
   public void setMessage(String message) {
     this.message = message;
+  }
+
+  public Instant getTimestamp() {
+    return timestamp;
+  }
+
+  public void setTimestamp(Instant timestamp) {
+    this.timestamp = timestamp;
   }
 }

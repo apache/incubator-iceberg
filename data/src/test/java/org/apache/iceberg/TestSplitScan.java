@@ -61,12 +61,9 @@ public class TestSplitScan {
   public TemporaryFolder temp = new TemporaryFolder();
   private List<Record> expectedRecords;
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][]{
-        new Object[]{"parquet"},
-        new Object[]{"avro"}
-    };
+  @Parameterized.Parameters(name = "format = {0}")
+  public static Object[] parameters() {
+    return new Object[] { "parquet", "avro" };
   }
 
   private final FileFormat format;

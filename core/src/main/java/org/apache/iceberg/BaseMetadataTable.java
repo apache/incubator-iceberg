@@ -31,7 +31,6 @@ abstract class BaseMetadataTable implements Table {
   private final SortOrder sortOrder = SortOrder.unsorted();
 
   abstract Table table();
-  abstract String metadataTableName();
 
   @Override
   public FileIO io() {
@@ -175,6 +174,6 @@ abstract class BaseMetadataTable implements Table {
 
   @Override
   public String toString() {
-    return table().toString() + "." + metadataTableName();
+    return name();
   }
 }

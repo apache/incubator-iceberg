@@ -80,6 +80,7 @@ public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.c
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
+  private boolean cacheEnabled = true;
   private SupportsNamespaces asNamespaceCatalog = null;
   private String[] defaultNamespace = null;
 
@@ -121,7 +122,8 @@ public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.c
   @Override
   public SparkTable loadTable(Identifier ident) throws NoSuchTableException {
     try {
-      return new SparkTable(icebergCatalog.loadTable(buildIdentifier(ident)));
+      Table icebergTable = icebergCatalog.loadTable(buildIdentifier(ident));
+      return new SparkTable(icebergTable, !cacheEnabled);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
@@ -133,12 +135,13 @@ public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.c
                                 Map<String, String> properties) throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
     try {
-      return new SparkTable(icebergCatalog.createTable(
+      Table icebergTable = icebergCatalog.createTable(
           buildIdentifier(ident),
           icebergSchema,
           Spark3Util.toPartitionSpec(icebergSchema, transforms),
           properties.get("location"),
-          Spark3Util.rebuildCreateProperties(properties)));
+          Spark3Util.rebuildCreateProperties(properties));
+      return new SparkTable(icebergTable, !cacheEnabled);
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
@@ -380,7 +383,7 @@ public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.c
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
-    boolean cacheEnabled = Boolean.parseBoolean(options.getOrDefault("cache-enabled", "true"));
+    this.cacheEnabled = Boolean.parseBoolean(options.getOrDefault("cache-enabled", "true"));
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;

@@ -91,9 +91,20 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   }
 
+  // Override annotation commented out, since this interface method has been introduced only in Hive 3
+  // @Override
+  public void configureInputJobCredentials(TableDesc tableDesc, Map<String, String> secrets) {
+
+  }
+
   @Override
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
+    Properties props = tableDesc.getProperties();
+    Table table = Catalogs.loadTable(conf, props);
 
+    jobConf.set(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(NAME));
+    jobConf.set(InputFormatConfig.TABLE_LOCATION, table.location());
+    jobConf.set(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
   }
 
   @Override

@@ -49,12 +49,9 @@ public class TableMetadataParserTest {
 
   private static final Schema SCHEMA = new Schema(optional(1, "b", BooleanType.get()));
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { "none" },
-        new Object[] { "gzip" }
-    };
+  @Parameterized.Parameters(name = "codecName = {0}")
+  public static Object[] parameters() {
+    return new Object[] { "none", "gzip" };
   }
 
   private final String codecName;

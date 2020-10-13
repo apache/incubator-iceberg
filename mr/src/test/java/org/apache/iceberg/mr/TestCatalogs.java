@@ -107,7 +107,7 @@ public class TestCatalogs {
         "location not set", () -> Catalogs.createTable(conf, missingLocation));
 
     Properties properties = new Properties();
-    properties.put("location", temp.toString() + "/hadoop_tables");
+    properties.put("location", temp.getRoot() + "/hadoop_tables");
     properties.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
     properties.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(SPEC));
     properties.put("dummy", "test");
@@ -127,7 +127,7 @@ public class TestCatalogs {
         "location not set", () -> Catalogs.dropTable(conf, new Properties()));
 
     Properties dropProperties = new Properties();
-    dropProperties.put("location", temp.toString() + "/hadoop_tables");
+    dropProperties.put("location", temp.getRoot() + "/hadoop_tables");
     Catalogs.dropTable(conf, dropProperties);
 
     AssertHelpers.assertThrows(

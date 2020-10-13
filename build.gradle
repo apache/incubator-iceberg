@@ -101,6 +101,10 @@ subprojects {
     options.encoding = "UTF-8"
   }
 
+  javadoc {
+    options.encoding = 'UTF-8'
+  }
+
   ext {
     jmhVersion = '1.21'
   }
@@ -466,6 +470,79 @@ project(':iceberg-mr') {
       exclude group: 'org.apache.calcite.avatica'
     }
   }
+
+  test {
+    // testJoinTables / testScanTable
+    maxHeapSize '1500m'
+  }
+}
+
+if (jdkVersion == '8') {
+  project(':iceberg-hive3') {
+
+    // run the tests in iceberg-mr with Hive3 dependencies
+    sourceSets {
+      test {
+        java.srcDirs = ['../mr/src/test/java', 'src/test/java']
+        resources.srcDirs = ['../mr/src/test/resources', 'src/test/resources']
+      }
+    }
+
+    // exclude these Hive2-specific tests from iceberg-mr
+    test {
+      exclude '**/TestIcebergDateObjectInspector.class'
+      exclude '**/TestIcebergTimestampObjectInspector.class'
+    }
+
+    dependencies {
+      compile project(':iceberg-api')
+      compile project(':iceberg-core')
+      compile project(':iceberg-data')
+      compile project(':iceberg-hive-metastore')
+      compile project(':iceberg-orc')
+      compile project(':iceberg-parquet')
+      compile project(':iceberg-mr')
+
+      compileOnly("org.apache.hadoop:hadoop-client:3.1.0") {
+        exclude group: 'org.apache.avro', module: 'avro'
+      }
+
+      compileOnly("org.apache.hive:hive-exec:3.1.2:core") {
+        exclude group: 'com.google.code.findbugs', module: 'jsr305'
+        exclude group: 'com.google.guava'
+        exclude group: 'com.google.protobuf', module: 'protobuf-java'
+        exclude group: 'org.apache.avro', module: 'avro'
+        exclude group: 'org.apache.calcite.avatica'
+        exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+        exclude group: 'org.apache.logging.log4j'
+        exclude group: 'org.pentaho' // missing dependency
+        exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      }
+      compileOnly("org.apache.hive:hive-metastore:3.1.2")
+      compileOnly("org.apache.hive:hive-serde:3.1.2")
+
+      testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
+      testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+      testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
+      testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+
+      testCompile("org.apache.avro:avro:1.9.2")
+      testCompile("org.apache.calcite:calcite-core")
+      testCompile("com.esotericsoftware:kryo-shaded:4.0.2")
+      testCompile("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
+      testCompile("com.klarna:hiverunner:6.0.1") {
+        exclude group: 'javax.jms', module: 'jms'
+        exclude group: 'org.apache.hive', module: 'hive-exec'
+        exclude group: 'org.codehaus.jettison', module: 'jettison'
+        exclude group: 'org.apache.calcite.avatica'
+      }
+    }
+
+    test {
+      // testJoinTables / testScanTable
+      maxHeapSize '1500m'
+    }
+  }
 }
 
 project(':iceberg-hive-runtime') {
@@ -487,6 +564,9 @@ project(':iceberg-hive-runtime') {
 
   dependencies {
     compile project(':iceberg-mr')
+    if (jdkVersion == '8') {
+      compile project(':iceberg-hive3')
+    }
   }
   
   shadowJar {

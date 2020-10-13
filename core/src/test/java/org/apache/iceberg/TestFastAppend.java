@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -34,12 +35,9 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestFastAppend extends TableTestBase {
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
-    };
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
   }
 
   public TestFastAppend(int formatVersion) {
@@ -408,5 +406,76 @@ public class TestFastAppend extends TableTestBase {
         () -> table.newFastAppend()
             .appendManifest(manifestWithDeletedFiles)
             .commit());
+  }
+
+  @Test
+  public void testDefaultPartitionSummaries() {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Set<String> partitionSummaryKeys = table.currentSnapshot().summary().keySet().stream()
+        .filter(key -> key.startsWith(SnapshotSummary.CHANGED_PARTITION_PREFIX))
+        .collect(Collectors.toSet());
+    Assert.assertEquals("Should include no partition summaries by default", 0, partitionSummaryKeys.size());
+
+    String summariesIncluded = table.currentSnapshot().summary()
+        .getOrDefault(SnapshotSummary.PARTITION_SUMMARY_PROP, "false");
+    Assert.assertEquals("Should not set partition-summaries-included to true", "false", summariesIncluded);
+
+    String changedPartitions = table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
+    Assert.assertEquals("Should set changed partition count", "1", changedPartitions);
+  }
+
+  @Test
+  public void testIncludedPartitionSummaries() {
+    table.updateProperties()
+        .set(TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, "1")
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Set<String> partitionSummaryKeys = table.currentSnapshot().summary().keySet().stream()
+        .filter(key -> key.startsWith(SnapshotSummary.CHANGED_PARTITION_PREFIX))
+        .collect(Collectors.toSet());
+    Assert.assertEquals("Should include a partition summary", 1, partitionSummaryKeys.size());
+
+    String summariesIncluded = table.currentSnapshot().summary()
+        .getOrDefault(SnapshotSummary.PARTITION_SUMMARY_PROP, "false");
+    Assert.assertEquals("Should set partition-summaries-included to true", "true", summariesIncluded);
+
+    String changedPartitions = table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
+    Assert.assertEquals("Should set changed partition count", "1", changedPartitions);
+
+    String partitionSummary = table.currentSnapshot().summary()
+        .get(SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0");
+    Assert.assertEquals("Summary should include 1 file with 1 record that is 10 bytes",
+        "added-data-files=1,added-records=1,added-files-size=10", partitionSummary);
+  }
+
+  @Test
+  public void testIncludedPartitionSummaryLimit() {
+    table.updateProperties()
+        .set(TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, "1")
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Set<String> partitionSummaryKeys = table.currentSnapshot().summary().keySet().stream()
+        .filter(key -> key.startsWith(SnapshotSummary.CHANGED_PARTITION_PREFIX))
+        .collect(Collectors.toSet());
+    Assert.assertEquals("Should include no partition summaries, over limit", 0, partitionSummaryKeys.size());
+
+    String summariesIncluded = table.currentSnapshot().summary()
+        .getOrDefault(SnapshotSummary.PARTITION_SUMMARY_PROP, "false");
+    Assert.assertEquals("Should not set partition-summaries-included to true", "false", summariesIncluded);
+
+    String changedPartitions = table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
+    Assert.assertEquals("Should set changed partition count", "2", changedPartitions);
   }
 }

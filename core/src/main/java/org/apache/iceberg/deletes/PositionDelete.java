@@ -21,7 +21,6 @@ package org.apache.iceberg.deletes;
 
 import org.apache.iceberg.StructLike;
 
-@SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
 public class PositionDelete<R> implements StructLike {
   static <T> PositionDelete<T> create() {
     return new PositionDelete<>();

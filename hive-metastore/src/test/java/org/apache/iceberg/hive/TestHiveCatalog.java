@@ -373,6 +373,33 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         });
   }
 
+  @Test
+  public void testTableName() {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .bucket("data", 16)
+        .build();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+
+    try {
+      catalog.buildTable(tableIdent, schema)
+          .withPartitionSpec(spec)
+          .create();
+
+      Table table = catalog.loadTable(tableIdent);
+      Assert.assertEquals("Name must match", "hive.hivedb.tbl", table.name());
+
+      TableIdentifier snapshotsTableIdent = TableIdentifier.of(DB_NAME, "tbl", "snapshots");
+      Table snapshotsTable = catalog.loadTable(snapshotsTableIdent);
+      Assert.assertEquals("Name must match", "hive.hivedb.tbl.snapshots", snapshotsTable.name());
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
   private String defaultUri(Namespace namespace) throws TException {
     return metastoreClient.getConfigValue(
         "hive.metastore.warehouse.dir", "") +  "/" + namespace.level(0) + ".db";

@@ -30,12 +30,16 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.UnicodeUtil;
 
 abstract class Truncate<T> implements Transform<T, T> {
   @SuppressWarnings("unchecked")
   static <T> Truncate<T> get(Type type, int width) {
+    Preconditions.checkArgument(width > 0,
+        "Invalid truncate width: %s (must be > 0)", width);
+
     switch (type.typeId()) {
       case INTEGER:
         return (Truncate<T>) new TruncateInteger(width);

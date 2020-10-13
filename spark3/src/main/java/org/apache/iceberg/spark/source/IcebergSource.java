@@ -62,7 +62,8 @@ public class IcebergSource implements DataSourceRegister, TableProvider {
     Table icebergTable = getTableAndResolveHadoopConfiguration(options, conf);
 
     // Build Spark table based on Iceberg table, and return it
-    return new SparkTable(icebergTable, schema);
+    // Eagerly refresh the table before reading to ensure views containing this table show up-to-date data
+    return new SparkTable(icebergTable, schema, true);
   }
 
   protected Table findTable(Map<String, String> options, Configuration conf) {

@@ -222,52 +222,48 @@ public class TestMetricsRowGroupFilterTypes {
   private final Object readValue;
   private final Object skipValue;
 
-  @Parameterized.Parameters
+  @Parameterized.Parameters(name = "format = {0} column = {1} readValue = {2} skipValue = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { "parquet", "boolean", false, true },
-        new Object[] { "parquet", "int", 5, 55 },
-        new Object[] { "parquet", "long", 5_000_000_049L, 5_000L },
-        new Object[] { "parquet", "float", 1.97f, 2.11f },
-        new Object[] { "parquet", "double", 2.11d, 1.97d },
-        new Object[] { "parquet", "date", "2018-06-29", "2018-05-03" },
-        new Object[] { "parquet", "time", "10:02:34.000000", "10:02:34.000001" },
-        new Object[] { "parquet", "timestamp",
-            "2018-06-29T10:02:34.000000",
-            "2018-06-29T15:02:34.000000" },
-        new Object[] { "parquet", "timestamptz",
-            "2018-06-29T10:02:34.000000+00:00",
-            "2018-06-29T10:02:34.000000-07:00" },
-        new Object[] { "parquet", "string", "tapir", "monthly" },
-        // new Object[] { "parquet", "uuid", uuid, UUID.randomUUID() }, // not supported yet
-        new Object[] { "parquet", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
-        new Object[] { "parquet", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3, 4, 5 } },
-        new Object[] { "parquet", "int_decimal", "77.77", "12.34" },
-        new Object[] { "parquet", "long_decimal", "88.88", "12.34" },
-        new Object[] { "parquet", "fixed_decimal", "99.99", "12.34" },
+        { "parquet", "boolean", false, true },
+        { "parquet", "int", 5, 55 },
+        { "parquet", "long", 5_000_000_049L, 5_000L },
+        { "parquet", "float", 1.97f, 2.11f },
+        { "parquet", "double", 2.11d, 1.97d },
+        { "parquet", "date", "2018-06-29", "2018-05-03" },
+        { "parquet", "time", "10:02:34.000000", "10:02:34.000001" },
+        { "parquet", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000" },
+        { "parquet", "timestamptz", "2018-06-29T10:02:34.000000+00:00", "2018-06-29T10:02:34.000000-07:00" },
+        { "parquet", "string", "tapir", "monthly" },
+        // { "parquet", "uuid", uuid, UUID.randomUUID() }, // not supported yet
+        { "parquet", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
+        { "parquet", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3, 4, 5 } },
+        { "parquet", "int_decimal", "77.77", "12.34" },
+        { "parquet", "long_decimal", "88.88", "12.34" },
+        { "parquet", "fixed_decimal", "99.99", "12.34" },
 
-        new Object[] { "orc", "boolean", false, true },
-        new Object[] { "orc", "int", 5, 55 },
-        new Object[] { "orc", "long", 5_000_000_049L, 5_000L },
-        new Object[] { "orc", "float", 1.97f, 2.11f },
-        new Object[] { "orc", "double", 2.11d, 1.97d },
-        new Object[] { "orc", "date", "2018-06-29", "2018-05-03" },
-        new Object[] { "orc", "time", "10:02:34.000000", "10:02:34.000001" },
-        // Temporarily disable filters on Timestamp columns due to ORC-611
-        // new Object[] { "orc", "timestamp",
-        //     "2018-06-29T10:02:34.000000",
-        //     "2018-06-29T15:02:34.000000" },
-        // new Object[] { "orc", "timestamptz",
-        //     "2018-06-29T10:02:34.000000+00:00",
-        //     "2018-06-29T10:02:34.000000-07:00" },
-        new Object[] { "orc", "string", "tapir", "monthly" },
+        { "orc", "boolean", false, true },
+        { "orc", "int", 5, 55 },
+        { "orc", "long", 5_000_000_049L, 5_000L },
+        { "orc", "float", 1.97f, 2.11f },
+        { "orc", "double", 2.11d, 1.97d },
+        { "orc", "date", "2018-06-29", "2018-05-03" },
+        { "orc", "time", "10:02:34.000000", "10:02:34.000001" },
+        // Temporarily disable filters on Timestamp columns due to ORC-611.
+        // ORC-611 is closed with fix versions of ORC 1.6.4 and 1.7.0, but
+        // testing on 1.6.4 still lead to failures and 1.7.0 is not published.
+        //
+        // See also HIVE-23036, which is still open.
+        // { "orc", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000" },
+        // { "orc", "timestamptz", "2018-06-29T10:02:34.000000+00:00", "2018-06-29T10:02:34.000000-07:00" },
+        { "orc", "string", "tapir", "monthly" },
         // uuid, fixed and binary types not supported yet
-        // new Object[] { "orc", "uuid", uuid, UUID.randomUUID() },
-        // new Object[] { "orc", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
-        // new Object[] { "orc", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3, 4, 5 } },
-        new Object[] { "orc", "int_decimal", "77.77", "12.34" },
-        new Object[] { "orc", "long_decimal", "88.88", "12.34" },
-        new Object[] { "orc", "fixed_decimal", "99.99", "12.34" },
+        // { "orc", "uuid", uuid, UUID.randomUUID() },
+        // { "orc", "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3 } },
+        // { "orc", "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1, 2, 3, 4, 5 } },
+        { "orc", "int_decimal", "77.77", "12.34" },
+        { "orc", "long_decimal", "88.88", "12.34" },
+        { "orc", "fixed_decimal", "99.99", "12.34" },
     };
   }
 

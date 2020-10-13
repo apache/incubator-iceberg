@@ -197,19 +197,12 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     }
   }
 
-  private void validate(TableMetadata base) {
+  @Override
+  protected void validate(TableMetadata base) {
     validateCurrentSnapshot(base, requiredCurrentSnapshotId);
     validateNonAncestor(base, targetSnapshotId);
     validateReplacedPartitions(base, overwriteParentId, replacedPartitions);
     WapUtil.validateWapPublish(base, targetSnapshotId);
-  }
-
-  @Override
-  public List<ManifestFile> apply(TableMetadata base) {
-    // this apply method is called by SnapshotProducer, which refreshes the current table state
-    // because the state may have changed in that refresh, the validations must be done here
-    validate(base);
-    return super.apply(base);
   }
 
   @Override

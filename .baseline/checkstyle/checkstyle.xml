@@ -250,7 +250,6 @@
             <property name="tokens" value="BAND, BOR, BSR, BXOR, DIV, EQUAL, GE, GT, LAND, LE, LITERAL_INSTANCEOF, LOR, LT, MINUS, MOD, NOT_EQUAL, PLUS, QUESTION, SL, SR, STAR "/>
         </module>
         <module name="OuterTypeFilename"/> <!-- Java Style Guide: File name -->
-        <module name="OverloadMethodsDeclarationOrder"/> <!-- Java Style Guide: Overloads: never split -->
         <module name="PackageAnnotation"/> <!-- Java Style Guide: Package statement -->
         <module name="PackageDeclaration"/> <!-- Java Style Guide: Package statement -->
         <module name="PackageName"> <!-- Java Style Guide: Package names -->

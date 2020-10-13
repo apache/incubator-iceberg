@@ -21,6 +21,7 @@ package org.apache.iceberg.transforms;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -85,5 +86,13 @@ public class TestTruncate {
     Assert.assertEquals("Should not pad binary shorter than length",
         ByteBuffer.wrap("abc".getBytes("UTF-8")),
         trunc.apply(ByteBuffer.wrap("abc".getBytes("UTF-8"))));
+  }
+
+  @Test
+  public void testVerifiedIllegalWidth() {
+    AssertHelpers.assertThrows("Should fail if width is less than or equal to zero",
+        IllegalArgumentException.class,
+        "Invalid truncate width: 0 (must be > 0)",
+        () -> Truncate.get(Types.IntegerType.get(), 0));
   }
 }
