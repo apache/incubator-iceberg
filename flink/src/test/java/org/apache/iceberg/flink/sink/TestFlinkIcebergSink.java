@@ -40,6 +40,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.flink.NonCheckpointFiniteTestSource;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -127,6 +128,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         Row.of(2, "world"),
         Row.of(3, "foo")
     );
+
     DataStream<RowData> dataStream = env.addSource(new FiniteTestSource<>(rows), ROW_TYPE_INFO)
         .map(CONVERTER::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
 
@@ -141,6 +143,38 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
 
     // Assert the iceberg table's records. NOTICE: the FiniteTestSource will checkpoint the same rows twice, so it will
     // commit the same row list into iceberg twice.
+    List<RowData> expectedRows = Lists.newArrayList(Iterables.concat(convertToRowData(rows), convertToRowData(rows)));
+    SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+  }
+
+  @Test
+  public void testWriteRowDataWithoutCheckpoint() throws Exception {
+    List<Row> rows = Lists.newArrayList(
+        Row.of(1, "hello"),
+        Row.of(2, "world"),
+        Row.of(3, "foo")
+    );
+
+    env = StreamExecutionEnvironment.getExecutionEnvironment()
+        .setParallelism(parallelism)
+        .setMaxParallelism(parallelism);
+
+    DataStream<RowData> dataStream = env.addSource(new NonCheckpointFiniteTestSource<>(rows), ROW_TYPE_INFO)
+        .map(CONVERTER::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
+
+    org.apache.flink.configuration.Configuration flinkConf = new org.apache.flink.configuration.Configuration();
+    flinkConf.setLong(FlinkSink.FLINK_ICEBERG_SINK_FLUSHINTERVAL, 100L);
+
+    FlinkSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .flinkConf(flinkConf)
+        .hadoopConf(CONF)
+        .build();
+
+    // Execute the program.
+    env.execute("Test Iceberg DataStream");
+
     List<RowData> expectedRows = Lists.newArrayList(Iterables.concat(convertToRowData(rows), convertToRowData(rows)));
     SimpleDataUtil.assertTableRows(tablePath, expectedRows);
   }

@@ -20,30 +20,39 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.ProcessingTimeCallback;
+import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
-    implements OneInputStreamOperator<T, DataFile>, BoundedOneInput {
+    implements OneInputStreamOperator<T, DataFile>, ProcessingTimeCallback, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
 
   private final String fullTableName;
   private final TaskWriterFactory<T> taskWriterFactory;
+  private final Configuration flinkConf;
+  private final long flushCommitInterval;
 
   private transient TaskWriter<T> writer;
   private transient int subTaskId;
   private transient int attemptId;
 
-  IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory) {
+  IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory,
+                      Configuration flinkConf) {
     this.fullTableName = fullTableName;
     this.taskWriterFactory = taskWriterFactory;
+    this.flinkConf = flinkConf;
+    this.flushCommitInterval = flinkConf.getLong(FlinkSink.FLINK_ICEBERG_SINK_FLUSHINTERVAL,
+        FlinkSink.DEFAULT_FLINK_ICEBERG_SINK_FLUSHINTERVAL);
     setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
@@ -57,6 +66,14 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
 
     // Initialize the task writer.
     this.writer = taskWriterFactory.create();
+
+    // If we don't enable checkpoint, we will use processingTimeSerice to emit datafiles to downstream,
+    boolean isCheckpointEnabled = getRuntimeContext().isCheckpointingEnabled();
+    if (!isCheckpointEnabled) {
+      ProcessingTimeService processingTimeService = getRuntimeContext().getProcessingTimeService();
+      final long currentTimestamp = processingTimeService.getCurrentProcessingTime();
+      processingTimeService.registerTimer(currentTimestamp + flushCommitInterval, this);
+    }
   }
 
   @Override
@@ -103,5 +120,15 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
 
   private void emit(DataFile dataFile) {
     output.collect(new StreamRecord<>(dataFile));
+  }
+
+  @Override
+  public void onProcessingTime(long timestamp) throws Exception {
+    for (DataFile dataFile : writer.complete()) {
+      emit(dataFile);
+    }
+    ProcessingTimeService processingTimeService = getRuntimeContext().getProcessingTimeService();
+    final long currentTimestamp = processingTimeService.getCurrentProcessingTime();
+    processingTimeService.registerTimer(currentTimestamp + flushCommitInterval, this);
   }
 }

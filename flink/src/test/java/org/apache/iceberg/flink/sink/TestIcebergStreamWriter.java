@@ -317,7 +317,8 @@ public class TestIcebergStreamWriter {
 
   private OneInputStreamOperatorTestHarness<RowData, DataFile> createIcebergStreamWriter(
       Table icebergTable, TableSchema flinkSchema) throws Exception {
-    IcebergStreamWriter<RowData> streamWriter = FlinkSink.createStreamWriter(icebergTable, flinkSchema);
+    IcebergStreamWriter<RowData> streamWriter = FlinkSink.createStreamWriter(icebergTable, flinkSchema,
+        new org.apache.flink.configuration.Configuration());
     OneInputStreamOperatorTestHarness<RowData, DataFile> harness = new OneInputStreamOperatorTestHarness<>(
         streamWriter, 1, 1, 0);
 

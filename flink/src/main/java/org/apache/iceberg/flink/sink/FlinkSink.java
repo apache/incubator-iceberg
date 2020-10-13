@@ -57,6 +57,9 @@ public class FlinkSink {
   private static final String ICEBERG_STREAM_WRITER_NAME = IcebergStreamWriter.class.getSimpleName();
   private static final String ICEBERG_FILES_COMMITTER_NAME = IcebergFilesCommitter.class.getSimpleName();
 
+  public static final String FLINK_ICEBERG_SINK_FLUSHINTERVAL = "flink.iceberg.sink.flushinterval";
+  public static final long DEFAULT_FLINK_ICEBERG_SINK_FLUSHINTERVAL = 60000L;
+
   private FlinkSink() {
   }
 
@@ -110,11 +113,13 @@ public class FlinkSink {
     private DataStream<RowData> rowDataInput = null;
     private TableLoader tableLoader;
     private Configuration hadoopConf;
+    private org.apache.flink.configuration.Configuration flinkConf;
     private Table table;
     private TableSchema tableSchema;
     private boolean overwrite = false;
 
     private Builder() {
+      this.flinkConf = new org.apache.flink.configuration.Configuration();
     }
 
     private Builder forRowData(DataStream<RowData> newRowDataInput) {
@@ -153,6 +158,11 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder flinkConf(org.apache.flink.configuration.Configuration config) {
+      this.flinkConf = config;
+      return this;
+    }
+
     public Builder tableSchema(TableSchema newTableSchema) {
       this.tableSchema = newTableSchema;
       return this;
@@ -179,8 +189,8 @@ public class FlinkSink {
         }
       }
 
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema);
-      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, hadoopConf, overwrite);
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema, flinkConf);
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, hadoopConf, overwrite, flinkConf);
 
       DataStream<Void> returnStream = rowDataInput
           .transform(ICEBERG_STREAM_WRITER_NAME, TypeInformation.of(DataFile.class), streamWriter)
@@ -195,7 +205,8 @@ public class FlinkSink {
     }
   }
 
-  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema) {
+  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema,
+                                                         org.apache.flink.configuration.Configuration flinkConf) {
     Preconditions.checkArgument(table != null, "Iceberg table should't be null");
 
     RowType flinkSchema;
@@ -220,7 +231,7 @@ public class FlinkSink {
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkSchema,
         table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props);
 
-    return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
+    return new IcebergStreamWriter<>(table.toString(), taskWriterFactory, flinkConf);
   }
 
   private static FileFormat getFileFormat(Map<String, String> properties) {
@@ -233,4 +244,5 @@ public class FlinkSink {
         WRITE_TARGET_FILE_SIZE_BYTES,
         WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
   }
+
 }

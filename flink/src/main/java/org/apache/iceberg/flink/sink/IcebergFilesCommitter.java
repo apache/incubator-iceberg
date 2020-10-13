@@ -35,6 +35,8 @@ import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.ProcessingTimeCallback;
+import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
@@ -56,7 +58,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class IcebergFilesCommitter extends AbstractStreamOperator<Void>
-    implements OneInputStreamOperator<DataFile, Void>, BoundedOneInput {
+    implements OneInputStreamOperator<DataFile, Void>, ProcessingTimeCallback, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
   private static final long INITIAL_CHECKPOINT_ID = -1L;
@@ -73,7 +75,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
   private final SerializableConfiguration hadoopConf;
+  private final org.apache.flink.configuration.Configuration flinkConf;
   private final boolean replacePartitions;
+  private final long flushCommitInterval;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not been committed
   // to iceberg table). We need a sorted map here because there's possible that few checkpoints snapshot failed, for
@@ -103,10 +107,26 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private static final ListStateDescriptor<SortedMap<Long, List<DataFile>>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, List<DataFile>>> checkpointsState;
 
-  IcebergFilesCommitter(TableLoader tableLoader, Configuration hadoopConf, boolean replacePartitions) {
+  IcebergFilesCommitter(TableLoader tableLoader, Configuration hadoopConf, boolean replacePartitions,
+                        org.apache.flink.configuration.Configuration flinkConf) {
     this.tableLoader = tableLoader;
     this.hadoopConf = new SerializableConfiguration(hadoopConf);
     this.replacePartitions = replacePartitions;
+    this.flinkConf = flinkConf;
+    this.flushCommitInterval = flinkConf.getLong(FlinkSink.FLINK_ICEBERG_SINK_FLUSHINTERVAL,
+        FlinkSink.DEFAULT_FLINK_ICEBERG_SINK_FLUSHINTERVAL);
+  }
+
+  @Override
+  public void open() throws Exception {
+    super.open();
+    boolean isCheckpointEnabled = getRuntimeContext().isCheckpointingEnabled();
+    // If we don't enable checkpoint, we will use processingTimeSerice to do commit,
+    if (!isCheckpointEnabled) {
+      ProcessingTimeService processingTimeService = getRuntimeContext().getProcessingTimeService();
+      final long currentTimestamp = processingTimeService.getCurrentProcessingTime();
+      processingTimeService.registerTimer(currentTimestamp + flushCommitInterval, this);
+    }
   }
 
   @Override
@@ -285,5 +305,18 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
 
     return lastCommittedCheckpointId;
+  }
+
+  @Override
+  public void onProcessingTime(long timestamp) throws Exception {
+    // Flush the buffered data files into 'dataFilesPerCheckpoint' firstly.
+    dataFilesPerCheckpoint.put(Long.MAX_VALUE, ImmutableList.copyOf(dataFilesOfCurrentCheckpoint));
+    dataFilesOfCurrentCheckpoint.clear();
+
+    commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, Long.MAX_VALUE);
+
+    ProcessingTimeService processingTimeService = getRuntimeContext().getProcessingTimeService();
+    final long currentTimestamp = processingTimeService.getCurrentProcessingTime();
+    processingTimeService.registerTimer(currentTimestamp + flushCommitInterval, this);
   }
 }
