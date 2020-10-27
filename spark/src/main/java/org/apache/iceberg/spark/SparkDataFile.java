@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
@@ -32,7 +33,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 
-public class SparkDataFile implements DataFile {
+public class SparkDataFile implements DataFile, Serializable {
 
   private final int filePathPosition;
   private final int fileFormatPosition;
@@ -46,18 +47,38 @@ public class SparkDataFile implements DataFile {
   private final int upperBoundsPosition;
   private final int keyMetadataPosition;
   private final int splitOffsetsPosition;
+  private final int specIdPosition;
   private final Type lowerBoundsType;
   private final Type upperBoundsType;
   private final Type keyMetadataType;
 
   private final SparkStructLike wrappedPartition;
+  private final Types.StructType partitionStruct;
   private Row wrapped;
+
+  private static final StructLike EMPTY_PARTITION_INFO = new StructLike() {
+    @Override
+    public int size() {
+      return 0;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      throw new UnsupportedOperationException("Cannot get a value from an empty partition");
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot set a value in an empty partition");
+    }
+  };
 
   public SparkDataFile(Types.StructType type, StructType sparkType) {
     this.lowerBoundsType = type.fieldType("lower_bounds");
     this.upperBoundsType = type.fieldType("upper_bounds");
     this.keyMetadataType = type.fieldType("key_metadata");
-    this.wrappedPartition = new SparkStructLike(type.fieldType("partition").asStructType());
+    this.partitionStruct = type.fieldType("partition").asStructType();
+    this.wrappedPartition = new SparkStructLike(partitionStruct);
 
     Map<String, Integer> positions = Maps.newHashMap();
     type.fields().forEach(field -> {
@@ -77,19 +98,47 @@ public class SparkDataFile implements DataFile {
     upperBoundsPosition = positions.get("upper_bounds");
     keyMetadataPosition = positions.get("key_metadata");
     splitOffsetsPosition = positions.get("split_offsets");
+    specIdPosition = positions.get("partition_spec_id");
+  }
+
+  private SparkDataFile(SparkDataFile other) {
+    this.lowerBoundsType = other.lowerBoundsType;
+    this.upperBoundsType = other.upperBoundsType;
+    this.keyMetadataType = other.keyMetadataType;
+    this.wrappedPartition = new SparkStructLike(other.partitionStruct);
+    this.filePathPosition = other.filePathPosition;
+    this.fileFormatPosition = other.fileFormatPosition;
+    this.partitionPosition = other.partitionPosition;
+    this.recordCountPosition = other.recordCountPosition;
+    this.fileSizeInBytesPosition = other.fileSizeInBytesPosition;
+    this.columnSizesPosition = other.columnSizesPosition;
+    this.valueCountsPosition = other.valueCountsPosition;
+    this.nullValueCountsPosition = other.nullValueCountsPosition;
+    this.lowerBoundsPosition = other.lowerBoundsPosition;
+    this.upperBoundsPosition = other.upperBoundsPosition;
+    this.keyMetadataPosition = other.keyMetadataPosition;
+    this.splitOffsetsPosition = other.splitOffsetsPosition;
+    this.specIdPosition = other.specIdPosition;
+    this.partitionStruct = other.partitionStruct;
+    this.wrap(other.wrapped.copy());
   }
 
   public SparkDataFile wrap(Row row) {
     this.wrapped = row;
     if (wrappedPartition.size() > 0) {
-      this.wrappedPartition.wrap(row.getAs(partitionPosition));
+      Row partition = row.getAs(partitionPosition);
+      this.wrappedPartition.wrap(partition);
     }
     return this;
   }
 
   @Override
   public int specId() {
-    return -1;
+    if (wrappedPartition.size() > 0) {
+      return wrapped.getAs(specIdPosition);
+    } else {
+      return 0;
+    }
   }
 
   @Override
@@ -105,7 +154,11 @@ public class SparkDataFile implements DataFile {
 
   @Override
   public StructLike partition() {
-    return wrappedPartition;
+    if (wrappedPartition.size() > 0) {
+      return wrappedPartition;
+    } else {
+      return EMPTY_PARTITION_INFO;
+    }
   }
 
   @Override
@@ -152,7 +205,7 @@ public class SparkDataFile implements DataFile {
 
   @Override
   public DataFile copy() {
-    throw new UnsupportedOperationException("Not implemented: copy");
+    return new SparkDataFile(this);
   }
 
   @Override

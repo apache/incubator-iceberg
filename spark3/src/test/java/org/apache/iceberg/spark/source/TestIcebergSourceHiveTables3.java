@@ -19,5 +19,10 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.actions.PlanScanAction;
+
 public class TestIcebergSourceHiveTables3 extends TestIcebergSourceHiveTables {
+  public TestIcebergSourceHiveTables3(PlanScanAction.PlanMode distributedPlanning) {
+    super(distributedPlanning);
+  }
 }

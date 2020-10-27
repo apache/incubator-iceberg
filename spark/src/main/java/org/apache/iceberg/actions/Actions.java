@@ -77,6 +77,10 @@ public class Actions {
     return new ExpireSnapshotsAction(spark, table);
   }
 
+  public PlanScanAction planScan() {
+    return new PlanScanAction(spark, table);
+  }
+
   protected SparkSession spark() {
     return spark;
   }

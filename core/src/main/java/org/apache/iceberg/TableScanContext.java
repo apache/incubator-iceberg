@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 /**
  * Context object with optional arguments for a TableScan.
  */
-final class TableScanContext {
+public final class TableScanContext {
   private final Long snapshotId;
   private final Expression rowFilter;
   private final boolean ignoreResiduals;
@@ -41,7 +41,7 @@ final class TableScanContext {
   private final Long fromSnapshotId;
   private final Long toSnapshotId;
 
-  TableScanContext() {
+  public TableScanContext() {
     this.snapshotId = null;
     this.rowFilter = Expressions.alwaysTrue();
     this.ignoreResiduals = false;
@@ -70,7 +70,7 @@ final class TableScanContext {
     this.toSnapshotId = toSnapshotId;
   }
 
-  Long snapshotId() {
+  public Long snapshotId() {
     return snapshotId;
   }
 
@@ -79,7 +79,7 @@ final class TableScanContext {
         caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
-  Expression rowFilter() {
+  public Expression rowFilter() {
     return rowFilter;
   }
 
@@ -88,7 +88,7 @@ final class TableScanContext {
         caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
-  boolean ignoreResiduals() {
+  public boolean ignoreResiduals() {
     return ignoreResiduals;
   }
 
@@ -97,7 +97,7 @@ final class TableScanContext {
         caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
-  boolean caseSensitive() {
+  public boolean caseSensitive() {
     return caseSensitive;
   }
 
@@ -106,7 +106,7 @@ final class TableScanContext {
         isCaseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
-  boolean returnColumnStats() {
+  public boolean returnColumnStats() {
     return colStats;
   }
 
@@ -115,7 +115,7 @@ final class TableScanContext {
         caseSensitive, returnColumnStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
-  Collection<String> selectedColumns() {
+  public Collection<String> selectedColumns() {
     return selectedColumns;
   }
 
@@ -125,7 +125,7 @@ final class TableScanContext {
         caseSensitive, colStats, null, columns, options, fromSnapshotId, toSnapshotId);
   }
 
-  Schema projectedSchema() {
+  public Schema projectedSchema() {
     return projectedSchema;
   }
 
@@ -135,7 +135,7 @@ final class TableScanContext {
         caseSensitive, colStats, schema, null, options, fromSnapshotId, toSnapshotId);
   }
 
-  Map<String, String> options() {
+  public Map<String, String> options() {
     return options;
   }
 
@@ -147,7 +147,7 @@ final class TableScanContext {
         caseSensitive, colStats, projectedSchema, selectedColumns, builder.build(), fromSnapshotId, toSnapshotId);
   }
 
-  Long fromSnapshotId() {
+  public Long fromSnapshotId() {
     return fromSnapshotId;
   }
 
@@ -156,7 +156,7 @@ final class TableScanContext {
         caseSensitive, colStats, projectedSchema, selectedColumns, options, id, toSnapshotId);
   }
 
-  Long toSnapshotId() {
+  public Long toSnapshotId() {
     return toSnapshotId;
   }
 

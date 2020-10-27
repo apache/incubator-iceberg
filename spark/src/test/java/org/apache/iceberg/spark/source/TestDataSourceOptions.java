@@ -31,6 +31,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.actions.PlanScanAction;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -47,9 +48,12 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+@RunWith(Parameterized.class)
 public abstract class TestDataSourceOptions {
 
   private static final Configuration CONF = new Configuration();
@@ -59,12 +63,26 @@ public abstract class TestDataSourceOptions {
   );
   private static SparkSession spark = null;
 
+  private final PlanScanAction.PlanMode planMode;
+
+  @Parameterized.Parameters(name = "Plan Mode = {0}")
+  public static Object[] parameters() {
+    return new Object[] {PlanScanAction.PlanMode.LOCAL, PlanScanAction.PlanMode.DISTRIBUTED};
+  }
+
+  public TestDataSourceOptions(PlanScanAction.PlanMode planMode) {
+    this.planMode = planMode;
+  }
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
   @BeforeClass
   public static void startSpark() {
-    TestDataSourceOptions.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestDataSourceOptions.spark = SparkSession
+        .builder()
+        .config(PlanScanAction.ICEBERG_TEST_PLAN_MODE, "true")
+        .master("local[2]").getOrCreate();
   }
 
   @AfterClass
@@ -163,6 +181,7 @@ public abstract class TestDataSourceOptions {
       Dataset<Row> resultDf = spark.read()
           .format("iceberg")
           .option("hadoop.fs.default.name", "file:///")
+          .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
           .load(tableLocation);
       List<SimpleRecord> resultRecords = resultDf.orderBy("id")
           .as(Encoders.bean(SimpleRecord.class))
@@ -197,6 +216,7 @@ public abstract class TestDataSourceOptions {
     Dataset<Row> resultDf = spark.read()
         .format("iceberg")
         .option("split-size", String.valueOf(611)) // 611 bytes is the size of SimpleRecord(1,"a")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation);
 
     Assert.assertEquals("Spark partitions should match", 2, resultDf.javaRDD().getNumPartitions());
@@ -236,6 +256,7 @@ public abstract class TestDataSourceOptions {
               .format("iceberg")
               .option("snapshot-id", snapshotIds.get(3).toString())
               .option("start-snapshot-id", snapshotIds.get(3).toString())
+              .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
               .load(tableLocation).explain();
         });
 
@@ -249,6 +270,7 @@ public abstract class TestDataSourceOptions {
               .format("iceberg")
               .option("as-of-timestamp", Long.toString(table.snapshot(snapshotIds.get(3)).timestampMillis()))
               .option("end-snapshot-id", snapshotIds.get(2).toString())
+              .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
               .load(tableLocation).explain();
         });
 
@@ -261,6 +283,7 @@ public abstract class TestDataSourceOptions {
           spark.read()
               .format("iceberg")
               .option("end-snapshot-id", snapshotIds.get(2).toString())
+              .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
               .load(tableLocation).explain();
         });
 
@@ -268,6 +291,7 @@ public abstract class TestDataSourceOptions {
     List<SimpleRecord> result = spark.read()
         .format("iceberg")
         .option("start-snapshot-id", snapshotIds.get(3).toString())
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation)
         .orderBy("id")
         .as(Encoders.bean(SimpleRecord.class))
@@ -279,6 +303,7 @@ public abstract class TestDataSourceOptions {
         .format("iceberg")
         .option("start-snapshot-id", snapshotIds.get(2).toString())
         .option("end-snapshot-id", snapshotIds.get(1).toString())
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation)
         .orderBy("id")
         .as(Encoders.bean(SimpleRecord.class))
@@ -322,6 +347,7 @@ public abstract class TestDataSourceOptions {
 
     Dataset<Row> entriesDf = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation + "#entries");
     Assert.assertEquals("Num partitions must match", 2, entriesDf.javaRDD().getNumPartitions());
 
@@ -329,6 +355,7 @@ public abstract class TestDataSourceOptions {
     entriesDf = spark.read()
         .format("iceberg")
         .option("split-size", String.valueOf(128 * 1024 * 1024))
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation + "#entries");
     Assert.assertEquals("Num partitions must match", 1, entriesDf.javaRDD().getNumPartitions());
   }
@@ -359,6 +386,7 @@ public abstract class TestDataSourceOptions {
 
     Dataset<Row> metadataDf = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation + "#entries");
 
     int partitionNum = metadataDf.javaRDD().getNumPartitions();

@@ -32,6 +32,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.Actions;
+import org.apache.iceberg.actions.PlanScanAction;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -53,16 +54,30 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+@RunWith(Parameterized.class)
 public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   private static final Schema SCHEMA = new Schema(
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
   );
+
+  private final PlanScanAction.PlanMode planMode;
+
+  @Parameterized.Parameters(name = "Plan Mode = {0}")
+  public static Object[] parameters() {
+    return new Object[] {PlanScanAction.PlanMode.LOCAL, PlanScanAction.PlanMode.DISTRIBUTED};
+  }
+
+  public TestIcebergSourceTablesBase(PlanScanAction.PlanMode planMode) {
+    this.planMode = planMode;
+  }
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -93,6 +108,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Dataset<Row> resultDf = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier));
     List<SimpleRecord> actualRecords = resultDf.orderBy("id")
         .as(Encoders.bean(SimpleRecord.class))
@@ -119,6 +135,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "entries"))
         .collectAsList();
 
@@ -134,6 +151,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         row.put(2, 0L);
         GenericData.Record file = (GenericData.Record) row.get("data_file");
         file.put(0, FileContent.DATA.id());
+        file.put(13, 0); // SpecId
         expected.add(row);
       });
     }
@@ -171,6 +189,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "all_entries"))
         .orderBy("snapshot_id")
         .collectAsList();
@@ -184,6 +203,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
           row.put(2, 0L);
           GenericData.Record file = (GenericData.Record) row.get("data_file");
           file.put(0, FileContent.DATA.id());
+          file.put(13, 0); // SpecId
           expected.add(row);
         });
       }
@@ -215,11 +235,15 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     // count entries
     Assert.assertEquals("Count should return " + expectedEntryCount,
-        expectedEntryCount, spark.read().format("iceberg").load(loadLocation(tableIdentifier, "entries")).count());
+        expectedEntryCount, spark.read().format("iceberg")
+            .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
+            .load(loadLocation(tableIdentifier, "entries")).count());
 
     // count all_entries
     Assert.assertEquals("Count should return " + expectedEntryCount,
-        expectedEntryCount, spark.read().format("iceberg").load(loadLocation(tableIdentifier, "all_entries")).count());
+        expectedEntryCount, spark.read().format("iceberg")
+            .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
+            .load(loadLocation(tableIdentifier, "all_entries")).count());
   }
 
   @Test
@@ -248,6 +272,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "files"))
         .collectAsList();
 
@@ -259,6 +284,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
             file.put(0, FileContent.DATA.id());
+            file.put(14, 0); // SpecId
             expected.add(file);
           }
         }
@@ -305,6 +331,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
       List<Row> actual = spark.read()
           .format("iceberg")
+          .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
           .load(loadLocation(tableIdentifier, "files"))
           .collectAsList();
 
@@ -315,6 +342,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
           for (GenericData.Record record : rows) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
             file.put(0, FileContent.DATA.id());
+            file.put(14, 0); // SpecId
             expected.add(file);
           }
         }
@@ -364,6 +392,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
       List<Row> actual = spark.read()
           .format("iceberg")
+          .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
           .load(loadLocation(tableIdentifier, "entries"))
           .select("sequence_number", "snapshot_id", "data_file")
           .collectAsList();
@@ -411,6 +440,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "files"))
         .collectAsList();
 
@@ -422,6 +452,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
             file.put(0, FileContent.DATA.id());
+            file.put(13, 0); // SpecId
             expected.add(file);
           }
         }
@@ -456,16 +487,19 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<Row> actualAllData = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "all_data_files"))
         .collectAsList();
 
     List<Row> actualAllManifests = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "all_manifests"))
         .collectAsList();
 
     List<Row> actualAllEntries = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "all_entries"))
         .collectAsList();
 
@@ -506,6 +540,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "all_data_files"))
         .orderBy("file_path")
         .collectAsList();
@@ -519,6 +554,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
             file.put(0, FileContent.DATA.id());
+            file.put(14, 0); // SpecId
             expected.add(file);
           }
         }
@@ -576,6 +612,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "history"))
         .collectAsList();
 
@@ -639,6 +676,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "snapshots"))
         .collectAsList();
 
@@ -691,6 +729,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "manifests"))
         .collectAsList();
 
@@ -744,6 +783,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "all_manifests"))
         .orderBy("path")
         .collectAsList();
@@ -810,6 +850,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "partitions"))
         .collectAsList();
 
@@ -841,6 +882,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "partitions"))
         .orderBy("partition.id")
         .collectAsList();
@@ -871,6 +913,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     List<Row> actualAfterFirstCommit = spark.read()
         .format("iceberg")
         .option("snapshot-id", String.valueOf(firstCommitId))
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
         .load(loadLocation(tableIdentifier, "partitions"))
         .orderBy("partition.id")
         .collectAsList();
@@ -913,7 +956,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .execute();
     Assert.assertEquals("Should delete 1 data file", 1, result2.size());
 
-    Dataset<Row> resultDF = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
+    Dataset<Row> resultDF = spark.read().format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, this.planMode.name())
+        .load(loadLocation(tableIdentifier));
     List<SimpleRecord> actualRecords = resultDF
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();

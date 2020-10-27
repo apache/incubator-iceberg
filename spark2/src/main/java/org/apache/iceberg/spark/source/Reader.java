@@ -28,6 +28,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -36,6 +37,9 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.actions.Actions;
+import org.apache.iceberg.actions.PlanScanAction;
+import org.apache.iceberg.actions.PlanScanAction.PlanMode;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -96,6 +100,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private final boolean localityPreferred;
   private final boolean batchReadsEnabled;
   private final int batchSize;
+  private final PlanMode planMode;
 
   // lazy variables
   private Schema schema = null;
@@ -108,6 +113,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.table = table;
     this.snapshotId = options.get("snapshot-id").map(Long::parseLong).orElse(null);
     this.asOfTimestamp = options.get("as-of-timestamp").map(Long::parseLong).orElse(null);
+    this.planMode = options.get(PlanScanAction.ICEBERG_PLAN_MODE).map(PlanScanAction::parsePlanMode)
+        .orElse(PlanMode.LOCAL);
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
           "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
@@ -385,14 +392,40 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
         }
       }
 
-      try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
-        this.tasks = Lists.newArrayList(tasksIterable);
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
-      }
+      this.tasks = planScan(scan);
     }
-
     return tasks;
+  }
+
+  private List<CombinedScanTask> planScan(TableScan scan) {
+    // TODO Add Automatic mode for determining when to do Distributed Planning
+    if (planMode == PlanMode.DISTRIBUTED && scan instanceof DataTableScan) {
+      return planDistributedScan((DataTableScan) scan);
+    } else {
+      return planLocalScan(scan);
+    }
+  }
+
+  private List<CombinedScanTask> planDistributedScan(DataTableScan scan) {
+    List<CombinedScanTask> result;
+    try {
+      result = Lists.newArrayList(Actions.forTable(table).planScan().withContext(scan.tableScanContext()).execute());
+    } catch (Exception e) {
+      if (SparkSession.active().conf().get(PlanScanAction.ICEBERG_TEST_PLAN_MODE).equals("true")) {
+        throw e;
+      }
+      LOG.error("Cannot run distributed job planning, falling back to local planning.", e);
+      result = planLocalScan(scan);
+    }
+    return result;
+  }
+
+  private List<CombinedScanTask> planLocalScan(TableScan scan) {
+    try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
+      return Lists.newArrayList(tasksIterable);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
+    }
   }
 
   @Override

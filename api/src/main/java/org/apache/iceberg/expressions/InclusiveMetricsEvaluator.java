@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Comparator;
@@ -45,7 +46,7 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
  * rows and false if the file cannot contain matching rows. Files may be skipped if and only if the
  * return value of {@code eval} is false.
  */
-public class InclusiveMetricsEvaluator {
+public class InclusiveMetricsEvaluator implements Serializable {
   private final Expression expr;
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {

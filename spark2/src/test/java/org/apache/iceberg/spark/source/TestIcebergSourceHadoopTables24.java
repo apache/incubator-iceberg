@@ -19,5 +19,10 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.actions.PlanScanAction;
+
 public class TestIcebergSourceHadoopTables24 extends TestIcebergSourceHadoopTables {
+  public TestIcebergSourceHadoopTables24(PlanScanAction.PlanMode distributedPlanning) {
+    super(distributedPlanning);
+  }
 }

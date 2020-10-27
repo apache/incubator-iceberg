@@ -42,6 +42,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.actions.PlanScanAction;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -75,23 +76,27 @@ public abstract class TestPartitionPruning {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
+  @Parameterized.Parameters(name = "File format {0} - Vectorized Read {1} - Plan Mode {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-        { "parquet", false },
-        { "parquet", true },
-        { "avro", false },
-        { "orc", false },
-        { "orc", true }
+        new Object[] { "parquet", false, PlanScanAction.PlanMode.LOCAL },
+        new Object[] { "parquet", false, PlanScanAction.PlanMode.DISTRIBUTED },
+        new Object[] { "parquet", true, PlanScanAction.PlanMode.LOCAL },
+        new Object[] { "avro", false, PlanScanAction.PlanMode.DISTRIBUTED },
+        new Object[] { "orc", false, PlanScanAction.PlanMode.LOCAL },
+        new Object[] { "orc", false, PlanScanAction.PlanMode.DISTRIBUTED },
+        new Object[] { "orc", true, PlanScanAction.PlanMode.LOCAL},
     };
   }
 
   private final String format;
   private final boolean vectorized;
+  private final PlanScanAction.PlanMode planMode;
 
-  public TestPartitionPruning(String format, boolean vectorized) {
+  public TestPartitionPruning(String format, boolean vectorized, PlanScanAction.PlanMode planMode) {
     this.format = format;
     this.vectorized = vectorized;
+    this.planMode = planMode;
   }
 
   private static SparkSession spark = null;
@@ -109,6 +114,7 @@ public abstract class TestPartitionPruning {
     String optionKey = String.format("fs.%s.impl", CountOpenLocalFileSystem.scheme);
     CONF.set(optionKey, CountOpenLocalFileSystem.class.getName());
     spark.conf().set(optionKey, CountOpenLocalFileSystem.class.getName());
+    spark.conf().set(PlanScanAction.ICEBERG_TEST_PLAN_MODE, "true");
     spark.conf().set("spark.sql.session.timeZone", "UTC");
     spark.udf().register("bucket3", (Integer num) -> bucketTransform.apply(num), DataTypes.IntegerType);
     spark.udf().register("truncate5", (String str) -> truncateTransform.apply(str), DataTypes.StringType);
@@ -255,6 +261,7 @@ public abstract class TestPartitionPruning {
     List<Row> actual = spark.read()
         .format("iceberg")
         .option("vectorization-enabled", String.valueOf(vectorized))
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(table.location())
         .select("id", "date", "level", "message", "timestamp")
         .filter(filterCond)
@@ -315,7 +322,9 @@ public abstract class TestPartitionPruning {
         .stream().filter(path -> path.startsWith(originTableLocation.getAbsolutePath()))
         .collect(Collectors.toSet());
 
-    List<Row> files = spark.read().format("iceberg").load(table.location() + "#files").collectAsList();
+    List<Row> files = spark.read().format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
+        .load(table.location() + "#files").collectAsList();
 
     Set<String> filesToRead = extractFilePathsMatchingConditionOnPartition(files, partCondition);
     Set<String> filesToNotRead = extractFilePathsNotIn(files, filesToRead);

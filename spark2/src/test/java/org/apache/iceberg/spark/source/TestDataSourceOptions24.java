@@ -19,5 +19,10 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.actions.PlanScanAction;
+
 public class TestDataSourceOptions24 extends TestDataSourceOptions {
+  public TestDataSourceOptions24(PlanScanAction.PlanMode distributedPlanning) {
+    super(distributedPlanning);
+  }
 }

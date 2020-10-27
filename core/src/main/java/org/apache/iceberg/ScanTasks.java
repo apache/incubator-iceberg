@@ -17,12 +17,20 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg;
 
-import org.apache.iceberg.actions.PlanScanAction;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 
-public class TestSnapshotSelection24 extends TestSnapshotSelection {
-  public TestSnapshotSelection24(PlanScanAction.PlanMode distributedPlanning) {
-    super(distributedPlanning);
+public class ScanTasks {
+
+  /**
+   * Utilty class no public constructor
+   */
+  private ScanTasks() {
+  }
+
+  public static BaseFileScanTask createBaseFileScanTask(DataFile file, DeleteFile[] deletes, String schemaString,
+                                                        String specString, ResidualEvaluator residuals) {
+    return new BaseFileScanTask(file, deletes, schemaString, specString, residuals);
   }
 }

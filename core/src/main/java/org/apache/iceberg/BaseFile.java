@@ -100,6 +100,10 @@ abstract class BaseFile<F>
           found = true;
           fromProjectionPos[i] = j;
         }
+        if (fields.get(i).fieldId() == ManifestFile.SPEC_ID.fieldId()) {
+          found = true;
+          fromProjectionPos[i] = 14;
+        }
       }
 
       if (!found) {
@@ -255,6 +259,9 @@ abstract class BaseFile<F>
       case 13:
         this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         return;
+      case 14:
+        this.partitionSpecId = (value != null) ? (Integer) value : -1;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -301,6 +308,8 @@ abstract class BaseFile<F>
         return splitOffsets();
       case 13:
         return equalityFieldIds();
+      case 14:
+        return partitionSpecId;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }

@@ -19,10 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -47,7 +43,6 @@ import org.slf4j.LoggerFactory;
 abstract class BaseTableScan implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(TableScan.class);
 
-  private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   private final TableOperations ops;
   private final Table table;
@@ -63,6 +58,10 @@ abstract class BaseTableScan implements TableScan {
     this.table = table;
     this.schema = schema;
     this.context = context;
+  }
+
+  protected TableScanContext tableScanContext() {
+    return context;
   }
 
   protected TableOperations tableOps() {
@@ -85,7 +84,7 @@ abstract class BaseTableScan implements TableScan {
     return context.selectedColumns();
   }
 
-  protected Map<String, String> options() {
+  public Map<String, String> options() {
     return context.options();
   }
 
@@ -104,6 +103,14 @@ abstract class BaseTableScan implements TableScan {
   protected abstract CloseableIterable<FileScanTask> planFiles(
       TableOperations ops, Snapshot snapshot, Expression rowFilter,
       boolean ignoreResiduals, boolean caseSensitive, boolean colStats);
+
+  public Long fromSnapshotId() {
+    return context().fromSnapshotId();
+  }
+
+  public Long toSnapshotId() {
+    return context.toSnapshotId();
+  }
 
   @Override
   public Table table() {
@@ -145,7 +152,7 @@ abstract class BaseTableScan implements TableScan {
     // the snapshot ID could be null if no entries were older than the requested time. in that case,
     // there is no valid snapshot to read.
     Preconditions.checkArgument(lastSnapshotId != null,
-        "Cannot find a snapshot older than %s", formatTimestampMillis(timestampMillis));
+        "Cannot find a snapshot older than %s", TableScanUtil.formatTimestampMillis(timestampMillis));
 
     return useSnapshot(lastSnapshotId);
   }
@@ -202,7 +209,7 @@ abstract class BaseTableScan implements TableScan {
     Snapshot snapshot = snapshot();
     if (snapshot != null) {
       LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table,
-          snapshot.snapshotId(), formatTimestampMillis(snapshot.timestampMillis()),
+          snapshot.snapshotId(), TableScanUtil.formatTimestampMillis(snapshot.timestampMillis()),
           context.rowFilter());
 
       Listeners.notifyAll(
@@ -306,9 +313,5 @@ abstract class BaseTableScan implements TableScan {
     }
 
     return schema;
-  }
-
-  private static String formatTimestampMillis(long millis) {
-    return DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault()));
   }
 }

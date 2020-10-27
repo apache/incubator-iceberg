@@ -26,6 +26,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.PlanScanAction;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -40,10 +41,21 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+@RunWith(Parameterized.class)
 public abstract class TestSnapshotSelection {
+
+  @Parameterized.Parameters(name = "Plan Mode {0}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] {PlanScanAction.PlanMode.LOCAL},
+        new Object[] {PlanScanAction.PlanMode.DISTRIBUTED},
+    };
+  }
 
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA = new Schema(
@@ -51,14 +63,23 @@ public abstract class TestSnapshotSelection {
       optional(2, "data", Types.StringType.get())
   );
 
+  private final PlanScanAction.PlanMode planMode;
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
   private static SparkSession spark = null;
 
+  public TestSnapshotSelection(PlanScanAction.PlanMode planMode) {
+    this.planMode = planMode;
+  }
+
   @BeforeClass
   public static void startSpark() {
-    TestSnapshotSelection.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestSnapshotSelection.spark = SparkSession
+        .builder()
+        .config(PlanScanAction.ICEBERG_TEST_PLAN_MODE, "true")
+        .master("local[2]").getOrCreate();
   }
 
   @AfterClass
@@ -99,6 +120,7 @@ public abstract class TestSnapshotSelection {
     // verify records in the current snapshot
     Dataset<Row> currentSnapshotResult = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation);
     List<SimpleRecord> currentSnapshotRecords = currentSnapshotResult.orderBy("id")
         .as(Encoders.bean(SimpleRecord.class))
@@ -114,6 +136,7 @@ public abstract class TestSnapshotSelection {
     Dataset<Row> previousSnapshotResult = spark.read()
         .format("iceberg")
         .option("snapshot-id", parentSnapshotId)
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation);
     List<SimpleRecord> previousSnapshotRecords = previousSnapshotResult.orderBy("id")
         .as(Encoders.bean(SimpleRecord.class))
@@ -155,6 +178,7 @@ public abstract class TestSnapshotSelection {
     // verify records in the current snapshot
     Dataset<Row> currentSnapshotResult = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation);
     List<SimpleRecord> currentSnapshotRecords = currentSnapshotResult.orderBy("id")
         .as(Encoders.bean(SimpleRecord.class))
@@ -168,6 +192,7 @@ public abstract class TestSnapshotSelection {
     Dataset<Row> previousSnapshotResult = spark.read()
         .format("iceberg")
         .option("as-of-timestamp", firstSnapshotTimestamp)
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation);
     List<SimpleRecord> previousSnapshotRecords = previousSnapshotResult.orderBy("id")
         .as(Encoders.bean(SimpleRecord.class))
@@ -186,6 +211,7 @@ public abstract class TestSnapshotSelection {
     Dataset<Row> df = spark.read()
         .format("iceberg")
         .option("snapshot-id", -10)
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation);
 
     df.collectAsList();
@@ -203,6 +229,7 @@ public abstract class TestSnapshotSelection {
     Dataset<Row> df = spark.read()
         .format("iceberg")
         .option("as-of-timestamp", timestamp)
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation);
 
     df.collectAsList();
@@ -230,6 +257,7 @@ public abstract class TestSnapshotSelection {
         .format("iceberg")
         .option("snapshot-id", snapshotId)
         .option("as-of-timestamp", timestamp)
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(tableLocation);
 
     df.collectAsList();

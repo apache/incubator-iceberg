@@ -80,7 +80,8 @@ public interface DataFile extends ContentFile<DataFile> {
         UPPER_BOUNDS,
         KEY_METADATA,
         SPLIT_OFFSETS,
-        EQUALITY_IDS
+        EQUALITY_IDS,
+        ManifestFile.SPEC_ID.asOptional()
     );
   }
 

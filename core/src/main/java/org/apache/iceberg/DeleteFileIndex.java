@@ -62,7 +62,8 @@ import org.apache.iceberg.util.Tasks;
  * Use {@link #builderFor(FileIO, Iterable)} to construct an index, and {@link #forDataFile(long, DataFile)} or
  * {@link #forEntry(ManifestEntry)} to get the the delete files to apply to a given data file.
  */
-class DeleteFileIndex {
+public class DeleteFileIndex {
+  private static final DeleteFile[] EMPTY_DELETES = new DeleteFile[0];
   private final Map<Integer, PartitionSpec> specsById;
   private final Map<Integer, Types.StructType> partitionTypeById;
   private final Map<Integer, ThreadLocal<StructLikeWrapper>> wrapperById;
@@ -100,7 +101,10 @@ class DeleteFileIndex {
     return forDataFile(entry.sequenceNumber(), entry.file());
   }
 
-  DeleteFile[] forDataFile(long sequenceNumber, DataFile file) {
+  public DeleteFile[] forDataFile(long sequenceNumber, DataFile file) {
+    if (isEmpty()) {
+      return EMPTY_DELETES;
+    }
     Pair<Integer, StructLikeWrapper> partition = partition(file.specId(), file.partition());
     Pair<long[], DeleteFile[]> partitionDeletes = sortedDeletesByPartition.get(partition);
 
@@ -305,11 +309,11 @@ class DeleteFileIndex {
     return Arrays.stream(files, start, files.length);
   }
 
-  static Builder builderFor(FileIO io, Iterable<ManifestFile> deleteManifests) {
+  public static Builder builderFor(FileIO io, Iterable<ManifestFile> deleteManifests) {
     return new Builder(io, Sets.newHashSet(deleteManifests));
   }
 
-  static class Builder {
+  public static class Builder {
     private final FileIO io;
     private final Set<ManifestFile> deleteManifests;
     private Map<Integer, PartitionSpec> specsById = null;
@@ -318,37 +322,37 @@ class DeleteFileIndex {
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
 
-    Builder(FileIO io, Set<ManifestFile> deleteManifests) {
+    public Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
       this.deleteManifests = Sets.newHashSet(deleteManifests);
     }
 
-    Builder specsById(Map<Integer, PartitionSpec> newSpecsById) {
+    public Builder specsById(Map<Integer, PartitionSpec> newSpecsById) {
       this.specsById = newSpecsById;
       return this;
     }
 
-    Builder filterData(Expression newDataFilter) {
+    public Builder filterData(Expression newDataFilter) {
       this.dataFilter = Expressions.and(dataFilter, newDataFilter);
       return this;
     }
 
-    Builder filterPartitions(Expression newPartitionFilter) {
+    public Builder filterPartitions(Expression newPartitionFilter) {
       this.partitionFilter = Expressions.and(partitionFilter, newPartitionFilter);
       return this;
     }
 
-    Builder caseSensitive(boolean newCaseSensitive) {
+    public Builder caseSensitive(boolean newCaseSensitive) {
       this.caseSensitive = newCaseSensitive;
       return this;
     }
 
-    Builder planWith(ExecutorService newExecutorService) {
+    public Builder planWith(ExecutorService newExecutorService) {
       this.executorService = newExecutorService;
       return this;
     }
 
-    DeleteFileIndex build() {
+    public DeleteFileIndex build() {
       // read all of the matching delete manifests in parallel and accumulate the matching files in a queue
       Queue<ManifestEntry<DeleteFile>> deleteEntries = new ConcurrentLinkedQueue<>();
       Tasks.foreach(deleteManifestReaders())

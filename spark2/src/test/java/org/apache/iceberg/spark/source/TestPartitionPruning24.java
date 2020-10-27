@@ -19,8 +19,10 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.actions.PlanScanAction;
+
 public class TestPartitionPruning24 extends TestPartitionPruning {
-  public TestPartitionPruning24(String format, boolean vectorized) {
-    super(format, vectorized);
+  public TestPartitionPruning24(String format, boolean vectorized, PlanScanAction.PlanMode distributedPlanning) {
+    super(format, vectorized, distributedPlanning);
   }
 }

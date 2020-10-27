@@ -26,6 +26,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.actions.PlanScanAction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.DeleteReadTests;
@@ -41,14 +42,31 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
+@RunWith(Parameterized.class)
 public abstract class TestSparkReaderDeletes extends DeleteReadTests {
 
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
+
+  @Parameterized.Parameters(name = "Plan Mode {0}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] {PlanScanAction.PlanMode.LOCAL},
+        new Object[] {PlanScanAction.PlanMode.DISTRIBUTED},
+    };
+  }
+
+  private final PlanScanAction.PlanMode planMode;
+
+  public TestSparkReaderDeletes(PlanScanAction.PlanMode planMode) {
+    this.planMode = planMode;
+  }
 
   @BeforeClass
   public static void startMetastoreAndSpark() {
@@ -58,6 +76,7 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
 
     spark = SparkSession.builder()
         .master("local[2]")
+        .config(PlanScanAction.ICEBERG_TEST_PLAN_MODE, "true")
         .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
         .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
         .enableHiveSupport()
@@ -101,6 +120,7 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
   public StructLikeSet rowSet(String name, Table table, String... columns) {
     Dataset<Row> df = spark.read()
         .format("iceberg")
+        .option(PlanScanAction.ICEBERG_PLAN_MODE, planMode.name())
         .load(TableIdentifier.of("default", name).toString())
         .selectExpr(columns);
 

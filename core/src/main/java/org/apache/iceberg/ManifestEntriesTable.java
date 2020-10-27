@@ -102,8 +102,8 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter,
         boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
-      // return entries from both data and delete manifests
-      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.allManifests());
+      // Only return Data Manifests, TODO Handle Delete Manifests
+      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.dataManifests());
       Type fileProjection = schema().findType("data_file");
       Schema fileSchema = fileProjection != null ? new Schema(fileProjection.asStructType().fields()) : new Schema();
       String schemaString = SchemaParser.toJson(schema());

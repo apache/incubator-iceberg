@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -34,6 +35,9 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.actions.Actions;
+import org.apache.iceberg.actions.PlanScanAction;
+import org.apache.iceberg.actions.PlanScanAction.PlanMode;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -49,6 +53,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -82,6 +87,7 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final Broadcast<EncryptionManager> encryptionManager;
   private final boolean batchReadsEnabled;
   private final int batchSize;
+  private final PlanMode planMode;
 
   // lazy variables
   private StructType readSchema = null;
@@ -97,6 +103,8 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.filterExpressions = filters;
     this.snapshotId = Spark3Util.propertyAsLong(options, "snapshot-id", null);
     this.asOfTimestamp = Spark3Util.propertyAsLong(options, "as-of-timestamp", null);
+    this.planMode = PlanScanAction.parsePlanMode(
+        options.getOrDefault(PlanScanAction.ICEBERG_PLAN_MODE, PlanMode.LOCAL.name()));
 
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
@@ -280,15 +288,41 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
           scan = scan.filter(filter);
         }
       }
-
-      try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
-        this.tasks = Lists.newArrayList(tasksIterable);
-      }  catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
-      }
+      this.tasks = planScan(scan);
     }
-
     return tasks;
+  }
+
+  private List<CombinedScanTask> planScan(TableScan scan) {
+    // TODO Need to only use distributed planner for supported implementations and add some heuristics about when
+    //  to use
+    if (planMode == PlanMode.DISTRIBUTED && scan instanceof DataTableScan) {
+      return planDistributedScan((DataTableScan) scan);
+    } else {
+      return planLocalScan(scan);
+    }
+  }
+
+  private List<CombinedScanTask> planDistributedScan(DataTableScan scan) {
+    List<CombinedScanTask> result;
+    try {
+      result = Lists.newArrayList(Actions.forTable(table).planScan().withContext(scan.tableScanContext()).execute());
+    } catch (Exception e) {
+      if (SparkSession.active().conf().get(PlanScanAction.ICEBERG_TEST_PLAN_MODE).equals("true")) {
+        throw e;
+      }
+      LOG.error("Cannot run distributed job planning, falling back to local planning.", e);
+      result = planLocalScan(scan);
+    }
+    return  result;
+  }
+
+  private List<CombinedScanTask> planLocalScan(TableScan scan) {
+    try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
+      return Lists.newArrayList(tasksIterable);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
+    }
   }
 
   @Override

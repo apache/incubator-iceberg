@@ -19,11 +19,12 @@
 
 package org.apache.iceberg.spark;
 
+import java.io.Serializable;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 
-public class SparkStructLike implements StructLike {
+public class SparkStructLike implements StructLike, Serializable {
 
   private final Types.StructType type;
   private Row wrapped;

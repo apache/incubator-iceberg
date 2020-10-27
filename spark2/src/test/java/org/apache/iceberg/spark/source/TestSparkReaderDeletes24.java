@@ -19,5 +19,10 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.actions.PlanScanAction;
+
 public class TestSparkReaderDeletes24 extends TestSparkReaderDeletes {
+  public TestSparkReaderDeletes24(PlanScanAction.PlanMode distributedPlanning) {
+    super(distributedPlanning);
+  }
 }

@@ -25,7 +25,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
@@ -34,7 +33,7 @@ class IncrementalDataTableScan extends DataTableScan {
 
   IncrementalDataTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
     super(ops, table, schema, context.useSnapshotId(null));
-    validateSnapshotIds(table, context.fromSnapshotId(), context.toSnapshotId());
+    SnapshotUtil.validateSnapshotIds(table, context.fromSnapshotId(), context.toSnapshotId());
   }
 
   @Override
@@ -53,7 +52,7 @@ class IncrementalDataTableScan extends DataTableScan {
 
   @Override
   public TableScan appendsBetween(long newFromSnapshotId, long newToSnapshotId) {
-    validateSnapshotIdsRefinement(newFromSnapshotId, newToSnapshotId);
+    SnapshotUtil.validateSnapshotIdsRefinement(newFromSnapshotId, newToSnapshotId, table(), context());
     return new IncrementalDataTableScan(tableOps(), table(), schema(),
         context().fromSnapshotId(newFromSnapshotId).toSnapshotId(newToSnapshotId));
   }
@@ -69,7 +68,7 @@ class IncrementalDataTableScan extends DataTableScan {
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
     // TODO publish an incremental appends scan event
-    List<Snapshot> snapshots = snapshotsWithin(table(),
+    List<Snapshot> snapshots = SnapshotUtil.snapshotsWithin(table(),
         context().fromSnapshotId(), context().toSnapshotId());
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
     Set<ManifestFile> manifests = FluentIterable
@@ -106,45 +105,5 @@ class IncrementalDataTableScan extends DataTableScan {
     return new IncrementalDataTableScan(ops, table, schema, context);
   }
 
-  private static List<Snapshot> snapshotsWithin(Table table, long fromSnapshotId, long toSnapshotId) {
-    List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, fromSnapshotId, toSnapshotId);
-    List<Snapshot> snapshots = Lists.newArrayList();
-    for (Long snapshotId : snapshotIds) {
-      Snapshot snapshot = table.snapshot(snapshotId);
-      // for now, incremental scan supports only appends
-      if (snapshot.operation().equals(DataOperations.APPEND)) {
-        snapshots.add(snapshot);
-      } else if (snapshot.operation().equals(DataOperations.OVERWRITE)) {
-        throw new UnsupportedOperationException(
-            String.format("Found %s operation, cannot support incremental data in snapshots (%s, %s]",
-                DataOperations.OVERWRITE, fromSnapshotId, toSnapshotId));
-      }
-    }
-    return snapshots;
-  }
 
-  private void validateSnapshotIdsRefinement(long newFromSnapshotId, long newToSnapshotId) {
-    Set<Long> snapshotIdsRange = Sets.newHashSet(
-        SnapshotUtil.snapshotIdsBetween(table(), context().fromSnapshotId(), context().toSnapshotId()));
-    // since snapshotIdsBetween return ids in range (fromSnapshotId, toSnapshotId]
-    snapshotIdsRange.add(context().fromSnapshotId());
-    Preconditions.checkArgument(
-        snapshotIdsRange.contains(newFromSnapshotId),
-        "from snapshot id %s not in existing snapshot ids range (%s, %s]",
-        newFromSnapshotId, context().fromSnapshotId(), newToSnapshotId);
-    Preconditions.checkArgument(
-        snapshotIdsRange.contains(newToSnapshotId),
-        "to snapshot id %s not in existing snapshot ids range (%s, %s]",
-        newToSnapshotId, context().fromSnapshotId(), context().toSnapshotId());
-  }
-
-  private static void validateSnapshotIds(Table table, long fromSnapshotId, long toSnapshotId) {
-    Preconditions.checkArgument(fromSnapshotId != toSnapshotId, "from and to snapshot ids cannot be the same");
-    Preconditions.checkArgument(
-        table.snapshot(fromSnapshotId) != null, "from snapshot %s does not exist", fromSnapshotId);
-    Preconditions.checkArgument(
-        table.snapshot(toSnapshotId) != null, "to snapshot %s does not exist", toSnapshotId);
-    Preconditions.checkArgument(SnapshotUtil.ancestorOf(table, toSnapshotId, fromSnapshotId),
-        "from snapshot %s is not an ancestor of to snapshot  %s", fromSnapshotId, toSnapshotId);
-  }
 }

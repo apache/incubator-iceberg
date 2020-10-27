@@ -25,6 +25,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.PlanScanAction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.junit.After;
@@ -33,6 +34,10 @@ import org.junit.BeforeClass;
 public abstract class TestIcebergSourceHiveTables extends TestIcebergSourceTablesBase {
 
   private static TableIdentifier currentIdentifier;
+
+  public TestIcebergSourceHiveTables(PlanScanAction.PlanMode planMode) {
+    super(planMode);
+  }
 
   @BeforeClass
   public static void start() {

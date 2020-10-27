@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.iceberg.actions.PlanScanAction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
@@ -57,6 +58,7 @@ public class SparkTestBase {
         .master("local[2]")
         .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
         .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+        .config(PlanScanAction.ICEBERG_TEST_PLAN_MODE, "true")
         .enableHiveSupport()
         .getOrCreate();
 

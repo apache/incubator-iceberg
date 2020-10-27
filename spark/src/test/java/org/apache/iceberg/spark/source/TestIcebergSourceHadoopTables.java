@@ -24,6 +24,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.PlanScanAction;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.junit.Before;
@@ -34,6 +35,10 @@ public abstract class TestIcebergSourceHadoopTables extends TestIcebergSourceTab
 
   File tableDir = null;
   String tableLocation = null;
+
+  public TestIcebergSourceHadoopTables(PlanScanAction.PlanMode planMode) {
+    super(planMode);
+  }
 
   @Before
   public void setupTable() throws Exception {

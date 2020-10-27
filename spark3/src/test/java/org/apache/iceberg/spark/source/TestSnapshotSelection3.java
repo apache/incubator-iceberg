@@ -19,5 +19,10 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.actions.PlanScanAction;
+
 public class TestSnapshotSelection3 extends TestSnapshotSelection {
+  public TestSnapshotSelection3(PlanScanAction.PlanMode distributedPlanning) {
+    super(distributedPlanning);
+  }
 }
