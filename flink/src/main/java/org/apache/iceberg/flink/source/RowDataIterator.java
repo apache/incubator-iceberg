@@ -47,14 +47,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
-class RowDataIterator extends DataIterator<RowData> {
+public class RowDataIterator extends DataIterator<RowData> {
 
   private final Schema tableSchema;
   private final Schema projectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
 
-  RowDataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption, Schema tableSchema,
+  public RowDataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption, Schema tableSchema,
                   Schema projectedSchema, String nameMapping, boolean caseSensitive) {
     super(task, io, encryption);
     this.tableSchema = tableSchema;

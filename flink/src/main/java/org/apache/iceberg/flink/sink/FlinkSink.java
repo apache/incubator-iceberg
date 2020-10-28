@@ -25,9 +25,9 @@ import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.sink.DiscardingSink;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
@@ -41,7 +41,14 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.FlinkTableProperties;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.sink.rewrite.DataFileReplaceOperator;
+import org.apache.iceberg.flink.sink.rewrite.DataFileReplaceOperatorOut;
+import org.apache.iceberg.flink.sink.rewrite.DataFileRewriteOperator;
+import org.apache.iceberg.flink.sink.rewrite.DataFileRewriteOperatorOut;
+import org.apache.iceberg.flink.sink.rewrite.FileScanTaskGenerateOperator;
+import org.apache.iceberg.flink.sink.rewrite.FileScanTaskGenerateOperatorOut;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -179,21 +186,60 @@ public class FlinkSink {
         try (TableLoader loader = tableLoader) {
           this.table = loader.loadTable();
         } catch (IOException e) {
-          throw new UncheckedIOException("Failed to load iceberg table from table loader: " + tableLoader, e);
+          throw new UncheckedIOException(
+              "Failed to load iceberg table from table loader: " + tableLoader,
+              e);
         }
       }
 
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
 
-      this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
-
-      DataStream<Void> returnStream = rowDataInput
-          .transform(ICEBERG_STREAM_WRITER_NAME, TypeInformation.of(DataFile.class), streamWriter)
-          .setParallelism(writeParallelism)
-          .transform(ICEBERG_FILES_COMMITTER_NAME, Types.VOID, filesCommitter)
+      DataStream<?> returnStream = rowDataInput
+          .transform(ICEBERG_STREAM_WRITER_NAME,
+              TypeInformation.of(DataFile.class), streamWriter)
+          .setParallelism(rowDataInput.getParallelism())
+          .transform(ICEBERG_FILES_COMMITTER_NAME,
+              TypeInformation.of(Long.class), filesCommitter)
           .setParallelism(1)
           .setMaxParallelism(1);
+      int retainLastSnapMinutes = PropertyUtil.propertyAsInt(table.properties(),
+          FlinkTableProperties.SNAPSHOT_RETAIN_LAST_MINUTES,
+          FlinkTableProperties.SNAPSHOT_RETAIN_LAST_MINUTES_DEFAULT);
+      if (retainLastSnapMinutes > 0) {
+        // Generate scan task.
+        final String scanTaskGenId = "Iceberg-FileScanTask-Generator";
+        FileScanTaskGenerateOperator fileScanTaskOp = new FileScanTaskGenerateOperator(tableLoader);
+        returnStream = ((DataStream<Long>) returnStream)
+            .transform(scanTaskGenId, TypeInformation.of(FileScanTaskGenerateOperatorOut.class), fileScanTaskOp)
+            .setParallelism(1)
+            .setMaxParallelism(1)
+            .uid(scanTaskGenId);
+
+        // Put rewrite operator.
+        final String datafileRewriteId = "Iceberg-Datafile-Rewrite";
+        boolean caseSensitive = PropertyUtil.propertyAsBoolean(table.properties(),
+            FlinkTableProperties.CASE_SENSITIVE,
+            FlinkTableProperties.CASE_SENSITIVE_DEFAULT);
+
+        DataFileRewriteOperator rewriteDataFileOperator = new DataFileRewriteOperator(tableLoader, table.schema(),
+            table.io(), table.encryption(), caseSensitive, table.properties(),
+            getTaskWriterFactory(table, tableSchema));
+
+        returnStream = ((DataStream<FileScanTaskGenerateOperatorOut>) returnStream)
+            .transform(datafileRewriteId, TypeInformation.of(DataFileRewriteOperatorOut.class), rewriteDataFileOperator)
+            .uid(datafileRewriteId);
+
+        // Put replace operator.
+        final String datafileMergeId = "Iceberg-Datafile-Replace";
+        DataFileReplaceOperator replaceDataFileOperator =
+            new DataFileReplaceOperator(tableLoader);
+        returnStream = ((SingleOutputStreamOperator<DataFileRewriteOperatorOut>) returnStream)
+            .transform(datafileMergeId, TypeInformation.of(DataFileReplaceOperatorOut.class), replaceDataFileOperator)
+            .setParallelism(1)
+            .setMaxParallelism(1)
+            .uid(datafileMergeId);
+      }
 
       return returnStream.addSink(new DiscardingSink())
           .name(String.format("IcebergSink %s", table.name()))
@@ -201,31 +247,10 @@ public class FlinkSink {
     }
   }
 
-  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema) {
+  static IcebergStreamWriter<RowData> createStreamWriter(Table table,
+                                                         TableSchema requestedSchema) {
     Preconditions.checkArgument(table != null, "Iceberg table should't be null");
-
-    RowType flinkSchema;
-    if (requestedSchema != null) {
-      // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing iceberg schema.
-      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), table.schema());
-      TypeUtil.validateWriteSchema(table.schema(), writeSchema, true, true);
-
-      // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will be promoted to
-      // iceberg INTEGER, that means if we use iceberg's table schema to read TINYINT (backend by 1 'byte'), we will
-      // read 4 bytes rather than 1 byte, it will mess up the byte array in BinaryRowData. So here we must use flink
-      // schema.
-      flinkSchema = (RowType) requestedSchema.toRowDataType().getLogicalType();
-    } else {
-      flinkSchema = FlinkSchemaUtil.convert(table.schema());
-    }
-
-    Map<String, String> props = table.properties();
-    long targetFileSize = getTargetFileSizeBytes(props);
-    FileFormat fileFormat = getFileFormat(props);
-
-    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkSchema,
-        table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props);
-
+    TaskWriterFactory<RowData> taskWriterFactory = getTaskWriterFactory(table, requestedSchema);
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }
 
@@ -238,5 +263,26 @@ public class FlinkSink {
     return PropertyUtil.propertyAsLong(properties,
         WRITE_TARGET_FILE_SIZE_BYTES,
         WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+  }
+
+  private static TaskWriterFactory<RowData> getTaskWriterFactory(Table table, TableSchema requestedSchema) {
+    RowType flinkSchema;
+    if (requestedSchema != null) {
+      // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing iceberg schema.
+      Schema writeSchema = TypeUtil
+          .reassignIds(FlinkSchemaUtil.convert(requestedSchema),
+              table.schema());
+      TypeUtil.validateWriteSchema(table.schema(), writeSchema, true, true);
+      // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will be promoted to
+      // iceberg INTEGER, that means if we use iceberg's table schema to read TINYINT (backend by 1 'byte'), we will
+      // read 4 bytes rather than 1 byte, it will mess up the byte array in BinaryRowData. So here we must use flink
+      // schema.
+      flinkSchema = (RowType) requestedSchema.toRowDataType().getLogicalType();
+    } else {
+      flinkSchema = FlinkSchemaUtil.convert(table.schema());
+    }
+    Map<String, String> props = table.properties();
+    return new RowDataTaskWriterFactory(table.schema(), flinkSchema, table.spec(), table.locationProvider(),
+        table.io(), table.encryption(), getTargetFileSizeBytes(props), getFileFormat(props), props);
   }
 }

@@ -39,6 +39,7 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.flink.FlinkTableProperties;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -58,7 +59,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
       SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
   private static final DataFormatConverters.RowConverter CONVERTER = new DataFormatConverters.RowConverter(
       SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
-
+  private static final int ROW_COUNTS = 1000;
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();
 
@@ -116,6 +117,45 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
 
   private List<RowData> convertToRowData(List<Row> rows) {
     return rows.stream().map(CONVERTER::toInternal).collect(Collectors.toList());
+  }
+
+  @Test
+  public void testWriteRowDataWithRewrite() throws Exception {
+    List<Row> rows = SimpleDataUtil.generateRows(ROW_COUNTS);
+
+    DataStream<RowData> dataStream = env.addSource(new FiniteTestSource<>(rows), ROW_TYPE_INFO)
+        .map(CONVERTER::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
+    File folder = tempFolder.newFolder();
+    String warehouse = folder.getAbsolutePath();
+
+    tablePath = warehouse.concat("/test");
+    Assert.assertTrue("Should create the table path correctly.", new File(tablePath).mkdir());
+
+    Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
+    table = SimpleDataUtil.createTable(tablePath, props, partitioned);
+
+    table.updateProperties()
+        .set(FlinkTableProperties.NUMS_NEW_SNAPSHOT_MERGE, String.valueOf(5))
+        .set(FlinkTableProperties.SNAPSHOT_RETAIN_LAST_MINUTES, String.valueOf(1))
+        .set(FlinkTableProperties.SNAPSHOT_RETAIN_LAST_NUMS, String.valueOf(1))
+        .commit();
+
+    FlinkSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .build();
+
+    env.execute("Test Iceberg Write with Rewrite");
+
+    List<RowData> expectedRows = Lists.newArrayList(Iterables.concat(convertToRowData(rows),
+        convertToRowData(rows)));
+    SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+
+    table.updateProperties()
+        .remove(FlinkTableProperties.NUMS_NEW_SNAPSHOT_MERGE)
+        .remove(FlinkTableProperties.SNAPSHOT_RETAIN_LAST_MINUTES)
+        .remove(FlinkTableProperties.SNAPSHOT_RETAIN_LAST_NUMS)
+        .commit();
   }
 
   @Test

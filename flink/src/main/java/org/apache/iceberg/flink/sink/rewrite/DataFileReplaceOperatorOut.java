@@ -17,30 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink.sink;
+package org.apache.iceberg.flink.sink.rewrite;
 
-import java.io.Serializable;
-import org.apache.iceberg.io.TaskWriter;
-
-/**
- * Factory to create {@link TaskWriter}
- *
- * @param <T> data type of record.
- */
-public interface TaskWriterFactory<T> extends Serializable {
-
-  /**
-   * Initialize the factory with a given taskId and attemptId.
-   *
-   * @param taskId    the identifier of task.
-   * @param attemptId the attempt id of this task.
-   */
-  void initialize(int taskId, int attemptId);
-
-  /**
-   * Initialize a {@link TaskWriter} with given task id and attempt id.
-   *
-   * @return a newly created task writer.
-   */
-  TaskWriter<T> create();
+public class DataFileReplaceOperatorOut {
 }

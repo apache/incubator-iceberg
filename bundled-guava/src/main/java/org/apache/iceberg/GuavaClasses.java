@@ -26,8 +26,10 @@ import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.FluentIterable;
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -90,6 +92,9 @@ public class GuavaClasses {
     MoreExecutors.class.getName();
     ThreadFactoryBuilder.class.getName();
     Iterables.class.getName();
+    ListMultimap.class.getName();
+    HashBasedTable.class.getName();
+    ArrayListMultimap.class.getName();
   }
 
 }

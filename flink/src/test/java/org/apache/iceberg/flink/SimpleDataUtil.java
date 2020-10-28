@@ -28,6 +28,7 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.types.Row;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
@@ -94,6 +95,14 @@ public class SimpleDataUtil {
     return GenericRowData.of(id, StringData.fromString(data));
   }
 
+  public static List<Row> generateRows(int rowCounts) {
+    List<Row> rows = Lists.newArrayList();
+    for (int i = 0; i < rowCounts; i++) {
+      rows.add(Row.of(i, String.valueOf(i % 3)));
+    }
+    return rows;
+  }
+
   public static DataFile writeFile(Schema schema, PartitionSpec spec, Configuration conf,
                                    String location, String filename, List<RowData> rows)
       throws IOException {
@@ -138,4 +147,6 @@ public class SimpleDataUtil {
     Preconditions.checkArgument(expected != null, "expected records shouldn't be null");
     assertTableRecords(new HadoopTables().load(tablePath), expected);
   }
+
+
 }
