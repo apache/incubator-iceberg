@@ -81,11 +81,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
   private static class FileIterator<T> implements CloseableIterator<T> {
     private final ParquetFileReader reader;
-    private final boolean[] shouldSkip;
     private final ParquetValueReader<T> model;
     private final long totalValues;
     private final boolean reuseContainers;
     private final long[] rowGroupsStartRowPos;
+    private final boolean hasRecordFilter;
 
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
@@ -94,11 +94,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     FileIterator(ReadConf<T> conf) {
       this.reader = conf.reader();
-      this.shouldSkip = conf.shouldSkip();
       this.model = conf.model();
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
       this.rowGroupsStartRowPos = conf.startRowPositions();
+      this.hasRecordFilter = conf.hasRecordFilter();
     }
 
     @Override
@@ -123,14 +123,14 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     }
 
     private void advance() {
-      while (shouldSkip[nextRowGroup]) {
-        nextRowGroup += 1;
-        reader.skipNextRowGroup();
-      }
-
       PageReadStore pages;
       try {
-        pages = reader.readNextRowGroup();
+        // Because of the issue of PARQUET-1901, we cannot blindly call readNextFilteredRowGroup()
+        if (hasRecordFilter) {
+          pages = reader.readNextFilteredRowGroup();
+        } else {
+          pages = reader.readNextRowGroup();
+        }
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }

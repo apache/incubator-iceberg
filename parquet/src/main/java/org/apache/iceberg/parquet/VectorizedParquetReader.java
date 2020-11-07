@@ -89,12 +89,12 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
   private static class FileIterator<T> implements CloseableIterator<T> {
     private final ParquetFileReader reader;
-    private final boolean[] shouldSkip;
     private final VectorizedReader<T> model;
     private final long totalValues;
     private final int batchSize;
     private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetadata;
     private final boolean reuseContainers;
+    private final boolean hasRecordFilter;
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
@@ -102,15 +102,14 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
     FileIterator(ReadConf conf) {
       this.reader = conf.reader();
-      this.shouldSkip = conf.shouldSkip();
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
       this.model = conf.vectorizedModel();
       this.batchSize = conf.batchSize();
       this.model.setBatchSize(this.batchSize);
       this.columnChunkMetadata = conf.columnChunkMetadataForRowGroups();
+      this.hasRecordFilter = conf.hasRecordFilter();
     }
-
 
     @Override
     public boolean hasNext() {
@@ -139,16 +138,18 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     }
 
     private void advance() {
-      while (shouldSkip[nextRowGroup]) {
-        nextRowGroup += 1;
-        reader.skipNextRowGroup();
-      }
       PageReadStore pages;
       try {
-        pages = reader.readNextRowGroup();
+        // Because of the issue of PARQUET-1901, we cannot blindly call readNextFilteredRowGroup()
+        if (hasRecordFilter) {
+          pages = reader.readNextFilteredRowGroup();
+        } else {
+          pages = reader.readNextRowGroup();
+        }
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }
+
       model.setRowGroupInfo(pages, columnChunkMetadata.get(nextRowGroup));
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;

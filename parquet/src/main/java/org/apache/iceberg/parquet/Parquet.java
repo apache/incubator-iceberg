@@ -46,6 +46,7 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
@@ -582,6 +583,12 @@ public class Parquet {
           optionsBuilder = ParquetReadOptions.builder();
         }
 
+        if (filter != null && !filter.equals(Expressions.alwaysTrue()) &&
+                ParquetFilters.isSupportedFilter(filter)) {
+          optionsBuilder.useRecordFilter(filterRecords);
+          optionsBuilder.withRecordFilter(ParquetFilters.convert(getSchemaFromFile(), filter, caseSensitive));
+        }
+
         for (Map.Entry<String, String> entry : properties.entrySet()) {
           optionsBuilder.set(entry.getKey(), entry.getValue());
         }
@@ -623,17 +630,10 @@ public class Parquet {
       if (filter != null) {
         // TODO: should not need to get the schema to push down before opening the file.
         // Parquet should allow setting a filter inside its read support
-        MessageType type;
-        try (ParquetFileReader schemaReader = ParquetFileReader.open(ParquetIO.file(file))) {
-          type = schemaReader.getFileMetaData().getSchema();
-        } catch (IOException e) {
-          throw new RuntimeIOException(e);
-        }
-        Schema fileSchema = ParquetSchemaUtil.convert(type);
         builder.useStatsFilter()
             .useDictionaryFilter()
             .useRecordFilter(filterRecords)
-            .withFilter(ParquetFilters.convert(fileSchema, filter, caseSensitive));
+            .withFilter(ParquetFilters.convert(getSchemaFromFile(), filter, caseSensitive));
       } else {
         // turn off filtering
         builder.useStatsFilter(false)
@@ -654,6 +654,16 @@ public class Parquet {
       }
 
       return new ParquetIterable<>(builder);
+    }
+
+    private Schema getSchemaFromFile() {
+      MessageType type;
+      try (ParquetFileReader schemaReader = ParquetFileReader.open(ParquetIO.file(file))) {
+        type = schemaReader.getFileMetaData().getSchema();
+      } catch (IOException e) {
+        throw new RuntimeIOException(e);
+      }
+      return ParquetSchemaUtil.convert(type);
     }
   }
 
