@@ -57,6 +57,9 @@ import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.TableProperties.TABLE_DROP_BASE_PATH_ENABLED;
+import static org.apache.iceberg.TableProperties.TABLE_DROP_BASE_PATH_ENABLED_DEFAULT;
+
 public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces {
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
@@ -168,6 +171,12 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
       if (purge && lastMetadata != null) {
         CatalogUtil.dropTableData(ops.io(), lastMetadata);
+
+        boolean dropTableBasePath = lastMetadata.propertyAsBoolean(TABLE_DROP_BASE_PATH_ENABLED,
+            TABLE_DROP_BASE_PATH_ENABLED_DEFAULT);
+        if (dropTableBasePath) {
+          CatalogUtil.dropTableBaseLocation(ops.io(), lastMetadata.location());
+        }
       }
 
       LOG.info("Dropped table: {}", identifier);
@@ -246,7 +255,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     } catch (AlreadyExistsException e) {
       throw new org.apache.iceberg.exceptions.AlreadyExistsException(e, "Namespace '%s' already exists!",
-            namespace);
+          namespace);
 
     } catch (TException e) {
       throw new RuntimeException("Failed to create namespace " + namespace + " in Hive MataStore", e);
@@ -276,7 +285,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       return namespaces;
 
     } catch (TException e) {
-      throw new RuntimeException("Failed to list all namespace: " + namespace + " in Hive MataStore",  e);
+      throw new RuntimeException("Failed to list all namespace: " + namespace + " in Hive MataStore", e);
 
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
@@ -320,7 +329,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   @Override
-  public boolean setProperties(Namespace namespace,  Map<String, String> properties) {
+  public boolean setProperties(Namespace namespace, Map<String, String> properties) {
     Map<String, String> parameter = Maps.newHashMap();
 
     parameter.putAll(loadNamespaceMetadata(namespace));
@@ -335,7 +344,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   @Override
-  public boolean removeProperties(Namespace namespace,  Set<String> properties) {
+  public boolean removeProperties(Namespace namespace, Set<String> properties) {
     Map<String, String> parameter = Maps.newHashMap();
 
     parameter.putAll(loadNamespaceMetadata(namespace));
@@ -349,7 +358,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     return true;
   }
 
-  private void alterHiveDataBase(Namespace namespace,  Database database) {
+  private void alterHiveDataBase(Namespace namespace, Database database) {
     try {
       clients.run(client -> {
         client.alterDatabase(namespace.level(0), database);

@@ -285,6 +285,11 @@ public class TestCatalogUtil {
 
     }
 
+    @Override
+    public void deleteDirectory(String directory) {
+
+    }
+
     public Configuration getConfiguration() {
       return configuration;
     }
@@ -309,6 +314,11 @@ public class TestCatalogUtil {
 
     @Override
     public void deleteFile(String path) {
+
+    }
+
+    @Override
+    public void deleteDirectory(String directory) {
 
     }
 
@@ -342,6 +352,11 @@ public class TestCatalogUtil {
 
     @Override
     public void deleteFile(String path) {
+
+    }
+
+    @Override
+    public void deleteDirectory(String directory) {
 
     }
 

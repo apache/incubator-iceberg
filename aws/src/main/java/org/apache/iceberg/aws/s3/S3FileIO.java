@@ -19,7 +19,9 @@
 
 package org.apache.iceberg.aws.s3;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsClientUtil;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.FileIO;
@@ -29,7 +31,10 @@ import org.apache.iceberg.util.SerializableSupplier;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 /**
  * FileIO implementation backed by S3.
@@ -73,6 +78,32 @@ public class S3FileIO implements FileIO {
         DeleteObjectsRequest.builder().bucket(location.bucket()).delete(delete).build();
 
     client().deleteObjects(deleteRequest);
+  }
+
+  @Override
+  public void deleteDirectory(String directory) {
+    S3URI location = new S3URI(directory);
+
+    // Get all the objects of the directory.
+    ListObjectsV2Request listObjectsV2Request = ListObjectsV2Request.builder()
+        .bucket(location.bucket())
+        .prefix(directory)
+        .build();
+
+    ListObjectsV2Response listObjectsV2Response = client().listObjectsV2(listObjectsV2Request);
+    List<S3Object> contents = listObjectsV2Response.contents();
+
+    if (contents != null) {
+      List<ObjectIdentifier> objectIdentifiers = contents.stream()
+          .map(content -> ObjectIdentifier.builder().key(content.key()).build())
+          .collect(Collectors.toList());
+
+      Delete delete = Delete.builder().objects(objectIdentifiers).build();
+      DeleteObjectsRequest deleteRequest =
+          DeleteObjectsRequest.builder().bucket(location.bucket()).delete(delete).build();
+
+      client().deleteObjects(deleteRequest);
+    }
   }
 
   private S3Client client() {

@@ -90,6 +90,20 @@ public class CatalogUtil {
         .run(io::deleteFile);
   }
 
+  /**
+   * Drops all useless table directories.
+   *
+   * @param io a FileIO to use for deletes
+   * @param tableBaseLocation table base location
+   */
+  public static void dropTableBaseLocation(FileIO io, String tableBaseLocation) {
+    try {
+      io.deleteDirectory(tableBaseLocation);
+    } catch (Exception e) {
+      throw new RuntimeIOException("Failed to drop table base location: %s", tableBaseLocation);
+    }
+  }
+
   @SuppressWarnings("DangerousStringInternUsage")
   private static void deleteFiles(FileIO io, Set<ManifestFile> allManifests) {
     // keep track of deleted files in a map that can be cleaned up when memory runs low

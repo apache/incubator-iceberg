@@ -140,4 +140,7 @@ public class TableProperties {
 
   public static final String GC_ENABLED = "gc.enabled";
   public static final boolean GC_ENABLED_DEFAULT = true;
+
+  public static final String TABLE_DROP_BASE_PATH_ENABLED = "table.drop.base-path.enabled";
+  public static final boolean TABLE_DROP_BASE_PATH_ENABLED_DEFAULT = false;
 }

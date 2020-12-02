@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.File;
 import java.util.Map;
+import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.LocationProviders;
@@ -200,6 +201,15 @@ class TestTables {
     public void deleteFile(String path) {
       if (!new File(path).delete()) {
         throw new RuntimeIOException("Failed to delete file: " + path);
+      }
+    }
+
+    @Override
+    public void deleteDirectory(String directory) {
+      try {
+        FileUtils.deleteDirectory(new File(directory));
+      } catch (Exception e) {
+        throw new RuntimeIOException("Failed to delete directory: " + directory);
       }
     }
   }
