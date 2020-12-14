@@ -42,18 +42,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  *
  * @param <T> is the Java class returned by this iterator whose objects contain one or more rows.
  */
-abstract class DataIterator<T> implements CloseableIterator<T> {
+public abstract class DataIterator<T> implements CloseableIterator<T> {
 
-  private Iterator<FileScanTask> tasks;
+  private final CombinedScanTask combinedTask;
   private final Map<String, InputFile> inputFiles;
 
+  private Iterator<FileScanTask> tasks;
   private CloseableIterator<T> currentIterator;
+  private Position position;
 
-  DataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption) {
-    this.tasks = task.files().iterator();
-
+  DataIterator(CombinedScanTask combinedTask, FileIO io, EncryptionManager encryption) {
+    this.combinedTask = combinedTask;
     Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
-    task.files().stream()
+    combinedTask.files().stream()
         .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
         .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
     Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
@@ -62,11 +63,15 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
     // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
     Iterable<InputFile> decryptedFiles = encryption.decrypt(encrypted::iterator);
 
-    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(task.files().size());
+    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(combinedTask.files().size());
     decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
     this.inputFiles = ImmutableMap.copyOf(files);
 
+    this.tasks = combinedTask.files().iterator();
     this.currentIterator = CloseableIterator.empty();
+    // fileOffset starts at -1 because we started
+    // from an empty iterator that is not from the split files.
+    this.position = new Position(-1L, 0L);
   }
 
   InputFile getInputFile(FileScanTask task) {
@@ -79,6 +84,27 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
     return inputFiles.get(location);
   }
 
+  public void seek(Position startingPosition) {
+    // skip files
+    Preconditions.checkArgument(startingPosition.fileOffset() < combinedTask.files().size(),
+        "Checkpointed file offset is %d, while CombinedScanTask has %d files",
+        startingPosition.fileOffset(), combinedTask.files().size());
+    for (long i = 0L; i < startingPosition.fileOffset(); ++i) {
+      tasks.next();
+    }
+    updateCurrentIterator();
+    // skip records within the file
+    for (long i = 0; i < startingPosition.recordOffset(); ++i) {
+      if (hasNext()) {
+        next();
+      } else {
+        throw new IllegalStateException("Not enough records to skip: " +
+            startingPosition.recordOffset());
+      }
+    }
+    this.position.update(startingPosition.fileOffset(), startingPosition.recordOffset());
+  }
+
   @Override
   public boolean hasNext() {
     updateCurrentIterator();
@@ -88,7 +114,12 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
   @Override
   public T next() {
     updateCurrentIterator();
+    position.advanceRecord();
     return currentIterator.next();
+  }
+
+  public boolean isCurrentIteratorDone() {
+    return !currentIterator.hasNext();
   }
 
   /**
@@ -100,6 +131,7 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
       while (!currentIterator.hasNext() && tasks.hasNext()) {
         currentIterator.close();
         currentIterator = openTaskIterator(tasks.next());
+        position.advanceFile();
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -113,5 +145,9 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
     // close the current iterator
     currentIterator.close();
     tasks = null;
+  }
+
+  public Position position() {
+    return position;
   }
 }

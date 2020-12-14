@@ -92,7 +92,7 @@ public class TestHelpers {
   }
 
   public static List<Row> convertRowDataToRow(List<RowData> rowDataList, RowType rowType) {
-    DataStructureConverter<Object, Object> converter = DataStructureConverters.getConverter(
+    final DataStructureConverter<Object, Object> converter = DataStructureConverters.getConverter(
         TypeConversions.fromLogicalToDataType(rowType));
     return rowDataList.stream()
         .map(converter::toExternal)
@@ -110,6 +110,7 @@ public class TestHelpers {
   }
 
   public static void assertRows(List<Row> results, List<Row> expected) {
+    Assert.assertEquals(expected.size(), results.size());
     expected.sort(Comparator.comparing(Row::toString));
     results.sort(Comparator.comparing(Row::toString));
     Assert.assertEquals(expected, results);
