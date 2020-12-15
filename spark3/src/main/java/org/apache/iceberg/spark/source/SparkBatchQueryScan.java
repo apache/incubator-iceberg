@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -77,6 +78,17 @@ class SparkBatchQueryScan extends SparkBatchScan {
     this.splitSize = Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, null);
     this.splitLookback = Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, null);
     this.splitOpenFileCost = Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null);
+  }
+
+  @Override
+  protected Schema snapshotSchema() {
+    if (snapshotId != null && table() instanceof BaseTable) {
+      return ((BaseTable) table()).schemaForSnapshot(snapshotId);
+    } else if (asOfTimestamp != null && table() instanceof BaseTable) {
+      return ((BaseTable) table()).schemaForSnapshotAsOfTime(asOfTimestamp);
+    } else {
+      return table().schema();
+    }
   }
 
   @Override

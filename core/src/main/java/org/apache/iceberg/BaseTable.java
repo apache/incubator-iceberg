@@ -87,26 +87,21 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
         current.currentSnapshot().snapshotId() == snapshotId) {
       return current.schema();
     }
-    Long snapshotTs = null;
-    for (HistoryEntry logEntry : current.snapshotLog()) {
-      if (logEntry.snapshotId() == snapshotId) {
-        snapshotTs = logEntry.timestampMillis();
-      }
-    }
-    Preconditions.checkArgument(snapshotTs != null,
-        "Cannot find a snapshot with id %s", snapshotId);
-    TableMetadata.MetadataLogEntry metadataLogEntry = null;
+    Schema schemaForSnapshot = null;
+    // read each of the previous metadata files until we find one whose current snapshot id
+    // is the snapshot id
     for (TableMetadata.MetadataLogEntry logEntry : current.previousFiles()) {
-      if (logEntry.timestampMillis() == snapshotTs) {
-        metadataLogEntry = logEntry;
+      String metadataFile = logEntry.file();
+      TableMetadata metadata = TableMetadataParser.read(io(), metadataFile);
+      if (metadata.currentSnapshot() != null &&
+          metadata.currentSnapshot().snapshotId() == snapshotId) {
+        schemaForSnapshot = metadata.schema();
         break;
       }
     }
-    Preconditions.checkArgument(metadataLogEntry != null,
-        "Cannot find a metadata log entry corresponding to the snapshot %s", snapshotId);
-    String metadataFile = metadataLogEntry.file();
-    TableMetadata metadata = TableMetadataParser.read(io(), metadataFile);
-    return metadata.schema();
+    Preconditions.checkArgument(schemaForSnapshot != null,
+        "Cannot find a metadata file corresponding to the snapshot %s", snapshotId);
+    return schemaForSnapshot;
   }
 
   /**

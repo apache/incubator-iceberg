@@ -100,6 +100,11 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   }
 
   @Override
+  protected Schema snapshotSchema() {
+    return table().schema();
+  }
+
+  @Override
   public Statistics estimateStatistics() {
     if (snapshotId == null) {
       return new Stats(0L, 0L);
