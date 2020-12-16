@@ -83,10 +83,6 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
    */
   public Schema schemaForSnapshot(long snapshotId) {
     TableMetadata current = ops.current();
-    if (current.currentSnapshot() != null &&
-        current.currentSnapshot().snapshotId() == snapshotId) {
-      return current.schema();
-    }
     Schema schemaForSnapshot = null;
     // read each of the previous metadata files until we find one whose current snapshot id
     // is the snapshot id
