@@ -71,7 +71,8 @@ public class DataTableScan extends BaseTableScan {
   public CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot,
                                                    Expression rowFilter, boolean ignoreResiduals,
                                                    boolean caseSensitive, boolean colStats) {
-    ManifestGroup manifestGroup = new ManifestGroup(ops.io(), snapshot.dataManifests(), snapshot.deleteManifests())
+    ManifestGroup manifestGroup = new ManifestGroup(ops.io(), snapshot.dataManifests(), snapshot.deleteManifests(),
+        ops.current().location(), ops.current().properties())
         .caseSensitive(caseSensitive)
         .select(colStats ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(rowFilter)

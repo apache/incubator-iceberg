@@ -239,7 +239,7 @@ public class MicroBatches {
     }
 
     private CloseableIterable<FileScanTask> open(ManifestFile manifestFile, boolean scanAllFiles) {
-      ManifestGroup manifestGroup = new ManifestGroup(io, ImmutableList.of(manifestFile))
+      ManifestGroup manifestGroup = new ManifestGroup(io, ImmutableList.of(manifestFile), null, null)
           .specsById(specsById)
           .caseSensitive(caseSensitive);
       if (!scanAllFiles) {

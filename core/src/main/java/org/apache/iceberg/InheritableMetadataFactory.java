@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class InheritableMetadataFactory {
@@ -32,10 +33,12 @@ class InheritableMetadataFactory {
     return EMPTY;
   }
 
-  static InheritableMetadata fromManifest(ManifestFile manifest) {
+  static InheritableMetadata fromManifest(ManifestFile manifest, String tableLocation,
+      Map<String, String> tableProperties) {
     Preconditions.checkArgument(manifest.snapshotId() != null,
         "Cannot read from ManifestFile with null (unassigned) snapshot ID");
-    return new BaseInheritableMetadata(manifest.partitionSpecId(), manifest.snapshotId(), manifest.sequenceNumber());
+    return new BaseInheritableMetadata(manifest.partitionSpecId(), manifest.snapshotId(), manifest.sequenceNumber(),
+        tableLocation, tableProperties);
   }
 
   static InheritableMetadata forCopy(long snapshotId) {
@@ -46,11 +49,16 @@ class InheritableMetadataFactory {
     private final int specId;
     private final long snapshotId;
     private final long sequenceNumber;
+    private final String tableLocation;
+    private final Map<String, String> tableProperties;
 
-    private BaseInheritableMetadata(int specId, long snapshotId, long sequenceNumber) {
+    private BaseInheritableMetadata(int specId, long snapshotId, long sequenceNumber, String tableLocation,
+        Map<String, String> tableProperties) {
       this.specId = specId;
       this.snapshotId = snapshotId;
       this.sequenceNumber = sequenceNumber;
+      this.tableLocation = tableLocation;
+      this.tableProperties = tableProperties;
     }
 
     @Override
@@ -58,6 +66,11 @@ class InheritableMetadataFactory {
       if (manifestEntry.file() instanceof BaseFile) {
         BaseFile<?> file = (BaseFile<?>) manifestEntry.file();
         file.setSpecId(specId);
+        if (MetadataPaths.useRelativePath(tableProperties)) {
+          if (!file.path().toString().startsWith(tableLocation)) {
+            file.setFilePath(MetadataPaths.toAbsolutePath(file.path().toString(), tableLocation, tableProperties));
+          }
+        }
       }
       if (manifestEntry.snapshotId() == null) {
         manifestEntry.setSnapshotId(snapshotId);

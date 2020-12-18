@@ -43,6 +43,8 @@ class BaseSnapshot implements Snapshot {
   private final String manifestListLocation;
   private final String operation;
   private final Map<String, String> summary;
+  private final String tableLocation;
+  private final Map<String, String> tableProperties;
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
@@ -56,10 +58,12 @@ class BaseSnapshot implements Snapshot {
    */
   BaseSnapshot(FileIO io,
                long snapshotId,
+               String tableLocation,
+               Map<String, String> tableProperties,
                String... manifestFiles) {
     this(io, snapshotId, null, System.currentTimeMillis(), null, null,
-        Lists.transform(Arrays.asList(manifestFiles),
-            path -> new GenericManifestFile(io.newInputFile(path), 0)));
+            Lists.transform(Arrays.asList(manifestFiles),
+                path -> new GenericManifestFile(io.newInputFile(path), 0)), tableLocation, tableProperties);
   }
 
   BaseSnapshot(FileIO io,
@@ -69,7 +73,9 @@ class BaseSnapshot implements Snapshot {
                long timestampMillis,
                String operation,
                Map<String, String> summary,
-               String manifestList) {
+               String manifestList,
+               String tableLocation,
+               Map<String, String> tableProperties) {
     this.io = io;
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
@@ -78,6 +84,22 @@ class BaseSnapshot implements Snapshot {
     this.operation = operation;
     this.summary = summary;
     this.manifestListLocation = manifestList;
+    this.tableLocation = tableLocation;
+    this.tableProperties = tableProperties;
+  }
+
+  BaseSnapshot(FileIO io,
+               long snapshotId,
+               Long parentId,
+               long timestampMillis,
+               String operation,
+               Map<String, String> summary,
+               List<ManifestFile> dataManifests,
+               String tableLocation,
+               Map<String, String> tableProperties) {
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null,
+        tableLocation, tableProperties);
+    this.allManifests = dataManifests;
   }
 
   BaseSnapshot(FileIO io,
@@ -87,7 +109,8 @@ class BaseSnapshot implements Snapshot {
                String operation,
                Map<String, String> summary,
                List<ManifestFile> dataManifests) {
-    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null);
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null,
+        null, null);
     this.allManifests = dataManifests;
   }
 
@@ -124,7 +147,7 @@ class BaseSnapshot implements Snapshot {
   private void cacheManifests() {
     if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      this.allManifests = ManifestLists.read(io.newInputFile(manifestListLocation));
+      this.allManifests = ManifestLists.read(io.newInputFile(manifestListLocation), tableLocation, tableProperties);
     }
 
     if (dataManifests == null || deleteManifests == null) {
@@ -180,6 +203,11 @@ class BaseSnapshot implements Snapshot {
     return manifestListLocation;
   }
 
+  @Override
+  public FileIO io() {
+    return this.io;
+  }
+
   private void cacheChanges() {
     ImmutableList.Builder<DataFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
@@ -187,7 +215,8 @@ class BaseSnapshot implements Snapshot {
     // read only manifests that were created by this snapshot
     Iterable<ManifestFile> changedManifests = Iterables.filter(dataManifests(),
         manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
-    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(io, changedManifests)
+    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(io, changedManifests, tableLocation,
+        tableProperties)
         .ignoreExisting()
         .entries()) {
       for (ManifestEntry<DataFile> entry : entries) {

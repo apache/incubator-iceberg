@@ -137,6 +137,7 @@ public class GenericManifestFile
    * @param toCopy a generic manifest file to copy.
    */
   private GenericManifestFile(GenericManifestFile toCopy) {
+    this.file = toCopy.file;
     this.avroSchema = toCopy.avroSchema;
     this.manifestPath = toCopy.manifestPath;
     this.length = toCopy.length;
@@ -441,6 +442,11 @@ public class GenericManifestFile
 
     public CopyBuilder withSnapshotId(Long newSnapshotId) {
       manifestFile.snapshotId = newSnapshotId;
+      return this;
+    }
+
+    public CopyBuilder withManifestPath(String newPath) {
+      manifestFile.manifestPath = newPath;
       return this;
     }
 

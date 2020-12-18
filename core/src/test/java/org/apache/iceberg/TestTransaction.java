@@ -499,7 +499,8 @@ public class TestTransaction extends TableTestBase {
 
     // create a manifest append
     OutputFile manifestLocation = Files.localOutput("/tmp/" + UUID.randomUUID().toString() + ".avro");
-    ManifestWriter<DataFile> writer = ManifestFiles.write(table.spec(), manifestLocation);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(table.spec(), manifestLocation,
+        base.location(), base.properties());
     try {
       writer.add(FILE_D);
     } finally {

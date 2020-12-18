@@ -445,7 +445,7 @@ class DeleteFileIndex {
       return Iterables.transform(
           matchingManifests,
           manifest ->
-              ManifestFiles.readDeleteManifest(manifest, io, specsById)
+              ManifestFiles.readDeleteManifest(manifest, io, specsById, null, null)
                   .filterRows(dataFilter)
                   .filterPartitions(partitionFilter)
                   .caseSensitive(caseSensitive)

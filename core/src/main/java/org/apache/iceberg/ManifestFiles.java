@@ -52,23 +52,26 @@ public class ManifestFiles {
    */
   public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
     return CloseableIterable.transform(
-        read(manifest, io, null).select(ImmutableList.of("file_path")).liveEntries(),
+        read(manifest, io, null, null, null).select(ImmutableList.of("file_path")).liveEntries(),
         entry -> entry.file().path().toString());
   }
 
   /**
    * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
    * <p>
-   * <em>Note:</em> Callers should use {@link ManifestFiles#read(ManifestFile, FileIO, Map)} to ensure
+   * <em>Note:</em> Callers should use {@link ManifestFiles#read(ManifestFile, FileIO, Map, String, Map)} to ensure
    * the schema used by filters is the latest table schema. This should be used only when reading
    * a manifest without filters.
    *
    * @param manifest a ManifestFile
    * @param io a FileIO
+   * @param tableLocation base table location
+   * @param tableProperties table properties
    * @return a manifest reader
    */
-  public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io) {
-    return read(manifest, io, null);
+  public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io, String tableLocation, Map<String,
+      String> tableProperties) {
+    return read(manifest, io, null, tableLocation, tableProperties);
   }
 
   /**
@@ -79,12 +82,31 @@ public class ManifestFiles {
    * @param specsById a Map from spec ID to partition spec
    * @return a {@link ManifestReader}
    */
-  public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+  public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById,
+      String tableLocation, Map<String, String> tableProperties) {
     Preconditions.checkArgument(manifest.content() == ManifestContent.DATA,
         "Cannot read a delete manifest with a ManifestReader: %s", manifest);
-    InputFile file = io.newInputFile(manifest.path());
-    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+    InputFile file = io.newInputFile(updateManifestPathIfNecessary(manifest, tableLocation, tableProperties));
+    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest, tableLocation,
+        tableProperties);
     return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DATA_FILES);
+  }
+
+  /**
+   *
+   */
+  private static String updateManifestPathIfNecessary(ManifestFile manifest, String tableLocation,
+      Map<String, String> tableProperties) {
+
+    String metadataPath = manifest.path();
+
+    if (tableLocation != null && tableProperties != null && TableProperties.WRITE_METADATA_USE_RELATIVE_PATH.equals(
+        "true")) {
+      if (!metadataPath.startsWith(tableLocation)) {
+        metadataPath = tableLocation + metadataPath;
+      }
+    }
+    return metadataPath;
   }
 
   /**
@@ -97,8 +119,9 @@ public class ManifestFiles {
    * @param outputFile the destination file location
    * @return a manifest writer
    */
-  public static ManifestWriter<DataFile> write(PartitionSpec spec, OutputFile outputFile) {
-    return write(1, spec, outputFile, null);
+  public static ManifestWriter<DataFile> write(PartitionSpec spec, OutputFile outputFile, String tableLocation,
+      Map<String, String> properties) {
+    return write(1, spec, outputFile, null, tableLocation, properties);
   }
 
   /**
@@ -111,12 +134,12 @@ public class ManifestFiles {
    * @return a manifest writer
    */
   public static ManifestWriter<DataFile> write(int formatVersion, PartitionSpec spec, OutputFile outputFile,
-                                               Long snapshotId) {
+                                               Long snapshotId, String tableLocation, Map<String, String> properties) {
     switch (formatVersion) {
       case 1:
-        return new ManifestWriter.V1Writer(spec, outputFile, snapshotId);
+        return new ManifestWriter.V1Writer(spec, outputFile, snapshotId, tableLocation, properties);
       case 2:
-        return new ManifestWriter.V2Writer(spec, outputFile, snapshotId);
+        return new ManifestWriter.V2Writer(spec, outputFile, snapshotId, tableLocation, properties);
     }
     throw new UnsupportedOperationException("Cannot write manifest for table version: " + formatVersion);
   }
@@ -130,11 +153,13 @@ public class ManifestFiles {
    * @return a {@link ManifestReader}
    */
   public static ManifestReader<DeleteFile> readDeleteManifest(ManifestFile manifest, FileIO io,
-                                                              Map<Integer, PartitionSpec> specsById) {
+                                                              Map<Integer, PartitionSpec> specsById,
+      String tableLocation, Map<String, String> tableProperties) {
     Preconditions.checkArgument(manifest.content() == ManifestContent.DELETES,
         "Cannot read a data manifest with a DeleteManifestReader: %s", manifest);
-    InputFile file = io.newInputFile(manifest.path());
-    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+    InputFile file = io.newInputFile(updateManifestPathIfNecessary(manifest, tableLocation, tableProperties));
+    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest, tableLocation,
+        tableProperties);
     return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DELETE_FILES);
   }
 
@@ -148,12 +173,13 @@ public class ManifestFiles {
    * @return a manifest writer
    */
   public static ManifestWriter<DeleteFile> writeDeleteManifest(int formatVersion, PartitionSpec spec,
-                                                               OutputFile outputFile, Long snapshotId) {
+                                                               OutputFile outputFile, Long snapshotId,
+                                                               String tableLocation, Map<String, String> properties) {
     switch (formatVersion) {
       case 1:
         throw new IllegalArgumentException("Cannot write delete files in a v1 table");
       case 2:
-        return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId);
+        return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId, tableLocation, properties);
     }
     throw new UnsupportedOperationException("Cannot write manifest for table version: " + formatVersion);
   }
@@ -189,9 +215,9 @@ public class ManifestFiles {
                                 Map<Integer, PartitionSpec> specsById) {
     switch (manifest.content()) {
       case DATA:
-        return ManifestFiles.read(manifest, io, specsById);
+        return ManifestFiles.read(manifest, io, specsById, null, null);
       case DELETES:
-        return ManifestFiles.readDeleteManifest(manifest, io, specsById);
+        return ManifestFiles.readDeleteManifest(manifest, io, specsById, null, null);
     }
     throw new UnsupportedOperationException("Cannot read unknown manifest type: " + manifest.content());
   }
@@ -199,13 +225,15 @@ public class ManifestFiles {
   static ManifestFile copyAppendManifest(int formatVersion,
                                          InputFile toCopy, Map<Integer, PartitionSpec> specsById,
                                          OutputFile outputFile, long snapshotId,
-                                         SnapshotSummary.Builder summaryBuilder) {
+                                         SnapshotSummary.Builder summaryBuilder,
+                                         String tableLocation, Map<String, String> properties) {
     // use metadata that will add the current snapshot's ID for the rewrite
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.forCopy(snapshotId);
     try (ManifestReader<DataFile> reader =
              new ManifestReader<>(toCopy, specsById, inheritableMetadata, FileType.DATA_FILES)) {
       return copyManifestInternal(
-          formatVersion, reader, outputFile, snapshotId, summaryBuilder, ManifestEntry.Status.ADDED);
+          formatVersion, reader, outputFile, snapshotId, summaryBuilder, ManifestEntry.Status.ADDED,
+          tableLocation, properties);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
     }
@@ -214,13 +242,15 @@ public class ManifestFiles {
   static ManifestFile copyRewriteManifest(int formatVersion,
                                           InputFile toCopy, Map<Integer, PartitionSpec> specsById,
                                           OutputFile outputFile, long snapshotId,
-                                          SnapshotSummary.Builder summaryBuilder) {
+                                          SnapshotSummary.Builder summaryBuilder,
+                                          String tableLocation, Map<String, String> properties) {
     // for a rewritten manifest all snapshot ids should be set. use empty metadata to throw an exception if it is not
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.empty();
     try (ManifestReader<DataFile> reader =
              new ManifestReader<>(toCopy, specsById, inheritableMetadata, FileType.DATA_FILES)) {
       return copyManifestInternal(
-          formatVersion, reader, outputFile, snapshotId, summaryBuilder, ManifestEntry.Status.EXISTING);
+          formatVersion, reader, outputFile, snapshotId, summaryBuilder, ManifestEntry.Status.EXISTING,
+          tableLocation, properties);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
     }
@@ -229,8 +259,10 @@ public class ManifestFiles {
   private static ManifestFile copyManifestInternal(int formatVersion, ManifestReader<DataFile> reader,
                                                    OutputFile outputFile, long snapshotId,
                                                    SnapshotSummary.Builder summaryBuilder,
-                                                   ManifestEntry.Status allowedEntryStatus) {
-    ManifestWriter<DataFile> writer = write(formatVersion, reader.spec(), outputFile, snapshotId);
+                                                   ManifestEntry.Status allowedEntryStatus,
+                                                   String tableLocation, Map<String, String> properties) {
+    ManifestWriter<DataFile> writer = write(formatVersion, reader.spec(), outputFile, snapshotId,
+        tableLocation, properties);
     boolean threw = true;
     try {
       for (ManifestEntry<DataFile> entry : reader.entries()) {

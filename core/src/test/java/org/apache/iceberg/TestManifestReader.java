@@ -48,7 +48,8 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testManifestReaderWithEmptyInheritableMetadata() throws IOException {
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 1000L, FILE_A));
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.location(),
+        table.properties())) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(Status.EXISTING, entry.status());
       Assert.assertEquals(FILE_A.path(), entry.file().path());
@@ -59,7 +60,7 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testReaderWithFilterWithoutSelect() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.location(), table.properties())
         .filterRows(Expressions.equal("id", 0))) {
       List<String> files = Streams.stream(reader)
           .map(file -> file.path().toString())
@@ -78,13 +79,14 @@ public class TestManifestReader extends TableTestBase {
     AssertHelpers.assertThrows(
         "Should not be possible to read manifest without explicit snapshot ids and inheritable metadata",
         IllegalArgumentException.class, "Cannot read from ManifestFile with null (unassigned) snapshot ID",
-        () -> ManifestFiles.read(manifest, FILE_IO));
+        () -> ManifestFiles.read(manifest, FILE_IO, table.location(), table.properties()));
   }
 
   @Test
   public void testManifestReaderWithPartitionMetadata() throws IOException {
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.location(),
+        table.properties())) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(123L, (long) entry.snapshotId());
 
@@ -105,7 +107,8 @@ public class TestManifestReader extends TableTestBase {
     table.ops().commit(table.ops().current(), table.ops().current().updatePartitionSpec(spec));
 
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO,
+        table.location(), table.properties())) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(123L, (long) entry.snapshotId());
 
@@ -124,7 +127,8 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testDataFilePositions() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.location(),
+        table.properties())) {
       long expectedPos = 0L;
       for (DataFile file : reader) {
         Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());
@@ -137,7 +141,7 @@ public class TestManifestReader extends TableTestBase {
   public void testDeleteFilePositions() throws IOException {
     Assume.assumeTrue("Delete files only work for format version 2", formatVersion == 2);
     ManifestFile manifest = writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
-    try (ManifestReader<DeleteFile> reader = ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)) {
+    try (ManifestReader<DeleteFile> reader = ManifestFiles.readDeleteManifest(manifest, FILE_IO, null, null, null)) {
       long expectedPos = 0L;
       for (DeleteFile file : reader) {
         Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());

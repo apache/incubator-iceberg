@@ -122,7 +122,7 @@ public class DataFilesTable extends BaseMetadataTable {
     @Override
     public CloseableIterable<StructLike> rows() {
       return CloseableIterable.transform(
-          ManifestFiles.read(manifest, io).project(schema),
+          ManifestFiles.read(manifest, io, null, null).project(schema),
           file -> (GenericDataFile) file);
     }
 

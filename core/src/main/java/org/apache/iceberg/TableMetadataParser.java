@@ -121,7 +121,14 @@ public class TableMetadataParser {
          OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
-      toJson(metadata, generator);
+      if (metadata.useRelativePaths()) {
+        // If relative paths are enabled on this table, convert the paths to relative paths if necessary before
+        // flushing
+        TableMetadata updatedMetadata = metadata.updateAbsolutePathsToRelativePaths();
+        toJson(updatedMetadata, generator);
+      } else {
+        toJson(metadata, generator);
+      }
       generator.flush();
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
@@ -152,6 +159,7 @@ public class TableMetadataParser {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
@@ -255,7 +263,9 @@ public class TableMetadataParser {
   public static TableMetadata read(FileIO io, InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
-      return fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      TableMetadata tableMetadata =  fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      // If use relative paths is enabled on this table, convert the relative paths to absolute paths if necessary
+      return tableMetadata.useRelativePaths() ? tableMetadata.updateRelativePathToAbsolutePaths() : tableMetadata;
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
@@ -380,7 +390,7 @@ public class TableMetadataParser {
     List<Snapshot> snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
     Iterator<JsonNode> iterator = snapshotArray.elements();
     while (iterator.hasNext()) {
-      snapshots.add(SnapshotParser.fromJson(io, iterator.next()));
+      snapshots.add(SnapshotParser.fromJson(io, iterator.next(), location, properties));
     }
 
     ImmutableList.Builder<HistoryEntry> entries = ImmutableList.builder();
@@ -399,7 +409,7 @@ public class TableMetadataParser {
       while (logIterator.hasNext()) {
         JsonNode entryNode = logIterator.next();
         metadataEntries.add(new MetadataLogEntry(
-                JsonUtil.getLong(TIMESTAMP_MS, entryNode), JsonUtil.getString(METADATA_FILE, entryNode)));
+            JsonUtil.getLong(TIMESTAMP_MS, entryNode), JsonUtil.getString(METADATA_FILE, entryNode)));
       }
     }
 
