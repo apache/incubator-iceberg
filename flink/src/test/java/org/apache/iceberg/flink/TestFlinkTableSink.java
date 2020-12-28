@@ -20,12 +20,8 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
-import org.apache.flink.streaming.api.TimeCharacteristic;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.TableEnvironment;
-import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -71,19 +67,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
   protected TableEnvironment getTableEnv() {
     if (tEnv == null) {
       synchronized (this) {
-        EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
-            .newInstance()
-            .useBlinkPlanner();
-        if (isStreamingJob) {
-          settingsBuilder.inStreamingMode();
-          StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-          env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-          env.enableCheckpointing(400);
-          tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
-        } else {
-          settingsBuilder.inBatchMode();
-          tEnv = TableEnvironment.create(settingsBuilder.build());
-        }
+        tEnv = createTableEnv(isStreamingJob);
       }
     }
     return tEnv;

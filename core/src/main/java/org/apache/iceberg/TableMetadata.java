@@ -72,14 +72,14 @@ public class TableMetadata implements Serializable {
                                                SortOrder sortOrder,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, sortOrder, location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, sortOrder, location, properties, formatVersion(properties));
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, formatVersion(properties));
   }
 
   static TableMetadata newTableMetadata(Schema schema,
@@ -844,5 +844,11 @@ public class TableMetadata implements Serializable {
       builder.put(sortOrder.orderId(), sortOrder);
     }
     return builder.build();
+  }
+
+  private static int formatVersion(Map<String, String> properties) {
+    return PropertyUtil.propertyAsInt(properties,
+        TableProperties.FORMAT_VERSION,
+        TableProperties.DEFAULT_FORMAT_VERSION);
   }
 }

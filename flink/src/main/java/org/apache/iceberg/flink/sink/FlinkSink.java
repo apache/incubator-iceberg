@@ -21,9 +21,11 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -41,6 +43,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
@@ -200,6 +203,15 @@ public class FlinkSink {
 
       // Find out the equality field id list based on the user-provided equality field column names.
       List<Integer> equalityFieldIds = Lists.newArrayList();
+      if (equalityFieldColumns == null) {
+        String concatColumns = PropertyUtil.propertyAsString(table.properties(),
+            TableProperties.EQUALITY_FIELD_COLUMNS,
+            TableProperties.DEFAULT_EQUALITY_FIELD_COLUMNS);
+        String[] columns = StringUtils.split(concatColumns, ",");
+        if (columns != null && columns.length > 0) {
+          equalityFieldColumns = Arrays.asList(columns);
+        }
+      }
       if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
         for (String column : equalityFieldColumns) {
           org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);

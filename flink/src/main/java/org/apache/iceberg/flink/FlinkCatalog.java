@@ -51,6 +51,8 @@ import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.TableFactory;
+import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.DataFile;
@@ -60,6 +62,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.catalog.Catalog;
@@ -75,6 +78,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.PropertyUtil;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -359,6 +363,14 @@ public class FlinkCatalog extends AbstractCatalog {
     PartitionSpec spec = toPartitionSpec(((CatalogTable) table).getPartitionKeys(), icebergSchema);
 
     ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
+
+    // Set the equality field columns.
+    List<String> equalityFieldColumns = toEqualityColumns(table.getSchema());
+    if (!equalityFieldColumns.isEmpty()) {
+      properties.put(TableProperties.EQUALITY_FIELD_COLUMNS,
+          org.apache.commons.lang.StringUtils.join(equalityFieldColumns, ","));
+    }
+
     String location = null;
     for (Map.Entry<String, String> entry : table.getOptions().entrySet()) {
       if ("location".equalsIgnoreCase(entry.getKey())) {
@@ -447,10 +459,12 @@ public class FlinkCatalog extends AbstractCatalog {
     if (!schema.getWatermarkSpecs().isEmpty()) {
       throw new UnsupportedOperationException("Creating table with watermark specs is not supported yet.");
     }
+  }
 
-    if (schema.getPrimaryKey().isPresent()) {
-      throw new UnsupportedOperationException("Creating table with primary key is not supported yet.");
-    }
+  private static List<String> toEqualityColumns(TableSchema schema) {
+    List<String> equalityColumns = Lists.newArrayList();
+    schema.getPrimaryKey().ifPresent(uniqueConstraint -> equalityColumns.addAll(uniqueConstraint.getColumns()));
+    return equalityColumns;
   }
 
   private static PartitionSpec toPartitionSpec(List<String> partitionKeys, Schema icebergSchema) {
@@ -516,7 +530,26 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   static CatalogTable toCatalogTable(Table table) {
-    TableSchema schema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(table.schema()));
+    TableSchema.Builder builder = TableSchema.builder();
+
+    // Add the table columns.
+    RowType rowType = FlinkSchemaUtil.convert(table.schema());
+    for (RowType.RowField field : rowType.getFields()) {
+      builder.field(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
+    }
+
+    // Add the primary keys.
+    String concatColumns = PropertyUtil.propertyAsString(table.properties(),
+        TableProperties.EQUALITY_FIELD_COLUMNS,
+        TableProperties.DEFAULT_EQUALITY_FIELD_COLUMNS);
+    String[] columns = org.apache.commons.lang3.StringUtils.split(concatColumns, ",");
+    if (columns != null && columns.length > 0) {
+      builder.primaryKey(columns);
+    }
+
+    // Build the table schema.
+    TableSchema schema = builder.build();
+
     List<String> partitionKeys = toPartitionKeys(table.spec(), table.schema());
 
     // NOTE: We can not create a IcebergCatalogTable extends CatalogTable, because Flink optimizer may use

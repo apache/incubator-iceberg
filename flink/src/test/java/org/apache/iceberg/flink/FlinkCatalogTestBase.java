@@ -21,6 +21,11 @@ package org.apache.iceberg.flink;
 
 import java.io.IOException;
 import java.util.Map;
+import org.apache.flink.streaming.api.TimeCharacteristic;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.EnvironmentSettings;
+import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.util.ArrayUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
@@ -134,5 +139,19 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     }
     builder.append(")");
     return builder.toString();
+  }
+
+  static TableEnvironment createTableEnv(boolean isStreamingJob) {
+    EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
+        .newInstance()
+        .useBlinkPlanner();
+    if (isStreamingJob) {
+      StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+      env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+      env.enableCheckpointing(400);
+      return StreamTableEnvironment.create(env, settingsBuilder.inStreamingMode().build());
+    } else {
+      return TableEnvironment.create(settingsBuilder.inBatchMode().build());
+    }
   }
 }

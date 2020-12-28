@@ -22,6 +22,7 @@ package org.apache.iceberg.flink;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -29,6 +30,7 @@ import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableColumn;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.api.constraints.UniqueConstraint;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
@@ -42,10 +44,14 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -156,6 +162,31 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         catalogTable.getSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
     Assert.assertEquals(Collections.singletonList("dt"), catalogTable.getPartitionKeys());
+  }
+
+  @Test
+  public void testCreateTableWithPrimaryKey() throws Exception {
+    sql("CREATE TABLE tl(id BIGINT, dt STRING, PRIMARY KEY(id, dt) NOT ENFORCED)");
+
+    Table table = table("tl");
+    Assert.assertEquals(new Schema(
+        Types.NestedField.required(1, "id", Types.LongType.get()),
+        Types.NestedField.required(2, "dt", Types.StringType.get())
+    ).asStruct(), table.schema().asStruct());
+    Assert.assertEquals("Should have the expected primary keys", "id,dt",
+        PropertyUtil.propertyAsString(table.properties(),
+            TableProperties.EQUALITY_FIELD_COLUMNS,
+            TableProperties.DEFAULT_EQUALITY_FIELD_COLUMNS));
+
+    CatalogTable catalogTable = catalogTable("tl");
+    Assert.assertTrue(catalogTable.getSchema().getTableColumn("id").isPresent());
+    Assert.assertTrue(catalogTable.getSchema().getTableColumn("dt").isPresent());
+    Assert.assertEquals(ImmutableMap.of(TableProperties.EQUALITY_FIELD_COLUMNS, "id,dt"), catalogTable.getOptions());
+
+    Optional<UniqueConstraint> constraint = catalogTable.getSchema().getPrimaryKey();
+    Assert.assertTrue("Should have an unique constraint.", constraint.isPresent());
+    Assert.assertEquals("Should have the expected primary key columns", ImmutableList.of("id", "dt"),
+        constraint.get().getColumns());
   }
 
   @Test

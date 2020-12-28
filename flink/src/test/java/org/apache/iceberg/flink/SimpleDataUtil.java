@@ -29,6 +29,7 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -96,6 +97,21 @@ public class SimpleDataUtil {
     record.setField("id", id);
     record.setField("data", data);
     return record;
+  }
+
+  private static final Map<String, RowKind> ROW_KIND_MAP = ImmutableMap.of(
+      "+I", RowKind.INSERT,
+      "-D", RowKind.DELETE,
+      "-U", RowKind.UPDATE_BEFORE,
+      "+U", RowKind.UPDATE_AFTER);
+
+  public static Row createRow(String rowKind, int id, String data) {
+    RowKind kind = ROW_KIND_MAP.get(rowKind);
+    if (kind == null) {
+      throw new IllegalArgumentException("Unknown row kind: " + rowKind);
+    }
+
+    return Row.ofKind(kind, id, data);
   }
 
   public static RowData createRowData(Integer id, String data) {
@@ -208,8 +224,17 @@ public class SimpleDataUtil {
 
   public static StructLikeSet actualRowSet(Table table, String... columns) throws IOException {
     table.refresh();
+    return actualRowSet(table, table.currentSnapshot().snapshotId(), columns);
+  }
+
+  public static StructLikeSet actualRowSet(Table table, long snapshotId, String... columns) throws IOException {
+    table.refresh();
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
+    try (CloseableIterable<Record> reader = IcebergGenerics
+        .read(table)
+        .useSnapshot(snapshotId)
+        .select(columns)
+        .build()) {
       reader.forEach(set::add);
     }
     return set;
