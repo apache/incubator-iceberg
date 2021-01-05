@@ -24,14 +24,14 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, SortOrder}
 import org.apache.spark.sql.catalyst.plans.physical
-import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
+import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter.FilterFiles
 import org.apache.spark.sql.execution.{BinaryExecNode, SparkPlan}
 import org.apache.spark.sql.vectorized.ColumnarBatch
 
 case class DynamicFileFilterExec(
     scanExec: SparkPlan,
     fileFilterExec: SparkPlan,
-    @transient filterable: SupportsFileFilter) extends BinaryExecNode {
+    @transient locations: FilterFiles) extends BinaryExecNode {
 
   @transient
   override lazy val references: AttributeSet = AttributeSet(fileFilterExec.output)
@@ -49,6 +49,6 @@ case class DynamicFileFilterExec(
   override protected def doPrepare(): Unit = {
     val rows = fileFilterExec.executeCollect()
     val matchedFileLocations = rows.map(_.getString(0))
-    filterable.filterFiles(matchedFileLocations.toSet.asJava)
+    locations.setFilteredLocations(matchedFileLocations.toSet.asJava)
   }
 }

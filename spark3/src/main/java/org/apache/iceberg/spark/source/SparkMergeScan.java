@@ -72,7 +72,7 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
 
   SparkMergeScan(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption,
                  boolean caseSensitive, boolean ignoreResiduals, Schema expectedSchema,
-                 List<Expression> filters, CaseInsensitiveStringMap options) {
+                 List<Expression> filters, CaseInsensitiveStringMap options, SupportsFileFilter.FilterFiles filter) {
 
     super(table, io, encryption, caseSensitive, expectedSchema, filters, options);
 
@@ -96,6 +96,10 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
     this.snapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
     // init files with an empty list if the table is empty to avoid picking any concurrent changes
     this.files = currentSnapshot == null ? Collections.emptyList() : null;
+
+    if (filter != null) {
+      filter.onLocationsFilter(this::filterFiles);
+    }
   }
 
   Long snapshotId() {
@@ -110,7 +114,6 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
     return super.estimateStatistics();
   }
 
-  @Override
   public void filterFiles(Set<String> locations) {
     // invalidate cached tasks to trigger split planning again
     tasks = null;
@@ -193,5 +196,10 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
     return String.format(
         "IcebergMergeScan(table=%s, type=%s, filters=%s, caseSensitive=%s)",
         table(), expectedSchema().asStruct(), filterExpressions(), caseSensitive());
+  }
+
+  @Override
+  public void filterFiles(FilterFiles files) {
+    files.onLocationsFilter(this::filterFiles);
   }
 }

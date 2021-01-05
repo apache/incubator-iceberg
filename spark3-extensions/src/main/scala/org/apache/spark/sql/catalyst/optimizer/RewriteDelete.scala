@@ -19,42 +19,51 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
+import java.util
 import java.util.UUID
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute
 import org.apache.spark.sql.catalyst.expressions.Ascending
-import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.EqualNullSafe
+import org.apache.spark.sql.catalyst.expressions.EqualTo
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.Not
+import org.apache.spark.sql.catalyst.expressions.Or
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.expressions.SortOrder
+import org.apache.spark.sql.catalyst.expressions.SubExprUtils
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.Aggregate
+import org.apache.spark.sql.catalyst.plans.logical.DeleteFrom
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTable
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.connector.catalog.SupportsRead
+import org.apache.spark.sql.connector.catalog.SupportsWrite
 import org.apache.spark.sql.connector.catalog.Table
+import org.apache.spark.sql.connector.catalog.TableCapability
+import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.connector.iceberg.catalog.ExtendedSupportsDelete
+import org.apache.spark.sql.connector.iceberg.catalog.SupportsMerge
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
+import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter.FilterFiles
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
+import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.connector.write.LogicalWriteInfo
 import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl
-import org.apache.spark.sql.execution.datasources.DataSourceStrategy
+import org.apache.spark.sql.connector.write.WriteBuilder
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
-import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
-import org.apache.spark.sql.execution.datasources.v2.PushDownUtils
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources
-import org.apache.spark.sql.types.BooleanType
+import org.apache.spark.sql.types.LongType
+import org.apache.spark.sql.types.StringType
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
@@ -66,49 +75,80 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
   private val FILE_NAME_COL = "_file"
   private val ROW_POS_COL = "_pos"
 
+  private case class MergeTable(
+      table: Table with SupportsMerge,
+      operation: String) extends Table with SupportsRead with SupportsWrite {
+    val mergeBuilder: MergeBuilder = table.newMergeBuilder(operation, newWriteInfo(table.schema))
+
+    override def name: String = table.name
+    override def schema: StructType = table.schema
+    override def partitioning: Array[Transform] = table.partitioning
+    override def properties: util.Map[String, String] = table.properties
+    override def capabilities: util.Set[TableCapability] = table.capabilities
+    override def toString: String = table.toString
+
+    // TODO: refactor merge builder to accept options and info after construction
+    override def newScanBuilder(options: CaseInsensitiveStringMap): ScanBuilder = mergeBuilder.asScanBuilder()
+    override def newWriteBuilder(info: LogicalWriteInfo): WriteBuilder = mergeBuilder.asWriteBuilder()
+
+    private def newWriteInfo(schema: StructType): LogicalWriteInfo = {
+      val uuid = UUID.randomUUID()
+      LogicalWriteInfoImpl(queryId = uuid.toString, schema, CaseInsensitiveStringMap.empty)
+    }
+  }
+
+  private class DeletableMergeTable(
+      table: Table with SupportsMerge with ExtendedSupportsDelete,
+      operation: String) extends MergeTable(table, operation) with ExtendedSupportsDelete {
+    override def canDeleteWhere(filters: Array[sources.Filter]): Boolean = table.canDeleteWhere(filters)
+    override def deleteWhere(filters: Array[sources.Filter]): Unit = table.deleteWhere(filters)
+  }
+
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
-    // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
-    case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond)) if isMetadataDelete(r, cond) =>
-      d
-
-    // rewrite all operations that require reading the table to delete records
-    case DeleteFromTable(r: DataSourceV2Relation, Some(cond)) =>
+    case DeleteFromTable(r, Some(cond)) =>
       // TODO: do a switch based on whether we get BatchWrite or DeltaBatchWrite
-      val writeInfo = newWriteInfo(r.schema)
-      val mergeBuilder = r.table.asMergeable.newMergeBuilder("delete", writeInfo)
+      val relation = r.collectFirst {
+        case v2: DataSourceV2Relation =>
+          v2
+      }.get
 
-      val scanPlan = buildScanPlan(r.table, r.output, mergeBuilder, cond)
+      val mergeTable = relation.table match {
+        case withDelete: Table with SupportsMerge with ExtendedSupportsDelete =>
+          new DeletableMergeTable(withDelete, "delete")
+        case _ =>
+          MergeTable(relation.table.asMergeable, "delete")
+      }
+      val scanPlan = buildScanPlan(mergeTable, relation, cond)
 
-      val remainingRowFilter = Not(EqualNullSafe(cond, Literal(true, BooleanType)))
+      val remainingRowFilter = not(cond)
       val remainingRowsPlan = Filter(remainingRowFilter, scanPlan)
 
-      val mergeWrite = mergeBuilder.asWriteBuilder.buildForBatch()
-      val writePlan = buildWritePlan(remainingRowsPlan, r.output)
-      ReplaceData(r, mergeWrite, writePlan)
+      val writePlan = buildWritePlan(remainingRowsPlan, relation.output)
+      val writeRelation = relation.copy(table = mergeTable, output = addFileAndPos(relation.output))
+
+      if (SubqueryExpression.hasSubquery(cond)) {
+        DeleteFrom(writeRelation, None, writePlan, None)
+      } else {
+        DeleteFrom(writeRelation, Some(cond), writePlan, None)
+      }
   }
 
   private def buildScanPlan(
-      table: Table,
-      output: Seq[AttributeReference],
-      mergeBuilder: MergeBuilder,
+      mergeTable: MergeTable,
+      tableRelation: DataSourceV2Relation,
       cond: Expression): LogicalPlan = {
+    val mergeRelation = tableRelation.copy(table = mergeTable, output = addFileAndPos(tableRelation.output))
 
-    val scanBuilder = mergeBuilder.asScanBuilder
-
-    val predicates = splitConjunctivePredicates(cond)
-    val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, output)
-    PushDownUtils.pushFilters(scanBuilder, normalizedPredicates)
-
-    val scan = scanBuilder.build()
-    val scanRelation = DataSourceV2ScanRelation(table, scan, toOutputAttrs(scan.readSchema(), output))
-
-    scan match {
+    mergeTable.mergeBuilder match {
       case filterable: SupportsFileFilter =>
-        val matchingFilePlan = buildFileFilterPlan(cond, scanRelation)
-        val dynamicFileFilter = DynamicFileFilter(scanRelation, matchingFilePlan, filterable)
-        dynamicFileFilter
+        val filterRelation = tableRelation.copy(output = addFileAndPos(tableRelation.output))
+        val filteredFiles = new FilterFiles()
+        val matchingFilePlan = buildFileFilterPlan(cond, filterRelation)
+        filterable.filterFiles(filteredFiles)
+        DynamicFileFilter(mergeRelation, matchingFilePlan, filteredFiles)
+
       case _ =>
-        scanRelation
+        mergeRelation
     }
   }
 
@@ -116,8 +156,8 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
       remainingRowsPlan: LogicalPlan,
       output: Seq[AttributeReference]): LogicalPlan = {
 
-    val fileNameCol = findOutputAttr(remainingRowsPlan, FILE_NAME_COL)
-    val rowPosCol = findOutputAttr(remainingRowsPlan, ROW_POS_COL)
+    val fileNameCol = UnresolvedAttribute(FILE_NAME_COL)
+    val rowPosCol = UnresolvedAttribute(ROW_POS_COL)
     val order = Seq(SortOrder(fileNameCol, Ascending), SortOrder(rowPosCol, Ascending))
     val numShufflePartitions = SQLConf.get.numShufflePartitions
     val repartition = RepartitionByExpression(Seq(fileNameCol), remainingRowsPlan, numShufflePartitions)
@@ -125,58 +165,30 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
     Project(output, sort)
   }
 
-  private def isMetadataDelete(relation: DataSourceV2Relation, cond: Expression): Boolean = {
-    relation.table match {
-      case t: ExtendedSupportsDelete if !SubqueryExpression.hasSubquery(cond) =>
-        val predicates = splitConjunctivePredicates(cond)
-        val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, relation.output)
-        val dataSourceFilters = toDataSourceFilters(normalizedPredicates)
-        val allPredicatesTranslated = normalizedPredicates.size == dataSourceFilters.length
-        allPredicatesTranslated && t.canDeleteWhere(dataSourceFilters)
-      case _ => false
-    }
-  }
-
-  private def toDataSourceFilters(predicates: Seq[Expression]): Array[sources.Filter] = {
-    predicates.flatMap { p =>
-      val translatedFilter = DataSourceStrategy.translateFilter(p, supportNestedPredicatePushdown = true)
-      if (translatedFilter.isEmpty) {
-        logWarning(s"Cannot translate expression to source filter: $p")
-      }
-      translatedFilter
-    }.toArray
-  }
-
-  private def newWriteInfo(schema: StructType): LogicalWriteInfo = {
-    val uuid = UUID.randomUUID()
-    LogicalWriteInfoImpl(queryId = uuid.toString, schema, CaseInsensitiveStringMap.empty)
-  }
-
-  private def buildFileFilterPlan(cond: Expression, scanRelation: DataSourceV2ScanRelation): LogicalPlan = {
+  private def buildFileFilterPlan(cond: Expression, scanRelation: DataSourceV2Relation): LogicalPlan = {
     val matchingFilter = Filter(cond, scanRelation)
-    val fileAttr = findOutputAttr(matchingFilter, FILE_NAME_COL)
+    val fileAttr = UnresolvedAttribute(FILE_NAME_COL)
     val agg = Aggregate(Seq(fileAttr), Seq(fileAttr), matchingFilter)
-    Project(Seq(findOutputAttr(agg, FILE_NAME_COL)), agg)
+    Project(Seq(UnresolvedAttribute(FILE_NAME_COL)), agg)
   }
 
-  private def findOutputAttr(plan: LogicalPlan, attrName: String): Attribute = {
-    val resolver = SQLConf.get.resolver
-    plan.output.find(attr => resolver(attr.name, attrName)).getOrElse {
-      throw new AnalysisException(s"Cannot find $attrName in ${plan.output}")
+  private def not(expr: Expression): Expression = {
+    expr match {
+      case Not(child) =>
+        child
+      case _ =>
+        splitConjunctivePredicates(expr).map {
+          case Not(child) =>
+            child
+          case pred =>
+            Not(EqualNullSafe(pred, Literal(true)))
+        }.reduceLeft(Or)
     }
   }
 
-  private def toOutputAttrs(schema: StructType, output: Seq[AttributeReference]): Seq[AttributeReference] = {
-    val nameToAttr = output.map(_.name).zip(output).toMap
-    schema.toAttributes.map {
-      a => nameToAttr.get(a.name) match {
-        case Some(ref) =>
-          // keep the attribute id if it was present in the relation
-          a.withExprId(ref.exprId)
-        case _ =>
-          // if the field is new, create a new attribute
-          AttributeReference(a.name, a.dataType, a.nullable, a.metadata)()
-      }
-    }
+  private def addFileAndPos(output: Seq[AttributeReference]): Seq[AttributeReference] = {
+    output :+
+        AttributeReference(FILE_NAME_COL, StringType, nullable = false)() :+
+        AttributeReference(ROW_POS_COL, LongType, nullable = false)()
   }
 }

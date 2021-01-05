@@ -40,6 +40,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
@@ -49,7 +50,8 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, SupportsPushDownRequiredColumns {
+public class SparkScanBuilder
+    implements ScanBuilder, SupportsPushDownFilters, SupportsPushDownRequiredColumns, SupportsFileFilter {
   private static final Filter[] NO_FILTERS = new Filter[0];
 
   private final SparkSession spark;
@@ -63,6 +65,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
   private boolean ignoreResiduals = false;
+  private FilterFiles filter = null;
 
   // lazy variables
   private JavaSparkContext lazySparkContext = null;
@@ -149,6 +152,11 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
         .forEach(metaColumns::add);
   }
 
+  @Override
+  public void filterFiles(FilterFiles files) {
+    this.filter = files;
+  }
+
   public SparkScanBuilder ignoreResiduals() {
     this.ignoreResiduals = true;
     return this;
@@ -184,6 +192,6 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
 
     return new SparkMergeScan(
         table, io, encryption, caseSensitive, ignoreResiduals,
-        schemaWithMetadataColumns(), filterExpressions, options);
+        schemaWithMetadataColumns(), filterExpressions, options, filter);
   }
 }

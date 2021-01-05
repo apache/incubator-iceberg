@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import java.util.UUID
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.SparkCatalog
 import org.apache.iceberg.spark.SparkSessionCatalog
@@ -32,21 +33,26 @@ import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.planning.PhysicalOperation
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
+import org.apache.spark.sql.catalyst.plans.logical.DeleteFrom
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteOrder
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
+import org.apache.spark.sql.connector.write.LogicalWriteInfo
+import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl
 import org.apache.spark.sql.execution.FilterExec
 import org.apache.spark.sql.execution.LeafExecNode
 import org.apache.spark.sql.execution.ProjectExec
 import org.apache.spark.sql.execution.SparkPlan
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import scala.collection.JavaConverters._
 
 case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
+  import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Implicits._
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
     case c @ Call(procedure, args) =>
@@ -66,14 +72,19 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
       DynamicFileFilterExec(planLater(scanPlan), planLater(fileFilterPlan), filterable) :: Nil
 
     case PhysicalOperation(project, filters, DataSourceV2ScanRelation(_, scan: SupportsFileFilter, output)) =>
+      // TODO: fix detection because the scan builder now runs SupportsFileFilter
       // projection and filters were already pushed down in the optimizer.
       // this uses PhysicalOperation to get the projection and ensure that if the batch scan does
       // not support columnar, a projection is added to convert the rows to UnsafeRow.
       val batchExec = ExtendedBatchScanExec(output, scan)
       withProjectAndFilter(project, filters, batchExec, !batchExec.supportsColumnar) :: Nil
 
-    case ReplaceData(_, batchWrite, query) =>
-      ReplaceDataExec(batchWrite, planLater(query)) :: Nil
+    case DeleteFrom(rel, _, remainingRows, None) =>
+      // the write builder is configured here because it must be built after the scan, and conversion to physical plan
+      // is the only opportunity to inject a rule after early pushdown rules.
+      val table = rel.table.asWritable
+      val batchWrite = table.newWriteBuilder(newWriteInfo(table.schema)).buildForBatch()
+      ReplaceDataExec(batchWrite, planLater(remainingRows)) :: Nil
 
     case _ => Nil
   }
@@ -113,5 +124,10 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
           None
       }
     }
+  }
+
+  private def newWriteInfo(schema: StructType): LogicalWriteInfo = {
+    val uuid = UUID.randomUUID()
+    LogicalWriteInfoImpl(queryId = uuid.toString, schema, CaseInsensitiveStringMap.empty)
   }
 }

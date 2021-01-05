@@ -25,6 +25,7 @@ import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.Table;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter;
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -38,7 +39,7 @@ import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL_DEFAULT;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL_DEFAULT;
 
-class SparkMergeBuilder implements MergeBuilder {
+class SparkMergeBuilder implements MergeBuilder, SupportsFileFilter {
 
   private final SparkSession spark;
   private final Table table;
@@ -46,7 +47,7 @@ class SparkMergeBuilder implements MergeBuilder {
   private final IsolationLevel isolationLevel;
 
   // lazy vars
-  private ScanBuilder lazyScanBuilder;
+  private SparkScanBuilder lazyScanBuilder;
   private Scan configuredScan;
   private WriteBuilder lazyWriteBuilder;
 
@@ -72,11 +73,16 @@ class SparkMergeBuilder implements MergeBuilder {
   }
 
   @Override
+  public void filterFiles(FilterFiles files) {
+    scanBuilder().filterFiles(files);
+  }
+
+  @Override
   public ScanBuilder asScanBuilder() {
     return scanBuilder();
   }
 
-  private ScanBuilder scanBuilder() {
+  private SparkScanBuilder scanBuilder() {
     if (lazyScanBuilder == null) {
       SparkScanBuilder scanBuilder = new SparkScanBuilder(spark, table, writeInfo.options()) {
         @Override
