@@ -246,6 +246,13 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
   }
 
   @Override
+  public <T> Action notStartsWith(Bound<T> expr, Literal<T> lit) {
+    // Cannot push down NOT_STARTS_WITH operator to ORC, so return TruthValue.YES_NO_NULL which signifies
+    // that this predicate cannot help with filtering
+    return () -> this.builder.literal(TruthValue.YES_NO_NULL);
+  }
+
+  @Override
   public <T> Action predicate(BoundPredicate<T> pred) {
     if (UNSUPPORTED_TYPES.contains(pred.ref().type().typeId())) {
       // Cannot push down predicates for types which cannot be represented in PredicateLeaf.Type, so return

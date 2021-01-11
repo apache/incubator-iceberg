@@ -75,6 +75,8 @@ public class TestTruncate {
         "abcde", trunc.apply("abcdefg"));
     Assert.assertEquals("Should not pad strings shorter than length",
         "abc", trunc.apply("abc"));
+    Assert.assertEquals("Should not alter strings equal to length",
+        "abcde", trunc.apply("abcde"));
   }
 
   @Test

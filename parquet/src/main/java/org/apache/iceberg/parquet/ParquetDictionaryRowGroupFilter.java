@@ -377,6 +377,25 @@ public class ParquetDictionaryRowGroupFilter {
       return ROWS_CANNOT_MATCH;
     }
 
+    @Override
+    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, lit.comparator());
+      for (T item : dictionary) {
+        if (!item.toString().startsWith(lit.value().toString())) {
+          return ROWS_MIGHT_MATCH;
+        }
+      }
+
+      return ROWS_CANNOT_MATCH;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> Set<T> dict(int id, Comparator<T> comparator) {
       Preconditions.checkNotNull(dictionaries, "Dictionary is required");

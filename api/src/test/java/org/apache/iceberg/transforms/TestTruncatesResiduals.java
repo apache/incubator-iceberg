@@ -36,6 +36,7 @@ import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 
 public class TestTruncatesResiduals {
@@ -179,5 +180,12 @@ public class TestTruncatesResiduals {
     assertResidualValue(spec, startsWith("value", "bcd"), "ab", Expression.Operation.FALSE);
     assertResidualPredicate(spec, startsWith("value", "bcd"), "bc");
     assertResidualValue(spec, startsWith("value", "bcd"), "cd", Expression.Operation.FALSE);
+
+    // not starts with
+    assertResidualValue(spec, notStartsWith("value", "bc"), "ab", Expression.Operation.TRUE);
+    assertResidualValue(spec, notStartsWith("value", "bc"), "bc", Expression.Operation.FALSE);
+    assertResidualPredicate(spec, notStartsWith("value", "bcd"), "ab");
+    assertResidualValue(spec, notStartsWith("value", "bcd"), "bc", Expression.Operation.FALSE);
+    assertResidualPredicate(spec, notStartsWith("value", "bcd"), "cd");
   }
 }

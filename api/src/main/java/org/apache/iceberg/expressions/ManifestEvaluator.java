@@ -340,6 +340,37 @@ public class ManifestEvaluator {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      int pos = Accessors.toPosition(ref.accessor());
+      PartitionFieldSummary fieldStats = stats.get(pos);
+
+      // values are all null (and stats exist) and literal cannot contain null
+      if (fieldStats.lowerBound() == null) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      ByteBuffer prefixAsBytes = lit.toByteBuffer();
+
+      Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+      ByteBuffer lower = fieldStats.lowerBound();
+      // truncate lower bound so that its length in bytes is not greater than the length of prefix
+      int lowerLength = Math.min(prefixAsBytes.remaining(), lower.remaining());
+      int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower, lowerLength), prefixAsBytes);
+      if (lowerCmp == 0) {
+        ByteBuffer upper = fieldStats.upperBound();
+        // truncate upper bound so that its length in bytes is not greater than the length of prefix
+        int upperLength = Math.min(prefixAsBytes.remaining(), upper.remaining());
+        int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upper, upperLength), prefixAsBytes);
+        if (upperCmp == 0) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
     private boolean allValuesAreNull(PartitionFieldSummary summary, Type.TypeID typeId) {
       // containsNull encodes whether at least one partition value is null,
       // lowerBound is null if all partition values are null

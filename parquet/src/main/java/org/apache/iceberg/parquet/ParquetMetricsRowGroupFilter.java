@@ -473,6 +473,50 @@ public class ParquetMetricsRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      int id = ref.fieldId();
+
+      Long valueCount = valueCounts.get(id);
+      if (valueCount == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
+      if (colStats != null && !colStats.isEmpty()) {
+        if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (!colStats.hasNonNullValue()) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        ByteBuffer prefixAsBytes = lit.toByteBuffer();
+
+        Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+        Binary lower = colStats.genericGetMin();
+        // truncate lower bound so that its length in bytes is not greater than the length of prefix
+        int lowerLength = Math.min(prefixAsBytes.remaining(), lower.length());
+        int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower.toByteBuffer(), lowerLength), prefixAsBytes);
+        if (lowerCmp == 0) {
+          Binary upper = colStats.genericGetMax();
+          // truncate upper bound so that its length in bytes is not greater than the length of prefix
+          int upperLength = Math.min(prefixAsBytes.remaining(), upper.length());
+          ByteBuffer upperByteBuffer = upper.toByteBuffer();
+          int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upperByteBuffer, upperLength), prefixAsBytes);
+          if (upperCmp == 0) {
+            return ROWS_CANNOT_MATCH;
+          }
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> T min(Statistics<?> statistics, int id) {
       return (T) conversions.get(id).apply(statistics.genericGetMin());

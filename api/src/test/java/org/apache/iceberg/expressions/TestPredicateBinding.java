@@ -44,6 +44,8 @@ import static org.apache.iceberg.expressions.Expression.Operation.NOT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_IN;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_NAN;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_STARTS_WITH;
+import static org.apache.iceberg.expressions.Expression.Operation.STARTS_WITH;
 import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -104,6 +106,25 @@ public class TestPredicateBinding {
       Assert.assertEquals("Should not alter literal value",
           Integer.valueOf(5), bound.asLiteralPredicate().literal().value());
       Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
+      Assert.assertEquals("Should not change the comparison operation", op, bound.op());
+    }
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void tesPredicateBindingForStringPrefixComparisons() {
+    StructType struct = StructType.of(required(17, "x", Types.StringType.get()));
+
+    for (Expression.Operation op : Arrays.asList(STARTS_WITH, NOT_STARTS_WITH)) {
+      UnboundPredicate<String> unbound = new UnboundPredicate<>(op, ref("x"), "s");
+
+      Expression expr = unbound.bind(struct);
+      BoundPredicate<Integer> bound = assertAndUnwrap(expr);
+
+      Assert.assertTrue("Should be a literal predicate", bound.isLiteralPredicate());
+      Assert.assertEquals("Should not alter literal value",
+              "s", bound.asLiteralPredicate().literal().value());
+      Assert.assertEquals("Should reference correct field ID", 17, bound.ref().fieldId());
       Assert.assertEquals("Should not change the comparison operation", op, bound.op());
     }
   }

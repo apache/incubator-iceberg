@@ -82,6 +82,7 @@ import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -379,7 +380,7 @@ public class TestMetricsRowGroupFilter {
         lessThan("no_stats_parquet", "a"), lessThanOrEqual("no_stats_parquet", "b"), equal("no_stats_parquet", "c"),
         greaterThan("no_stats_parquet", "d"), greaterThanOrEqual("no_stats_parquet", "e"),
         notEqual("no_stats_parquet", "f"), isNull("no_stats_parquet"), notNull("no_stats_parquet"),
-        startsWith("no_stats_parquet", "a")
+        startsWith("no_stats_parquet", "a"), notStartsWith("no_stats_parquet", "a")
     };
 
     for (Expression expr : exprs) {
@@ -715,6 +716,40 @@ public class TestMetricsRowGroupFilter {
     Assert.assertFalse("Should not read: range doesn't match", shouldRead);
 
     shouldRead = shouldRead(startsWith("str", "9str9aaa"));
+    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+  }
+
+  @Test
+  public void testStringNotStartsWith() {
+    Assume.assumeFalse("ORC row group filter does not support StringStartsWith", format == FileFormat.ORC);
+    boolean shouldRead = shouldRead(notStartsWith("str", "1"));
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = shouldRead(notStartsWith("str", "0st"));
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = shouldRead(notStartsWith("str", "1str1"));
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = shouldRead(notStartsWith("str", "1str1_xgd"));
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = shouldRead(notStartsWith("str", "2str"));
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = shouldRead(notStartsWith("str", "9xstr"));
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = shouldRead(notStartsWith("required", "r"));
+    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+
+    shouldRead = shouldRead(notStartsWith("required", "requ"));
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = shouldRead(notStartsWith("some_nulls", "ssome"));
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = shouldRead(notStartsWith("some_nulls", "som"));
     Assert.assertFalse("Should not read: range doesn't match", shouldRead);
   }
 

@@ -303,11 +303,15 @@ abstract class Truncate<T> implements Transform<T, T> {
         return Expressions.predicate(predicate.op(), name);
       } else if (predicate instanceof BoundLiteralPredicate) {
         BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
-        if (pred.op() == Expression.Operation.STARTS_WITH) {
+        if (isStringPrefixPredicate(pred)) {
           if (pred.literal().value().length() < width()) {
             return Expressions.predicate(pred.op(), name, pred.literal().value());
           } else if (pred.literal().value().length() == width()) {
-            return Expressions.equal(name, pred.literal().value());
+            if (pred.op() == Expression.Operation.STARTS_WITH) {
+              return Expressions.equal(name, pred.literal().value());
+            } else {
+              return Expressions.notEqual(name, pred.literal().value());
+            }
           }
         } else {
           return ProjectionUtil.truncateArrayStrict(name, pred, this);
@@ -316,6 +320,11 @@ abstract class Truncate<T> implements Transform<T, T> {
         return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
       }
       return null;
+    }
+
+    private boolean isStringPrefixPredicate(BoundPredicate<CharSequence> pred) {
+      return pred.op() == Expression.Operation.STARTS_WITH ||
+          pred.op() == Expression.Operation.NOT_STARTS_WITH;
     }
 
     @Override

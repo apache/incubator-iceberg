@@ -158,6 +158,8 @@ public class TestResiduals {
         Expressions.notIn("f", 1, 2, 3),
         Expressions.notNaN("g"),
         Expressions.isNaN("h"),
+        Expressions.startsWith("data", "abcd"),
+        Expressions.notStartsWith("data", "abcd")
     };
 
     for (Expression expr : expressions) {

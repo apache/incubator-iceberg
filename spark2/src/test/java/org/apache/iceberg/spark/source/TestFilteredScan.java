@@ -23,9 +23,11 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -59,6 +61,7 @@ import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.GreaterThan;
 import org.apache.spark.sql.sources.In;
 import org.apache.spark.sql.sources.LessThan;
+import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.StringStartsWith;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
@@ -81,6 +84,7 @@ import static org.apache.iceberg.Files.localOutput;
 import static org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp;
 import static org.apache.spark.sql.functions.callUDF;
 import static org.apache.spark.sql.functions.column;
+import static org.apache.spark.sql.functions.not;
 
 @RunWith(Parameterized.class)
 public class TestFilteredScan {
@@ -470,6 +474,21 @@ public class TestFilteredScan {
   }
 
   @Test
+  public void testPartitionedByDataNotStartsWithFilter() {
+    File location = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
+
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
+        "path", location.toString())
+    );
+
+    IcebergSource source = new IcebergSource();
+    DataSourceReader reader = source.createReader(options);
+    pushFilters(reader, new Not(new StringStartsWith("data", "junc")));
+
+    Assert.assertEquals(9, reader.planInputPartitions().size());
+  }
+
+  @Test
   public void testPartitionedByIdStartsWith() {
     File location = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID, "id_ident", "id");
 
@@ -482,6 +501,21 @@ public class TestFilteredScan {
     pushFilters(reader, new StringStartsWith("data", "junc"));
 
     Assert.assertEquals(1, reader.planInputPartitions().size());
+  }
+
+  @Test
+  public void testPartitionedByIdNotStartsWith() {
+    File location = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID, "id_ident", "id");
+
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
+        "path", location.toString()
+    ));
+
+    IcebergSource source = new IcebergSource();
+    DataSourceReader reader = source.createReader(options);
+    pushFilters(reader, new Not(new StringStartsWith("data", "junc")));
+
+    Assert.assertEquals(9, reader.planInputPartitions().size());
   }
 
   @Test
@@ -498,6 +532,48 @@ public class TestFilteredScan {
 
     Assert.assertEquals(1, matchedData.size());
     Assert.assertEquals("junction", matchedData.get(0));
+  }
+
+  @Test
+  public void testUnpartitionedNotStartsWith() {
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+        .load(unpartitioned.toString());
+
+    List<String> matchedData = df.select("data")
+        .where("data NOT LIKE 'jun%'")
+        .as(Encoders.STRING())
+        .collectAsList();
+
+    List<String> expected = testRecords(SCHEMA).stream()
+        .map(r -> r.getField("data").toString())
+        .filter(d -> !d.startsWith("jun"))
+        .collect(Collectors.toList());
+
+    Assert.assertEquals(9, matchedData.size());
+    Assert.assertEquals(new HashSet<>(expected), new HashSet<>(matchedData));
+  }
+
+  @Test
+  public void testUnpartitionedNotStartsWithUsingSparkFunctions() {
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+        .load(unpartitioned.toString());
+
+    List<String> matchedData = df.select("data")
+        .filter(not(column("data").startsWith("jun")))
+        .as(Encoders.STRING())
+        .collectAsList();
+
+    List<String> expected = testRecords(SCHEMA).stream()
+        .map(r -> r.getField("data").toString())
+        .filter(d -> !d.startsWith("jun"))
+        .collect(Collectors.toList());
+
+    Assert.assertEquals(9, matchedData.size());
+    Assert.assertEquals(new HashSet<>(expected), new HashSet<>(matchedData));
   }
 
   private static Record projectFlat(Schema projection, Record record) {

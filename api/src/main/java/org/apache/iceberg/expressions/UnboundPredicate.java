@@ -245,6 +245,8 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
         return term() + " != " + literal();
       case STARTS_WITH:
         return term() + " startsWith \"" + literal() + "\"";
+      case NOT_STARTS_WITH:
+        return term() + " notStartsWith \"" + literal() + "\"";
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:

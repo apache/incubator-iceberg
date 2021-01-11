@@ -195,6 +195,14 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.STARTS_WITH, expr, value);
   }
 
+  public static UnboundPredicate<String> notStartsWith(String name, String value) {
+    return new UnboundPredicate<>(Expression.Operation.NOT_STARTS_WITH, ref(name), value);
+  }
+
+  public static UnboundPredicate<String> notStartsWith(UnboundTerm<String> expr, String value) {
+    return new UnboundPredicate<>(Expression.Operation.NOT_STARTS_WITH, expr, value);
+  }
+
   public static <T> UnboundPredicate<T> in(String name, T... values) {
     return predicate(Operation.IN, name, Lists.newArrayList(values));
   }

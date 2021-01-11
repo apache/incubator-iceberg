@@ -50,6 +50,8 @@ public class TestExpressionSerialization {
         Expressions.isNull("maybeNull2"),
         Expressions.isNaN("maybeNaN"),
         Expressions.notNaN("maybeNaN2"),
+        Expressions.startsWith("col", "abc"),
+        Expressions.notStartsWith("col", "abc"),
         Expressions.not(Expressions.greaterThan("a", 10)),
         Expressions.and(Expressions.greaterThanOrEqual("a", 0), Expressions.lessThan("a", 3)),
         Expressions.or(Expressions.lessThan("a", 0), Expressions.greaterThan("a", 10)),
@@ -57,6 +59,8 @@ public class TestExpressionSerialization {
         Expressions.in("a", 5, 6, 7).bind(schema.asStruct()),
         Expressions.notIn("s", "abc", "xyz").bind(schema.asStruct()),
         Expressions.isNull("a").bind(schema.asStruct()),
+        Expressions.startsWith("s", "abc").bind(schema.asStruct()),
+        Expressions.notStartsWith("s", "xyz").bind(schema.asStruct())
     };
 
     for (Expression expression : expressions) {

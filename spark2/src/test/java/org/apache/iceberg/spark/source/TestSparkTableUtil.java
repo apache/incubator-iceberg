@@ -397,6 +397,21 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
 
       Dataset<Row> partitionDF = SparkTableUtil.partitionDFByFilter(spark, QUALIFIED_TABLE_NAME, "data = 'a'");
       Assert.assertEquals("There should be 1 matching partition", 1, partitionDF.count());
+
+      partitions = SparkTableUtil.getPartitionsByFilter(spark, QUALIFIED_TABLE_NAME, "data not like 'a'");
+      Assert.assertEquals("There should be 2 matching partitions", 2, partitions.size());
+
+      partitionDF = SparkTableUtil.partitionDFByFilter(spark, QUALIFIED_TABLE_NAME, "data not like 'a'");
+      Assert.assertEquals("There should be 2 matching partitions", 2, partitionDF.count());
+
+      partitionDF = SparkTableUtil.partitionDFByFilter(spark, QUALIFIED_TABLE_NAME, "data like 'a%'");
+      Assert.assertEquals("There should be 3 matching partitions", 1, partitionDF.count());
+
+      partitions = SparkTableUtil.getPartitionsByFilter(spark, QUALIFIED_TABLE_NAME, "data not like 'a%'");
+      Assert.assertEquals("There should be no matching partitions", 2, partitions.size());
+
+      partitionDF = SparkTableUtil.partitionDFByFilter(spark, QUALIFIED_TABLE_NAME, "data not like '%'");
+      Assert.assertArrayEquals("No input files should be scanned", new String[0], partitionDF.inputFiles());
     }
   }
 }

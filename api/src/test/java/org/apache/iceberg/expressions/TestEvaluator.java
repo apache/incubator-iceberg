@@ -47,8 +47,10 @@ import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.predicate;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -218,6 +220,24 @@ public class TestEvaluator {
                     TestHelpers.Row.of(
                         TestHelpers.Row.of(6)))))));
 
+  }
+
+  @Test
+  public void testStartsWith() {
+    StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
+    Evaluator evaluator = new Evaluator(struct, startsWith("s", "abc"));
+    Assert.assertTrue("abc startsWith abc => true", evaluator.eval(TestHelpers.Row.of("abc")));
+    Assert.assertFalse("abc startsWith Abc => false", evaluator.eval(TestHelpers.Row.of("Abc")));
+    Assert.assertFalse("a startsWith abc => false", evaluator.eval(TestHelpers.Row.of("a")));
+  }
+
+  @Test
+  public void testNotStartsWith() {
+    StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
+    Evaluator evaluator = new Evaluator(struct, notStartsWith("s", "abc"));
+    Assert.assertFalse("abc notStartsWith abc => false", evaluator.eval(TestHelpers.Row.of("abc")));
+    Assert.assertTrue("abc notStartsWith Abc => true", evaluator.eval(TestHelpers.Row.of("Abc")));
+    Assert.assertTrue("a notStartsWith abc => true", evaluator.eval(TestHelpers.Row.of("a")));
   }
 
   @Test
