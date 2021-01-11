@@ -108,19 +108,19 @@ public class ExpressionVisitors {
     }
 
     public <T> R in(BoundReference<T> ref, Set<T> literalSet) {
-      throw new UnsupportedOperationException("In operation is not supported by the visitor");
+      throw new UnsupportedOperationException("In expression is not supported by the visitor");
     }
 
     public <T> R notIn(BoundReference<T> ref, Set<T> literalSet) {
-      throw new UnsupportedOperationException("notIn operation is not supported by the visitor");
+      throw new UnsupportedOperationException("notIn expression is not supported by the visitor");
     }
 
     public <T> R startsWith(BoundReference<T> ref, Literal<T> lit) {
-      throw new UnsupportedOperationException("startsWith operation is not supported by the visitor");
+      throw new UnsupportedOperationException("startsWith expression is not supported by the visitor");
     }
 
     public <T> R notStartsWith(BoundReference<T> ref, Literal<T> lit) {
-      throw new UnsupportedOperationException("notStartsWith operation is not supported by the visitor");
+      throw new UnsupportedOperationException("notStartsWith expression is not supported by the visitor");
     }
 
     @Override
