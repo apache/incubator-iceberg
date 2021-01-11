@@ -114,7 +114,7 @@ public class TestNotStartsWith {
     UnboundPredicate<String> projected = trunc.project(COLUMN, boundExpr);
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), projected);
 
-    Assert.assertFalse("notStartsWith(ab, truncate(abcde, 16)) => true",
+    Assert.assertFalse("notStartsWith(ab, truncate(abcde, 16)) => false",
         evaluator.eval(TestHelpers.Row.of("abcde")));
 
     Assert.assertFalse("notStartsWith(ab, truncate(ab, 16)) => false",
