@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -40,6 +41,7 @@ class ManifestLists {
         .rename("r508", GenericPartitionFieldSummary.class.getName())
         .classLoader(GenericManifestFile.class.getClassLoader())
         .project(ManifestFile.schema())
+        .createReaderFunc(avroSchema -> DataReader.create(ManifestFile.schema(), avroSchema))
         .reuseContainers(false)
         .build()) {
 

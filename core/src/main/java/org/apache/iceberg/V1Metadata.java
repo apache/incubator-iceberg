@@ -20,10 +20,12 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Types;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -44,11 +46,19 @@ class V1Metadata {
    * This is used to maintain compatibility with v1 by writing manifest list files with the old schema, instead of
    * writing a sequence number into metadata files in v1 tables.
    */
-  static class IndexedManifestFile implements ManifestFile, IndexedRecord {
+  static class IndexedManifestFile implements ManifestFile, Record, IndexedRecord {
     private static final org.apache.avro.Schema AVRO_SCHEMA =
         AvroSchemaUtil.convert(MANIFEST_LIST_SCHEMA, "manifest_file");
-
     private ManifestFile wrapped = null;
+    private final Map<String, Integer> nameToPos = new HashMap<>();
+
+    IndexedManifestFile() {
+      int pos = 0;
+      for (Types.NestedField field : MANIFEST_LIST_SCHEMA.columns()) {
+        nameToPos.put(field.name(), pos);
+        pos += 1;
+      }
+    }
 
     public ManifestFile wrap(ManifestFile file) {
       this.wrapped = file;
@@ -93,6 +103,11 @@ class V1Metadata {
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
     }
 
     @Override
@@ -181,8 +196,45 @@ class V1Metadata {
     }
 
     @Override
-    public ManifestFile copy() {
-      return wrapped.copy();
+    public IndexedManifestFile copy() {
+      return (IndexedManifestFile) wrapped.copy();
+    }
+
+    @Override
+    public Record copy(Map<String, Object> overwriteValues) {
+      IndexedManifestFile record = this.copy();
+
+      for (Map.Entry<String, Object> entry : overwriteValues.entrySet()) {
+        setField(entry.getKey(), entry.getValue());
+      }
+
+      return record;
+    }
+
+    @Override
+    public void set(int i, Object v) {
+      throw new UnsupportedOperationException("Cannot read using Record");
+    }
+
+    @Override
+    public Types.StructType struct() {
+      return MANIFEST_LIST_SCHEMA.asStruct();
+    }
+
+    @Override
+    public Object getField(String name) {
+      int pos = nameToPos.get(name);
+      return get(pos);
+    }
+
+    @Override
+    public void setField(String name, Object value) {
+      throw new UnsupportedOperationException("Cannot read using Record");
+    }
+
+    @Override
+    public int size() {
+      return MANIFEST_LIST_SCHEMA.columns().size();
     }
   }
 

@@ -22,24 +22,30 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData.SchemaConstructable;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 
 public class GenericManifestFile
-    implements ManifestFile, StructLike, IndexedRecord, SchemaConstructable, Serializable {
+    implements ManifestFile, Record, SchemaConstructable, Serializable {
   private static final Schema AVRO_SCHEMA = AvroSchemaUtil.convert(
       ManifestFile.schema(), "manifest_file");
 
   private transient Schema avroSchema; // not final for Java serialization
+
+  // this maps the projected schema index to original schema index
   private int[] fromProjectionPos;
+
+  private Map<String, Integer> nameToProjectedPos;
 
   // data fields
   private InputFile file = null;
@@ -68,12 +74,14 @@ public class GenericManifestFile
     List<Types.NestedField> allFields = ManifestFile.schema().asStruct().fields();
 
     this.fromProjectionPos = new int[fields.size()];
+    this.nameToProjectedPos = Maps.newHashMap();
     for (int i = 0; i < fromProjectionPos.length; i += 1) {
       boolean found = false;
       for (int j = 0; j < allFields.size(); j += 1) {
         if (fields.get(i).fieldId() == allFields.get(j).fieldId()) {
           found = true;
           fromProjectionPos[i] = j;
+          nameToProjectedPos.put(fields.get(i).name(), i);
         }
       }
 
@@ -147,6 +155,14 @@ public class GenericManifestFile
     this.deletedRowsCount = toCopy.deletedRowsCount;
     this.partitions = copyList(toCopy.partitions, PartitionFieldSummary::copy);
     this.fromProjectionPos = toCopy.fromProjectionPos;
+  }
+
+  private GenericManifestFile(GenericManifestFile toCopy, Map<String, Object> overwriteValues) {
+    this.avroSchema = toCopy.avroSchema;
+    this.fromProjectionPos = toCopy.fromProjectionPos;
+    for (Map.Entry<String, Object> entry : overwriteValues.entrySet()) {
+      setField(entry.getKey(), entry.getValue());
+    }
   }
 
   /**
@@ -347,18 +363,29 @@ public class GenericManifestFile
   }
 
   @Override
-  public void put(int i, Object v) {
-    set(i, v);
-  }
-
-  @Override
-  public ManifestFile copy() {
+  public GenericManifestFile copy() {
     return new GenericManifestFile(this);
   }
 
   @Override
-  public Schema getSchema() {
-    return avroSchema;
+  public Record copy(Map<String, Object> overwriteValues) {
+    return new GenericManifestFile(this, overwriteValues);
+  }
+
+  @Override
+  public Types.StructType struct() {
+    return ManifestFile.schema().asStruct();
+  }
+
+  @Override
+  public Object getField(String name) {
+    return get(nameToProjectedPos.get(name));
+  }
+
+  @Override
+  public void setField(String name, Object value) {
+    int pos = nameToProjectedPos.get(name);
+    set(pos, value);
   }
 
   @Override

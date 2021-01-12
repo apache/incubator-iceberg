@@ -26,9 +26,12 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Types.StructType;
@@ -56,6 +59,13 @@ class GenericReaders {
 
   static ValueReader<Record> struct(StructType struct, List<ValueReader<?>> readers, Map<Integer, ?> idToConstant) {
     return new GenericRecordReader(readers, struct, idToConstant);
+  }
+
+  static <R extends Record> ValueReader<R> struct(Schema schema,
+                                                  Class<R> recordClass,
+                                                  List<ValueReader<?>> readers,
+                                                  Map<Integer, ?> idToConstant) {
+    return new InternalRecordReader(readers, recordClass, schema, idToConstant);
   }
 
   private static class DateReader implements ValueReader<LocalDate> {
@@ -130,6 +140,42 @@ class GenericReaders {
 
     @Override
     protected void set(Record struct, int pos, Object value) {
+      struct.set(pos, value);
+    }
+  }
+
+  private static class InternalRecordReader<R extends Record> extends ValueReaders.StructReader<R> {
+    private final Class<R> recordClass;
+    private final DynConstructors.Ctor<R> ctor;
+    private final Schema schema;
+
+    InternalRecordReader(List<ValueReader<?>> readers, Class<R> recordClass, Schema schema,
+                         Map<Integer, ?> idToConstant) {
+      super(readers, AvroSchemaUtil.toIceberg(schema).asStruct(), idToConstant);
+      this.recordClass = recordClass;
+      this.ctor = DynConstructors.builder(Record.class)
+          .hiddenImpl(recordClass, Schema.class)
+          .hiddenImpl(recordClass)
+          .build();
+      this.schema = schema;
+    }
+
+    @Override
+    protected R reuseOrCreate(Object reuse) {
+      if (recordClass.isInstance(reuse)) {
+        return recordClass.cast(reuse);
+      } else {
+        return ctor.newInstance(schema);
+      }
+    }
+
+    @Override
+    protected Object get(R struct, int pos) {
+      return struct.get(pos);
+    }
+
+    @Override
+    protected void set(R struct, int pos, Object value) {
       struct.set(pos, value);
     }
   }

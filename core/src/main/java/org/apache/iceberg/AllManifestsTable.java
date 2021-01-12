@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -177,6 +178,7 @@ public class AllManifestsTable extends BaseMetadataTable {
           .rename("r508", GenericPartitionFieldSummary.class.getName())
           .project(ManifestFile.schema())
           .classLoader(GenericManifestFile.class.getClassLoader())
+          .createReaderFunc(avroSchema -> DataReader.create(ManifestFile.schema(), avroSchema))
           .reuseContainers(false)
           .build()) {
 

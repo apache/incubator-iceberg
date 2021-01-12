@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -95,6 +96,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
             .named("manifest_file")
             .meta(meta)
             .overwrite()
+            .createWriterFunc(DataWriter::create)
             .build();
 
       } catch (IOException e) {
@@ -128,6 +130,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
             .named("manifest_file")
             .meta(meta)
             .overwrite()
+            .createWriterFunc(DataWriter::create)
             .build();
 
       } catch (IOException e) {
