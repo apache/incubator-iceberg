@@ -95,7 +95,7 @@ public class TestStrictMetricsEvaluator {
           .put(12, 0L)
           .put(13, 1L)
           .build(),
-  // nan value counts
+      // nan value counts
       ImmutableMap.of(
           8, 50L,
           9, 10L,
