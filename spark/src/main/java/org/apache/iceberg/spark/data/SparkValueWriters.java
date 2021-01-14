@@ -21,14 +21,17 @@ package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
+import java.util.stream.Stream;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.avro.ValueWriter;
+import org.apache.iceberg.avro.ValueWriters;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -42,16 +45,12 @@ public class SparkValueWriters {
   private SparkValueWriters() {
   }
 
-  static ValueWriter<UTF8String> strings() {
-    return StringWriter.INSTANCE;
+  static ValueWriter<UTF8String> strings(int id) {
+    return new StringWriter(id);
   }
 
-  static ValueWriter<UTF8String> uuids() {
-    return UUIDWriter.INSTANCE;
-  }
-
-  static ValueWriter<Decimal> decimal(int precision, int scale) {
-    return new DecimalWriter(precision, scale);
+  static ValueWriter<Decimal> decimal(int id, int precision, int scale) {
+    return new DecimalWriter(id, precision, scale);
   }
 
   static <T> ValueWriter<ArrayData> array(ValueWriter<T> elementWriter, DataType elementType) {
@@ -72,14 +71,13 @@ public class SparkValueWriters {
     return new StructWriter(writers, types);
   }
 
-  private static class StringWriter implements ValueWriter<UTF8String> {
-    private static final StringWriter INSTANCE = new StringWriter();
-
-    private StringWriter() {
+  private static class StringWriter extends ValueWriters.MetricsAwareStringWriter<UTF8String> {
+    private StringWriter(int id) {
+      super(id);
     }
 
     @Override
-    public void write(UTF8String s, Encoder encoder) throws IOException {
+    protected void writeVal(UTF8String s, Encoder encoder) throws IOException {
       // use getBytes because it may return the backing byte array if available.
       // otherwise, it copies to a new byte array, which is still cheaper than Avro
       // calling toString, which incurs encoding costs
@@ -87,45 +85,26 @@ public class SparkValueWriters {
     }
   }
 
-  private static class UUIDWriter implements ValueWriter<UTF8String> {
-    private static final ThreadLocal<ByteBuffer> BUFFER = ThreadLocal.withInitial(() -> {
-      ByteBuffer buffer = ByteBuffer.allocate(16);
-      buffer.order(ByteOrder.BIG_ENDIAN);
-      return buffer;
-    });
-
-    private static final UUIDWriter INSTANCE = new UUIDWriter();
-
-    private UUIDWriter() {
-    }
-
-    @Override
-    @SuppressWarnings("ByteBufferBackingArray")
-    public void write(UTF8String s, Encoder encoder) throws IOException {
-      // TODO: direct conversion from string to byte buffer
-      UUID uuid = UUID.fromString(s.toString());
-      ByteBuffer buffer = BUFFER.get();
-      buffer.rewind();
-      buffer.putLong(uuid.getMostSignificantBits());
-      buffer.putLong(uuid.getLeastSignificantBits());
-      encoder.writeFixed(buffer.array());
-    }
-  }
-
-  private static class DecimalWriter implements ValueWriter<Decimal> {
+  private static class DecimalWriter extends ValueWriters.MetricsAwareWriter<Decimal> {
     private final int precision;
     private final int scale;
     private final ThreadLocal<byte[]> bytes;
 
-    private DecimalWriter(int precision, int scale) {
+    private DecimalWriter(int id, int precision, int scale) {
+      super(id, Comparators.forType(Types.DecimalType.of(precision, scale)));
       this.precision = precision;
       this.scale = scale;
       this.bytes = ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
     }
 
     @Override
-    public void write(Decimal d, Encoder encoder) throws IOException {
+    protected void writeVal(Decimal d, Encoder encoder) throws IOException {
       encoder.writeFixed(DecimalUtil.toReusedFixLengthBytes(precision, scale, d.toJavaBigDecimal(), bytes.get()));
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return metrics(Decimal::toJavaBigDecimal);
     }
   }
 
@@ -149,6 +128,11 @@ public class SparkValueWriters {
         elementWriter.write((T) array.get(i, elementType), encoder);
       }
       encoder.writeArrayEnd();
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return elementWriter.metrics();
     }
   }
 
@@ -181,6 +165,11 @@ public class SparkValueWriters {
       }
       encoder.writeArrayEnd();
     }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
+    }
   }
 
   private static class MapWriter<K, V> implements ValueWriter<MapData> {
@@ -212,6 +201,11 @@ public class SparkValueWriters {
       }
       encoder.writeMapEnd();
     }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
+    }
   }
 
   static class StructWriter implements ValueWriter<InternalRow> {
@@ -241,6 +235,11 @@ public class SparkValueWriters {
           write(row, i, writers[i], encoder);
         }
       }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Arrays.stream(writers).flatMap(ValueWriter::metrics);
     }
 
     @SuppressWarnings("unchecked")

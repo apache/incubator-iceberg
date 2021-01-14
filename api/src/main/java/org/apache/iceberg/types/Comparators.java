@@ -157,6 +157,10 @@ public class Comparators {
     return UnsignedByteBufComparator.INSTANCE;
   }
 
+  public static Comparator<byte[]> unsignedByteArray() {
+    return UnsignedByteArrayComparator.INSTANCE;
+  }
+
   public static Comparator<ByteBuffer> signedBytes() {
     return Comparator.naturalOrder();
   }
@@ -269,6 +273,30 @@ public class Comparators {
 
       // if there are no differences, then the shorter seq is first
       return Integer.compare(buf1.remaining(), buf2.remaining());
+    }
+  }
+
+  private static class UnsignedByteArrayComparator implements Comparator<byte[]> {
+    private static final UnsignedByteArrayComparator INSTANCE = new UnsignedByteArrayComparator();
+
+    private UnsignedByteArrayComparator() {
+    }
+
+    @Override
+    public int compare(byte[] array1, byte[] array2) {
+      int len = Math.min(array1.length, array2.length);
+
+      // find the first difference and return
+      for (int i = 0; i < len; i += 1) {
+        // Conversion to int is what Byte.toUnsignedInt would do
+        int cmp = Integer.compare(((int) array1[i]) & 0xff, ((int) array2[i]) & 0xff);
+        if (cmp != 0) {
+          return cmp;
+        }
+      }
+
+      // if there are no differences, then the shorter seq is first
+      return Integer.compare(array1.length, array2.length);
     }
   }
 

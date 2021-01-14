@@ -35,6 +35,7 @@ public abstract class AvroSchemaVisitor<T> {
             "Cannot process recursive Avro record %s", name);
 
         visitor.recordLevels.push(name);
+        visitor.parentSchemas.push(schema);
 
         List<Schema.Field> fields = schema.getFields();
         List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
@@ -46,6 +47,7 @@ public abstract class AvroSchemaVisitor<T> {
         }
 
         visitor.recordLevels.pop();
+        visitor.parentSchemas.pop();
 
         return visitor.record(schema, names, results);
 
@@ -59,13 +61,20 @@ public abstract class AvroSchemaVisitor<T> {
 
       case ARRAY:
         if (schema.getLogicalType() instanceof LogicalMap) {
-          return visitor.array(schema, visit(schema.getElementType(), visitor));
+          T result = visit(schema.getElementType(), visitor);
+          return visitor.array(schema, result);
         } else {
-          return visitor.array(schema, visitWithName("element", schema.getElementType(), visitor));
+          visitor.parentSchemas.push(schema);
+          T result = visitWithName("element", schema.getElementType(), visitor);
+          visitor.parentSchemas.pop();
+          return visitor.array(schema, result);
         }
 
       case MAP:
-        return visitor.map(schema, visitWithName("value", schema.getValueType(), visitor));
+        visitor.parentSchemas.push(schema);
+        T result = visitWithName("value", schema.getValueType(), visitor);
+        visitor.parentSchemas.pop();
+        return visitor.map(schema, result);
 
       default:
         return visitor.primitive(schema);
@@ -74,9 +83,18 @@ public abstract class AvroSchemaVisitor<T> {
 
   private Deque<String> recordLevels = Lists.newLinkedList();
   private Deque<String> fieldNames = Lists.newLinkedList();
+  private Deque<Schema> parentSchemas = Lists.newLinkedList();
 
   protected Deque<String> fieldNames() {
     return fieldNames;
+  }
+
+  protected String lastFieldName() {
+    return fieldNames.peekLast();
+  }
+
+  protected Schema parentSchema() {
+    return parentSchemas.peek();
   }
 
   private static <T> T visitWithName(String name, Schema schema, AvroSchemaVisitor<T> visitor) {

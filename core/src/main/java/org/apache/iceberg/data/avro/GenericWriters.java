@@ -37,20 +37,20 @@ class GenericWriters {
   private GenericWriters() {
   }
 
-  static ValueWriter<LocalDate> dates() {
-    return DateWriter.INSTANCE;
+  static ValueWriter<LocalDate> dates(int id) {
+    return new DateWriter(id);
   }
 
-  static ValueWriter<LocalTime> times() {
-    return TimeWriter.INSTANCE;
+  static ValueWriter<LocalTime> times(int id) {
+    return new TimeWriter(id);
   }
 
-  static ValueWriter<LocalDateTime> timestamps() {
-    return TimestampWriter.INSTANCE;
+  static ValueWriter<LocalDateTime> timestamps(int id) {
+    return new TimestampWriter(id);
   }
 
-  static ValueWriter<OffsetDateTime> timestamptz() {
-    return TimestamptzWriter.INSTANCE;
+  static ValueWriter<OffsetDateTime> timestamptz(int id) {
+    return new TimestamptzWriter(id);
   }
 
   static ValueWriter<Record> struct(List<ValueWriter<?>> writers) {
@@ -60,51 +60,49 @@ class GenericWriters {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-  private static class DateWriter implements ValueWriter<LocalDate> {
-    private static final DateWriter INSTANCE = new DateWriter();
-
-    private DateWriter() {
+  private static class DateWriter extends ValueWriters.MetricsAwareTransformWriter<LocalDate, Integer> {
+    private DateWriter(int id) {
+      super(id, Comparable::compareTo, date -> (int) ChronoUnit.DAYS.between(EPOCH_DAY, date));
     }
 
     @Override
-    public void write(LocalDate date, Encoder encoder) throws IOException {
-      encoder.writeInt((int) ChronoUnit.DAYS.between(EPOCH_DAY, date));
+    protected void writeVal(Integer date, Encoder encoder) throws IOException {
+      encoder.writeInt(date);
     }
   }
 
-  private static class TimeWriter implements ValueWriter<LocalTime> {
-    private static final TimeWriter INSTANCE = new TimeWriter();
-
-    private TimeWriter() {
+  private static class TimeWriter extends ValueWriters.MetricsAwareTransformWriter<LocalTime, Long> {
+    private TimeWriter(int id) {
+      super(id, Comparable::compareTo, time -> time.toNanoOfDay() / 1000);
     }
 
     @Override
-    public void write(LocalTime time, Encoder encoder) throws IOException {
-      encoder.writeLong(time.toNanoOfDay() / 1000);
+    protected void writeVal(Long time, Encoder encoder) throws IOException {
+      encoder.writeLong(time);
     }
   }
 
-  private static class TimestampWriter implements ValueWriter<LocalDateTime> {
-    private static final TimestampWriter INSTANCE = new TimestampWriter();
-
-    private TimestampWriter() {
+  private static class TimestampWriter extends ValueWriters.MetricsAwareTransformWriter<LocalDateTime, Long> {
+    private TimestampWriter(int id) {
+      super(id, Comparable::compareTo,
+          timestamp -> ChronoUnit.MICROS.between(EPOCH, timestamp.atOffset(ZoneOffset.UTC)));
     }
 
     @Override
-    public void write(LocalDateTime timestamp, Encoder encoder) throws IOException {
-      encoder.writeLong(ChronoUnit.MICROS.between(EPOCH, timestamp.atOffset(ZoneOffset.UTC)));
+    protected void writeVal(Long timestamp, Encoder encoder) throws IOException {
+      encoder.writeLong(timestamp);
     }
   }
 
-  private static class TimestamptzWriter implements ValueWriter<OffsetDateTime> {
-    private static final TimestamptzWriter INSTANCE = new TimestamptzWriter();
-
-    private TimestamptzWriter() {
+  private static class TimestamptzWriter extends ValueWriters.MetricsAwareTransformWriter<OffsetDateTime, Long> {
+    private TimestamptzWriter(int id) {
+      super(id, Comparable::compareTo,
+          timestamptz -> ChronoUnit.MICROS.between(EPOCH, timestamptz));
     }
 
     @Override
-    public void write(OffsetDateTime timestamptz, Encoder encoder) throws IOException {
-      encoder.writeLong(ChronoUnit.MICROS.between(EPOCH, timestamptz));
+    protected void writeVal(Long timestamptz, Encoder encoder) throws IOException {
+      encoder.writeLong(timestamptz);
     }
   }
 

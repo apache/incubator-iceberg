@@ -21,7 +21,9 @@ package org.apache.iceberg.flink.data;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
 import org.apache.flink.table.data.ArrayData;
@@ -31,7 +33,9 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.avro.ValueWriter;
+import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 
@@ -40,20 +44,20 @@ public class FlinkValueWriters {
   private FlinkValueWriters() {
   }
 
-  static ValueWriter<StringData> strings() {
-    return StringWriter.INSTANCE;
+  static ValueWriter<StringData> strings(int id) {
+    return new StringWriter(id);
   }
 
-  static ValueWriter<Integer> timeMicros() {
-    return TimeMicrosWriter.INSTANCE;
+  static ValueWriter<Integer> timeMicros(int id) {
+    return new TimeMicrosWriter(id);
   }
 
-  static ValueWriter<TimestampData> timestampMicros() {
-    return TimestampMicrosWriter.INSTANCE;
+  static ValueWriter<TimestampData> timestampMicros(int id) {
+    return new TimestampMicrosWriter(id);
   }
 
-  static ValueWriter<DecimalData> decimal(int precision, int scale) {
-    return new DecimalWriter(precision, scale);
+  static ValueWriter<DecimalData> decimal(int id, int precision, int scale) {
+    return new DecimalWriter(id, precision, scale);
   }
 
   static <T> ValueWriter<ArrayData> array(ValueWriter<T> elementWriter, LogicalType elementType) {
@@ -74,52 +78,61 @@ public class FlinkValueWriters {
     return new RowWriter(writers, types);
   }
 
-  private static class StringWriter implements ValueWriter<StringData> {
-    private static final StringWriter INSTANCE = new StringWriter();
-
-    private StringWriter() {
+  private static class StringWriter extends ValueWriters.MetricsAwareStringWriter<StringData> {
+    private StringWriter(int id) {
+      super(id);
     }
 
     @Override
-    public void write(StringData s, Encoder encoder) throws IOException {
+    protected void writeVal(StringData s, Encoder encoder) throws IOException {
       // toBytes is cheaper than Avro calling toString, which incurs encoding costs
       encoder.writeString(new Utf8(s.toBytes()));
     }
   }
 
-  private static class DecimalWriter implements ValueWriter<DecimalData> {
+  private static class DecimalWriter extends ValueWriters.ComparableWriter<DecimalData> {
     private final int precision;
     private final int scale;
     private final ThreadLocal<byte[]> bytes;
 
-    private DecimalWriter(int precision, int scale) {
+    private DecimalWriter(int id, int precision, int scale) {
+      super(id);
       this.precision = precision;
       this.scale = scale;
       this.bytes = ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
     }
 
     @Override
-    public void write(DecimalData d, Encoder encoder) throws IOException {
+    protected void writeVal(DecimalData d, Encoder encoder) throws IOException {
       encoder.writeFixed(DecimalUtil.toReusedFixLengthBytes(precision, scale, d.toBigDecimal(), bytes.get()));
     }
-  }
-
-  private static class TimeMicrosWriter implements ValueWriter<Integer> {
-    private static final TimeMicrosWriter INSTANCE = new TimeMicrosWriter();
 
     @Override
-    public void write(Integer timeMills, Encoder encoder) throws IOException {
-      encoder.writeLong(timeMills * 1000);
+    public Stream<FieldMetrics> metrics() {
+      return metrics(DecimalData::toBigDecimal);
     }
   }
 
-  private static class TimestampMicrosWriter implements ValueWriter<TimestampData> {
-    private static final TimestampMicrosWriter INSTANCE = new TimestampMicrosWriter();
+  private static class TimeMicrosWriter extends ValueWriters.MetricsAwareTransformWriter<Integer, Long> {
+    private TimeMicrosWriter(int id) {
+      super(id, Long::compareTo, timeMills -> (long) timeMills * 1000);
+    }
 
     @Override
-    public void write(TimestampData timestampData, Encoder encoder) throws IOException {
-      long micros = timestampData.getMillisecond() * 1000 + timestampData.getNanoOfMillisecond() / 1000;
-      encoder.writeLong(micros);
+    protected void writeVal(Long time, Encoder encoder) throws IOException {
+      encoder.writeLong(time);
+    }
+  }
+
+  private static class TimestampMicrosWriter extends ValueWriters.MetricsAwareTransformWriter<TimestampData, Long> {
+    private TimestampMicrosWriter(int id) {
+      super(id, Long::compareTo,
+          timestampData -> timestampData.getMillisecond() * 1000 + timestampData.getNanoOfMillisecond() / 1000);
+    }
+
+    @Override
+    protected void writeVal(Long datum, Encoder encoder) throws IOException {
+      encoder.writeLong(datum);
     }
   }
 
@@ -143,6 +156,11 @@ public class FlinkValueWriters {
         elementWriter.write((T) elementGetter.getElementOrNull(array, i), encoder);
       }
       encoder.writeArrayEnd();
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return elementWriter.metrics();
     }
   }
 
@@ -175,6 +193,11 @@ public class FlinkValueWriters {
       }
       encoder.writeArrayEnd();
     }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
+    }
   }
 
   private static class MapWriter<K, V> implements ValueWriter<MapData> {
@@ -205,6 +228,11 @@ public class FlinkValueWriters {
         valueWriter.write((V) valueGetter.getElementOrNull(valueArray, i), encoder);
       }
       encoder.writeMapEnd();
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
   }
 
@@ -237,5 +265,11 @@ public class FlinkValueWriters {
         throws IOException {
       writer.write((T) getters[pos].getFieldOrNull(row), encoder);
     }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Arrays.stream(writers).flatMap(ValueWriter::metrics);
+    }
+
   }
 }

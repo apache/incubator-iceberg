@@ -21,19 +21,21 @@ package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
-import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.LogicalMap;
+import org.apache.iceberg.avro.MetricsAwareDatumWriter;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class DataWriter<T> implements DatumWriter<T> {
+public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
   private ValueWriter<T> writer = null;
 
   public static <D> DataWriter<D> create(Schema schema) {
@@ -59,6 +61,11 @@ public class DataWriter<T> implements DatumWriter<T> {
     return GenericWriters.struct(fields);
   }
 
+  @Override
+  public Stream<FieldMetrics> metrics() {
+    return writer.metrics();
+  }
+
   private class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
     @Override
     public ValueWriter<?> record(Schema record, List<String> names, List<ValueWriter<?>> fields) {
@@ -72,9 +79,9 @@ public class DataWriter<T> implements DatumWriter<T> {
       Preconditions.checkArgument(options.size() == 2,
           "Cannot create writer for non-option union: %s", union);
       if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
-        return ValueWriters.option(0, options.get(1));
+        return ValueWriters.option(0, options.get(1), union.getTypes().get(1).getType());
       } else {
-        return ValueWriters.option(1, options.get(0));
+        return ValueWriters.option(1, options.get(0), union.getTypes().get(0).getType());
       }
     }
 
@@ -90,32 +97,35 @@ public class DataWriter<T> implements DatumWriter<T> {
 
     @Override
     public ValueWriter<?> map(Schema map, ValueWriter<?> valueWriter) {
-      return ValueWriters.map(ValueWriters.strings(), valueWriter);
+      int keyId = AvroSchemaUtil.getKeyId(map);
+      return ValueWriters.map(ValueWriters.strings(keyId), valueWriter);
     }
 
     @Override
     public ValueWriter<?> primitive(Schema primitive) {
+      int fieldId = AvroSchemaUtil.fieldId(primitive, parentSchema(), this::lastFieldName);
+
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
           case "date":
-            return GenericWriters.dates();
+            return GenericWriters.dates(fieldId);
 
           case "time-micros":
-            return GenericWriters.times();
+            return GenericWriters.times(fieldId);
 
           case "timestamp-micros":
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              return GenericWriters.timestamptz();
+              return GenericWriters.timestamptz(fieldId);
             }
-            return GenericWriters.timestamps();
+            return GenericWriters.timestamps(fieldId);
 
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
+            return ValueWriters.decimal(fieldId, decimal.getPrecision(), decimal.getScale());
 
           case "uuid":
-            return ValueWriters.uuids();
+            return ValueWriters.uuids(fieldId);
 
           default:
             throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
@@ -126,21 +136,21 @@ public class DataWriter<T> implements DatumWriter<T> {
         case NULL:
           return ValueWriters.nulls();
         case BOOLEAN:
-          return ValueWriters.booleans();
+          return ValueWriters.booleans(fieldId);
         case INT:
-          return ValueWriters.ints();
+          return ValueWriters.ints(fieldId);
         case LONG:
-          return ValueWriters.longs();
+          return ValueWriters.longs(fieldId);
         case FLOAT:
-          return ValueWriters.floats();
+          return ValueWriters.floats(fieldId);
         case DOUBLE:
-          return ValueWriters.doubles();
+          return ValueWriters.doubles(fieldId);
         case STRING:
-          return ValueWriters.strings();
+          return ValueWriters.strings(fieldId);
         case FIXED:
-          return ValueWriters.fixed(primitive.getFixedSize());
+          return ValueWriters.fixed(fieldId, primitive.getFixedSize());
         case BYTES:
-          return ValueWriters.byteBuffers();
+          return ValueWriters.byteBuffers(fieldId);
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }

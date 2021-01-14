@@ -22,6 +22,7 @@ package org.apache.iceberg.avro;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
@@ -244,6 +245,28 @@ public class AvroSchemaUtil {
     return schema.getObjectProp(propertyName) != null;
   }
 
+  public static int fieldId(Schema currentSchema, Schema parentSchema, Supplier<String> fieldNameGetter) {
+    Preconditions.checkNotNull(parentSchema, "Detected no parent schema for schema %s", currentSchema);
+
+    switch (parentSchema.getType()) {
+      case RECORD:
+        String fieldName = fieldNameGetter.get();
+        Schema.Field field = parentSchema.getField(fieldName);
+        Preconditions.checkNotNull(field,
+            "Cannot get field id with field name %s from schema %s for current schema %s",
+            fieldName, parentSchema, currentSchema);
+
+        return getFieldId(field);
+      case ARRAY:
+        return getElementId(parentSchema);
+      case MAP:
+        return getValueId(parentSchema);
+      default:
+        throw new IllegalStateException(String.format(
+            "Cannot retrieve field ID of current schema %s from parent schema %s ", currentSchema, parentSchema));
+    }
+  }
+
   public static int getKeyId(Schema schema) {
     Preconditions.checkArgument(schema.getType() == MAP,
         "Cannot get map key id for non-map schema: %s", schema);
@@ -407,5 +430,12 @@ public class AvroSchemaUtil {
       return "_" + character;
     }
     return "_x" + Integer.toHexString(character).toUpperCase();
+  }
+
+  static boolean isMetricSupportedType(Schema.Type type) {
+    // ENUM will not be created by converting iceberg schema to avro schema, and thus not included
+    return type == Schema.Type.BOOLEAN || type == Schema.Type.INT || type == Schema.Type.LONG ||
+        type == Schema.Type.FLOAT || type == Schema.Type.DOUBLE || type == Schema.Type.STRING ||
+        type == Schema.Type.FIXED || type == Schema.Type.BYTES;
   }
 }

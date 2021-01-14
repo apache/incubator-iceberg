@@ -51,7 +51,11 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
         Preconditions.checkArgument(
             visitor.isStringType(keyType),
             "Invalid map: %s is not a string", keyType);
-        return visitor.map(partner, schema, visit(visitor.mapValueType(partner), schema.getValueType(), visitor));
+
+        visitor.parentSchemas.push(schema);
+        T result = visitWithName("value", visitor.mapValueType(partner), schema.getValueType(), visitor);
+        visitor.parentSchemas.pop();
+        return visitor.map(partner, schema, result);
 
       default:
         return visitor.primitive(partner, schema);
@@ -68,6 +72,7 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
     List<Schema.Field> fields = record.getFields();
 
     visitor.recordLevels.push(name);
+    visitor.parentSchemas.push(record);
 
     List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
     List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
@@ -77,11 +82,12 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
       Schema.Field field = fields.get(i);
       Preconditions.checkArgument(AvroSchemaUtil.makeCompatibleName(fieldName).equals(field.name()),
           "Structs do not match: field %s != %s", fieldName, field.name());
-      results.add(visit(nameAndType.second(), field.schema(), visitor));
+      results.add(visitWithName(field.name(), nameAndType.second(), field.schema(), visitor));
       names.add(fieldName);
     }
 
     visitor.recordLevels.pop();
+    visitor.parentSchemas.pop();
 
     return visitor.record(struct, record, names, results);
   }
@@ -102,17 +108,36 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
   }
 
   private static <P, T> T visitArray(P type, Schema array, AvroWithPartnerByStructureVisitor<P, T> visitor) {
+    T result;
+
     if (array.getLogicalType() instanceof LogicalMap || visitor.isMapType(type)) {
       Preconditions.checkState(
           AvroSchemaUtil.isKeyValueSchema(array.getElementType()),
           "Cannot visit invalid logical map type: %s", array);
       List<Schema.Field> keyValueFields = array.getElementType().getFields();
-      return visitor.map(type, array,
-          visit(visitor.mapKeyType(type), keyValueFields.get(0).schema(), visitor),
-          visit(visitor.mapValueType(type), keyValueFields.get(1).schema(), visitor));
+      visitor.parentSchemas.push(array.getElementType());
 
+      result = visitor.map(type, array,
+          visitWithName("key", visitor.mapKeyType(type), keyValueFields.get(0).schema(), visitor),
+          visitWithName("value", visitor.mapValueType(type), keyValueFields.get(1).schema(), visitor));
     } else {
-      return visitor.array(type, array, visit(visitor.arrayElementType(type), array.getElementType(), visitor));
+      visitor.parentSchemas.push(array);
+
+      result = visitor.array(type, array,
+          visitWithName("element", visitor.arrayElementType(type), array.getElementType(), visitor));
+    }
+
+    visitor.parentSchemas.pop();
+    return result;
+  }
+
+  private static <P, T> T visitWithName(String name, P partner, Schema schema,
+                                        AvroWithPartnerByStructureVisitor<P, T> visitor) {
+    try {
+      visitor.fieldNames.addLast(name);
+      return visit(partner, schema, visitor);
+    } finally {
+      visitor.fieldNames.removeLast();
     }
   }
 
@@ -160,5 +185,18 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
 
   public T primitive(P type, Schema primitive) {
     return null;
+  }
+
+  // ---------------------------------- Helpers ---------------------------------------------
+
+  private Deque<String> fieldNames = Lists.newLinkedList();
+  private Deque<Schema> parentSchemas = Lists.newLinkedList();
+
+  protected String lastFieldName() {
+    return fieldNames.peekLast();
+  }
+
+  protected Schema parentSchema() {
+    return parentSchemas.peek();
   }
 }

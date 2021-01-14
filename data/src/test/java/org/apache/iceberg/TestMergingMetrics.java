@@ -90,7 +90,7 @@ public abstract class TestMergingMetrics<T> {
 
   @Parameterized.Parameters(name = "fileFormat = {0}")
   public static Object[] parameters() {
-    return new Object[] {FileFormat.PARQUET };
+    return new Object[] {FileFormat.PARQUET, FileFormat.AVRO};
   }
 
   public TestMergingMetrics(FileFormat fileFormat) {

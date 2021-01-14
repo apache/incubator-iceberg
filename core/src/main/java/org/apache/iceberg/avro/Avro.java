@@ -28,6 +28,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.avro.Conversions;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -37,7 +38,10 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificData;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.StructLike;
@@ -100,8 +104,9 @@ public class Avro {
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private org.apache.iceberg.Schema schema = null;
     private String name = "table";
-    private Function<Schema, DatumWriter<?>> createWriterFunc = null;
+    private Function<Schema, MetricsAwareDatumWriter<?>> createWriterFunc = null;
     private boolean overwrite;
+    private MetricsConfig metricsConfig;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -123,7 +128,7 @@ public class Avro {
       return this;
     }
 
-    public WriteBuilder createWriterFunc(Function<Schema, DatumWriter<?>> writerFunction) {
+    public WriteBuilder createWriterFunc(Function<Schema, MetricsAwareDatumWriter<?>> writerFunction) {
       this.createWriterFunc = writerFunction;
       return this;
     }
@@ -145,6 +150,11 @@ public class Avro {
 
     public WriteBuilder meta(Map<String, String> properties) {
       metadata.putAll(properties);
+      return this;
+    }
+
+    public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
+      this.metricsConfig = newMetricsConfig;
       return this;
     }
 
@@ -170,7 +180,7 @@ public class Avro {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
 
-      Function<Schema, DatumWriter<?>> writerFunc;
+      Function<Schema, MetricsAwareDatumWriter<?>> writerFunc;
       if (createWriterFunc != null) {
         writerFunc = createWriterFunc;
       } else {
@@ -181,7 +191,7 @@ public class Avro {
       meta("iceberg.schema", SchemaParser.toJson(schema));
 
       return new AvroFileAppender<>(
-          AvroSchemaUtil.convert(schema, name), file, writerFunc, codec(), metadata, overwrite);
+          schema, AvroSchemaUtil.convert(schema, name), file, writerFunc, codec(), metadata, metricsConfig, overwrite);
     }
   }
 
@@ -192,7 +202,7 @@ public class Avro {
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
-    private Function<Schema, DatumWriter<?>> createWriterFunc = null;
+    private Function<Schema, MetricsAwareDatumWriter<?>> createWriterFunc = null;
     private org.apache.iceberg.Schema rowSchema;
     private PartitionSpec spec;
     private StructLike partition;
@@ -240,7 +250,7 @@ public class Avro {
       return this;
     }
 
-    public DeleteWriteBuilder createWriterFunc(Function<Schema, DatumWriter<?>> writerFunction) {
+    public DeleteWriteBuilder createWriterFunc(Function<Schema, MetricsAwareDatumWriter<?>> writerFunction) {
       this.createWriterFunc = writerFunction;
       return this;
     }
@@ -320,9 +330,11 @@ public class Avro {
   /**
    * A {@link DatumWriter} implementation that wraps another to produce position deletes.
    */
-  private static class PositionDatumWriter implements DatumWriter<PositionDelete<?>> {
-    private static final ValueWriter<Object> PATH_WRITER = ValueWriters.strings();
-    private static final ValueWriter<Long> POS_WRITER = ValueWriters.longs();
+  private static class PositionDatumWriter implements MetricsAwareDatumWriter<PositionDelete<?>> {
+    private static final ValueWriter<CharSequence> PATH_WRITER =
+        ValueWriters.strings(MetadataColumns.DELETE_FILE_PATH.fieldId());
+    private static final ValueWriter<Long> POS_WRITER =
+        ValueWriters.longs(MetadataColumns.DELETE_FILE_POS.fieldId());
 
     @Override
     public void setSchema(Schema schema) {
@@ -333,6 +345,11 @@ public class Avro {
       PATH_WRITER.write(delete.path(), out);
       POS_WRITER.write(delete.pos(), out);
     }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.concat(PATH_WRITER.metrics(), POS_WRITER.metrics());
+    }
   }
 
   /**
@@ -340,9 +357,12 @@ public class Avro {
    *
    * @param <D> the type of datum written as a deleted row
    */
-  private static class PositionAndRowDatumWriter<D> implements DatumWriter<PositionDelete<D>> {
-    private static final ValueWriter<Object> PATH_WRITER = ValueWriters.strings();
-    private static final ValueWriter<Long> POS_WRITER = ValueWriters.longs();
+  private static class PositionAndRowDatumWriter<D> implements MetricsAwareDatumWriter<PositionDelete<D>> {
+    private static final ValueWriter<CharSequence> PATH_WRITER =
+        ValueWriters.strings(MetadataColumns.DELETE_FILE_PATH.fieldId());
+    private static final ValueWriter<Long> POS_WRITER =
+        ValueWriters.longs(MetadataColumns.DELETE_FILE_POS.fieldId());
+
     private final DatumWriter<D> rowWriter;
 
     private PositionAndRowDatumWriter(DatumWriter<D> rowWriter) {
@@ -362,6 +382,11 @@ public class Avro {
       PATH_WRITER.write(delete.path(), out);
       POS_WRITER.write(delete.pos(), out);
       rowWriter.write(delete.row(), out);
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.concat(PATH_WRITER.metrics(), POS_WRITER.metrics());
     }
   }
 

@@ -27,22 +27,31 @@ import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class AvroFileAppender<D> implements FileAppender<D> {
   private PositionOutputStream stream = null;
   private DataFileWriter<D> writer = null;
+  private MetricsAwareDatumWriter<?> metricsAwareDatumWriter = null;
+  private org.apache.iceberg.Schema icebergSchema;
+  private MetricsConfig metricsConfig;
   private long numRecords = 0L;
+  private boolean isClosed = false;
 
-  AvroFileAppender(Schema schema, OutputFile file,
-                   Function<Schema, DatumWriter<?>> createWriterFunc,
+  AvroFileAppender(org.apache.iceberg.Schema icebergSchema, Schema schema, OutputFile file,
+                   Function<Schema, MetricsAwareDatumWriter<?>> createWriterFunc,
                    CodecFactory codec, Map<String, String> metadata,
-                   boolean overwrite) throws IOException {
+                   MetricsConfig metricsConfig, boolean overwrite) throws IOException {
+    this.icebergSchema = icebergSchema;
     this.stream = overwrite ? file.createOrOverwrite() : file.create();
-    this.writer = newAvroWriter(schema, stream, createWriterFunc, codec, metadata);
+    this.metricsAwareDatumWriter = createWriterFunc.apply(schema);
+    this.writer = newAvroWriter(schema, stream, metricsAwareDatumWriter, codec, metadata);
+    this.metricsConfig = metricsConfig;
   }
 
   @Override
@@ -57,7 +66,10 @@ class AvroFileAppender<D> implements FileAppender<D> {
 
   @Override
   public Metrics metrics() {
-    return new Metrics(numRecords, null, null, null);
+    Preconditions.checkState(isClosed,
+        "Cannot return metrics while appending to an open file.");
+
+    return AvroMetrics.fromWriter(metricsAwareDatumWriter, icebergSchema, numRecords, metricsConfig);
   }
 
   @Override
@@ -77,15 +89,16 @@ class AvroFileAppender<D> implements FileAppender<D> {
     if (writer != null) {
       writer.close();
       this.writer = null;
+      isClosed = true;
     }
   }
 
   @SuppressWarnings("unchecked")
   private static <D> DataFileWriter<D> newAvroWriter(
-      Schema schema, PositionOutputStream stream, Function<Schema, DatumWriter<?>> createWriterFunc,
+      Schema schema, PositionOutputStream stream, MetricsAwareDatumWriter<?> metricsAwareDatumWriter,
       CodecFactory codec, Map<String, String> metadata) throws IOException {
     DataFileWriter<D> writer = new DataFileWriter<>(
-        (DatumWriter<D>) createWriterFunc.apply(schema));
+        (DatumWriter<D>) metricsAwareDatumWriter);
 
     writer.setCodec(codec);
 
