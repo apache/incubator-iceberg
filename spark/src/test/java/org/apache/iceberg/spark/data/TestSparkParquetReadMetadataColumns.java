@@ -112,6 +112,7 @@ public class TestSparkParquetReadMetadataColumns {
       EXPECTED_ROWS.add(row);
     }
 
+    // We build off of `EXPECTED_ROWS` as that already has the projected row numbers.
     EXPECTED_ROWS_FOR_ROW_GROUP_FILTERED_WITH_SPLITS = Lists.newArrayListWithExpectedSize(NUM_ROW_GROUPS);
     for (int i = 0; i < NUM_ROW_GROUPS; i += 1) {
       boolean shouldReadRowGroup = EXPECTED_ROWS.subList(i * ROWS_PER_SPLIT, (i + 1) * ROWS_PER_SPLIT)
