@@ -49,6 +49,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final long targetFileSizeBytes;
   private final FileFormat format;
   private final List<Integer> equalityFieldIds;
+  private final boolean upsert;
   private final FileAppenderFactory<RowData> appenderFactory;
 
   private transient OutputFileFactory outputFileFactory;
@@ -62,7 +63,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
                                   long targetFileSizeBytes,
                                   FileFormat format,
                                   Map<String, String> tableProperties,
-                                  List<Integer> equalityFieldIds) {
+                                  List<Integer> equalityFieldIds,
+                                  boolean upsert) {
     this.schema = schema;
     this.flinkSchema = flinkSchema;
     this.spec = spec;
@@ -72,6 +74,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
     this.equalityFieldIds = equalityFieldIds;
+    this.upsert = upsert;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, tableProperties, spec);
@@ -104,10 +107,10 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       // Initialize a task writer to write both INSERT and equality DELETE.
       if (spec.isUnpartitioned()) {
         return new UnpartitionedDeltaWriter(spec, format, appenderFactory, outputFileFactory, io,
-            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds);
+            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds, upsert);
       } else {
         return new PartitionedDeltaWriter(spec, format, appenderFactory, outputFileFactory, io,
-            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds);
+            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds, upsert);
       }
     }
   }

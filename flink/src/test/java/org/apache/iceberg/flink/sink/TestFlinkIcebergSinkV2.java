@@ -31,6 +31,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
@@ -132,6 +133,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
   private void testChangeLogs(List<String> equalityFieldColumns,
                               KeySelector<Row, Object> keySelector,
+                              boolean insertAsUpsert,
                               List<List<Row>> elementsPerCheckpoint,
                               List<List<Record>> expectedRecordsPerCheckpoint) throws Exception {
     DataStream<Row> dataStream = env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
@@ -145,6 +147,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
         .equalityFieldColumns(equalityFieldColumns)
+        .upsert(insertAsUpsert)
         .build();
 
     // Execute the program.
@@ -207,7 +210,8 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         ImmutableList.of(record(1, "ddd"), record(2, "ddd"))
     );
 
-    testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), elementsPerCheckpoint, expectedRecords);
+    testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), false,
+        elementsPerCheckpoint, expectedRecords);
   }
 
   @Test
@@ -238,7 +242,8 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         ImmutableList.of(record(1, "aaa"), record(1, "ccc"), record(2, "aaa"), record(2, "ccc"))
     );
 
-    testChangeLogs(ImmutableList.of("data"), row -> row.getField(ROW_DATA_POS), elementsPerCheckpoint, expectedRecords);
+    testChangeLogs(ImmutableList.of("data"), row -> row.getField(ROW_DATA_POS), false,
+        elementsPerCheckpoint, expectedRecords);
   }
 
   @Test
@@ -269,7 +274,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
     );
 
     testChangeLogs(ImmutableList.of("data", "id"), row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
-        elementsPerCheckpoint, expectedRecords);
+        false, elementsPerCheckpoint, expectedRecords);
   }
 
   @Test
@@ -307,7 +312,101 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
     );
 
     testChangeLogs(ImmutableList.of("id", "data"), row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
+        false, elementsPerCheckpoint, expectedRecords);
+  }
+
+  @Test
+  public void testUpsertOnIdKey() throws Exception {
+    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
+        ImmutableList.of(
+            row("+I", 1, "aaa"),
+            row("+U", 1, "bbb")
+        ),
+        ImmutableList.of(
+            row("+I", 1, "ccc")
+        ),
+        ImmutableList.of(
+            row("+U", 1, "ddd"),
+            row("+I", 1, "eee")
+        )
+    );
+
+    List<List<Record>> expectedRecords = ImmutableList.of(
+        ImmutableList.of(record(1, "bbb")),
+        ImmutableList.of(record(1, "ccc")),
+        ImmutableList.of(record(1, "eee"))
+    );
+
+    if (!partitioned) {
+      testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), true,
+          elementsPerCheckpoint, expectedRecords);
+    } else {
+      AssertHelpers.assertThrows("Should be error because equality field columns don't include all partition keys",
+          IllegalStateException.class, "not included in equality fields",
+          () -> {
+            testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), true, elementsPerCheckpoint,
+                expectedRecords);
+            return null;
+          });
+    }
+  }
+
+  @Test
+  public void testUpsertOnDataKey() throws Exception {
+    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
+        ImmutableList.of(
+            row("+I", 1, "aaa"),
+            row("+I", 2, "aaa"),
+            row("+I", 3, "bbb")
+        ),
+        ImmutableList.of(
+            row("+U", 4, "aaa"),
+            row("-U", 3, "bbb"),
+            row("+U", 5, "bbb")
+        ),
+        ImmutableList.of(
+            row("+I", 6, "aaa"),
+            row("+U", 7, "bbb")
+        )
+    );
+
+    List<List<Record>> expectedRecords = ImmutableList.of(
+        ImmutableList.of(record(2, "aaa"), record(3, "bbb")),
+        ImmutableList.of(record(4, "aaa"), record(5, "bbb")),
+        ImmutableList.of(record(6, "aaa"), record(7, "bbb"))
+    );
+
+    testChangeLogs(ImmutableList.of("data"), row -> row.getField(ROW_DATA_POS), true,
         elementsPerCheckpoint, expectedRecords);
+  }
+
+  @Test
+  public void testUpsertOnIdDataKey() throws Exception {
+    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
+        ImmutableList.of(
+            row("+I", 1, "aaa"),
+            row("+U", 1, "aaa"),
+            row("+I", 2, "bbb")
+        ),
+        ImmutableList.of(
+            row("+I", 1, "aaa"),
+            row("-D", 2, "bbb"),
+            row("+I", 2, "ccc")
+        ),
+        ImmutableList.of(
+            row("-U", 1, "aaa"),
+            row("+U", 1, "bbb")
+        )
+    );
+
+    List<List<Record>> expectedRecords = ImmutableList.of(
+        ImmutableList.of(record(1, "aaa"), record(2, "bbb")),
+        ImmutableList.of(record(1, "aaa"), record(2, "ccc")),
+        ImmutableList.of(record(1, "bbb"), record(2, "ccc"))
+    );
+
+    testChangeLogs(ImmutableList.of("id", "data"), row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
+        true, elementsPerCheckpoint, expectedRecords);
   }
 
   private StructLikeSet expectedRowSet(Record... records) {

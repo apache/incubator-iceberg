@@ -239,7 +239,7 @@ public class TestTaskWriters {
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(),
         (RowType) SimpleDataUtil.FLINK_SCHEMA.toRowDataType().getLogicalType(), table.spec(),
         table.locationProvider(), table.io(), table.encryption(),
-        targetFileSize, format, table.properties(), null);
+        targetFileSize, format, table.properties(), null, false);
     taskWriterFactory.initialize(1, 1);
     return taskWriterFactory.create();
   }

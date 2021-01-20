@@ -39,6 +39,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -115,6 +116,7 @@ public class FlinkSink {
     private TableSchema tableSchema;
     private boolean overwrite = false;
     private Integer writeParallelism = null;
+    private boolean upsert = false;
     private List<String> equalityFieldColumns = null;
 
     private Builder() {
@@ -173,6 +175,20 @@ public class FlinkSink {
     }
 
     /**
+     * All INSERT/UPDATE_AFTER events from input stream will be transformed to UPSERT events, which means it will
+     * DELETE the old records and then INSERT the new records. In partitioned table, the partition fields should be
+     * a subset of equality fields, otherwise the old row that located in partition-A could not be deleted by the
+     * new row that located in partition-B.
+     *
+     * @param enable indicate whether it should transform all INSERT/UPDATE_AFTER events to UPSERT.
+     * @return {@link Builder} to connect the iceberg table.
+     */
+    public Builder upsert(boolean enable) {
+      this.upsert = enable;
+      return this;
+    }
+
+    /**
      * Configuring the equality field columns for iceberg table that accept CDC or UPSERT events.
      *
      * @param columns defines the iceberg table's key.
@@ -209,7 +225,22 @@ public class FlinkSink {
         }
       }
 
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema, equalityFieldIds);
+      // Convert the iceberg schema to flink's RowType.
+      RowType flinkSchema = convertToRowType(table, tableSchema);
+
+      // Convert the INSERT stream to be an UPSERT stream if needed.
+      if (upsert) {
+        Preconditions.checkState(!equalityFieldIds.isEmpty(),
+            "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
+        if (!table.spec().isUnpartitioned()) {
+          for (PartitionField partitionField : table.spec().fields()) {
+            Preconditions.checkState(equalityFieldIds.contains(partitionField.sourceId()),
+                "Partition field '%s' is not included in equality fields: '%s'", partitionField, equalityFieldColumns);
+          }
+        }
+      }
+
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkSchema, equalityFieldIds, upsert);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
 
       this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
@@ -227,8 +258,7 @@ public class FlinkSink {
     }
   }
 
-  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema,
-                                                         List<Integer> equalityFieldIds) {
+  private static RowType convertToRowType(Table table, TableSchema requestedSchema) {
     Preconditions.checkArgument(table != null, "Iceberg table should't be null");
 
     RowType flinkSchema;
@@ -246,13 +276,22 @@ public class FlinkSink {
       flinkSchema = FlinkSchemaUtil.convert(table.schema());
     }
 
+    return flinkSchema;
+  }
+
+  static IcebergStreamWriter<RowData> createStreamWriter(Table table,
+                                                         RowType flinkSchema,
+                                                         List<Integer> equalityFieldIds,
+                                                         boolean upsert) {
+    Preconditions.checkArgument(table != null, "Iceberg table should't be null");
+
     Map<String, String> props = table.properties();
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
 
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkSchema,
         table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props,
-        equalityFieldIds);
+        equalityFieldIds, upsert);
 
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }

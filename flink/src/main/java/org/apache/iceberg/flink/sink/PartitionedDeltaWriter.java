@@ -49,8 +49,10 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
                          long targetFileSize,
                          Schema schema,
                          RowType flinkSchema,
-                         List<Integer> equalityFieldIds) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize, schema, flinkSchema, equalityFieldIds);
+                         List<Integer> equalityFieldIds,
+                         boolean upsert) {
+    super(spec, format, appenderFactory, fileFactory, io, targetFileSize, schema, flinkSchema, equalityFieldIds,
+        upsert);
     this.partitionKey = new PartitionKey(spec, schema);
   }
 
