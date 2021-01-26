@@ -58,7 +58,7 @@ public class TestPathIdentifier extends SparkTestBase {
   @Before
   public void before() throws IOException {
     tableLocation = temp.newFolder();
-    identifier = new PathIdentifier(tableLocation.getAbsolutePath());
+    identifier = new PathIdentifier(tableLocation.getAbsolutePath(), null, null);
     sparkCatalog = new SparkCatalog();
     sparkCatalog.initialize("test", new CaseInsensitiveStringMap(ImmutableMap.of()));
   }

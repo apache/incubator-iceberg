@@ -118,7 +118,13 @@ public class SparkCatalog extends BaseCatalog {
   public SparkTable loadTable(Identifier ident) throws NoSuchTableException {
     try {
       Table icebergTable = load(ident);
-      return new SparkTable(icebergTable, !cacheEnabled);
+      Long snapshotId = null;
+      Long asOfTimestamp = null;
+      if (ident instanceof SnapshotAwareIdentifier) {
+        snapshotId = ((SnapshotAwareIdentifier) ident).snapshotId();
+        asOfTimestamp = ((SnapshotAwareIdentifier) ident).asOfTimestamp();
+      }
+      return new SparkTable(icebergTable, snapshotId, asOfTimestamp, !cacheEnabled);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }

@@ -74,7 +74,7 @@ public class SparkUtil {
    */
   public static <C, T> Pair<C, T> catalogAndIdentifier(List<String> nameParts,
                                                        Function<String, C> catalogProvider,
-                                                       BiFunction<String[], String, T> identiferProvider,
+                                                       BiFunction<String[], String, T> identifierProvider,
                                                        C currentCatalog,
                                                        String[] currentNamespace) {
     Preconditions.checkArgument(!nameParts.isEmpty(),
@@ -85,17 +85,17 @@ public class SparkUtil {
 
     if (nameParts.size() == 1) {
       // Only a single element, use current catalog and namespace
-      return Pair.of(currentCatalog, identiferProvider.apply(currentNamespace, name));
+      return Pair.of(currentCatalog, identifierProvider.apply(currentNamespace, name));
     } else {
       C catalog = catalogProvider.apply(nameParts.get(0));
       if (catalog == null) {
         // The first element was not a valid catalog, treat it like part of the namespace
         String[] namespace =  nameParts.subList(0, lastElementIndex).toArray(new String[0]);
-        return Pair.of(currentCatalog, identiferProvider.apply(namespace, name));
+        return Pair.of(currentCatalog, identifierProvider.apply(namespace, name));
       } else {
         // Assume the first element is a valid catalog
         String[] namespace = nameParts.subList(1, lastElementIndex).toArray(new String[0]);
-        return Pair.of(catalog, identiferProvider.apply(namespace, name));
+        return Pair.of(catalog, identifierProvider.apply(namespace, name));
       }
     }
   }

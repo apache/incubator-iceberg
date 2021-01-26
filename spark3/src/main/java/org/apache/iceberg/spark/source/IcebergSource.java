@@ -101,16 +101,18 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     SparkSession spark = SparkSession.active();
     setupDefaultSparkCatalog(spark);
     String path = options.get("path");
+    Long snapshotId = Spark3Util.propertyAsLong(options, "snapshot-id", null);
+    Long asOfTimestamp = Spark3Util.propertyAsLong(options, "as-of-timestamp", null);
     CatalogManager catalogManager = spark.sessionState().catalogManager();
 
     if (path.contains("/")) {
       // contains a path. Return iceberg default catalog and a PathIdentifier
       return new Spark3Util.CatalogAndIdentifier(catalogManager.catalog(DEFAULT_CATALOG_NAME),
-          new PathIdentifier(path));
+          new PathIdentifier(path, snapshotId, asOfTimestamp));
     }
 
     final Spark3Util.CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(
-        "path or identifier", spark, path);
+        "path or identifier", spark, path, snapshotId, asOfTimestamp);
 
     if (catalogAndIdentifier.catalog().name().equals("spark_catalog") &&
         !(catalogAndIdentifier.catalog() instanceof SparkSessionCatalog)) {

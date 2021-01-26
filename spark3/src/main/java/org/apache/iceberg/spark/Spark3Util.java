@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DistributionMode;
@@ -742,16 +743,20 @@ public class Spark3Util {
     return null;
   }
 
+  private static List<String> getMultipartIdentifier(SparkSession spark, String name) throws ParseException {
+    ParserInterface parser = spark.sessionState().sqlParser();
+    Seq<String> multiPartIdentifier = parser.parseMultipartIdentifier(name);
+    return JavaConverters.seqAsJavaList(multiPartIdentifier);
+  }
+
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name) throws ParseException {
     return catalogAndIdentifier(spark, name, spark.sessionState().catalogManager().currentCatalog());
   }
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name,
                                                           CatalogPlugin defaultCatalog) throws ParseException {
-    ParserInterface parser = spark.sessionState().sqlParser();
-    Seq<String> multiPartIdentifier = parser.parseMultipartIdentifier(name);
-    List<String> javaMultiPartIdentifier = JavaConverters.seqAsJavaList(multiPartIdentifier);
-    return catalogAndIdentifier(spark, javaMultiPartIdentifier, defaultCatalog);
+    List<String> nameParts = getMultipartIdentifier(spark, name);
+    return catalogAndIdentifier(spark, nameParts, defaultCatalog);
   }
 
   public static CatalogAndIdentifier catalogAndIdentifier(String description, SparkSession spark, String name) {
@@ -767,19 +772,46 @@ public class Spark3Util {
     }
   }
 
+  public static CatalogAndIdentifier catalogAndIdentifier(String description, SparkSession spark, String name,
+                                                          Long snapshotId, Long asOfTimestamp) {
+    return catalogAndIdentifier(description, spark, name, snapshotId, asOfTimestamp,
+        spark.sessionState().catalogManager().currentCatalog());
+  }
+
+  public static CatalogAndIdentifier catalogAndIdentifier(String description, SparkSession spark,
+                                                          String name, Long snapshotId, Long asOfTimestamp,
+                                                          CatalogPlugin defaultCatalog) {
+    try {
+      List<String> nameParts = getMultipartIdentifier(spark, name);
+      return catalogAndIdentifier(spark, nameParts, snapshotId, asOfTimestamp, defaultCatalog);
+    } catch (ParseException e) {
+      throw new IllegalArgumentException("Cannot parse " + description + ": " + name, e);
+    }
+  }
+
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts) {
     return catalogAndIdentifier(spark, nameParts, spark.sessionState().catalogManager().currentCatalog());
   }
 
+  public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts,
+                                                          CatalogPlugin defaultCatalog) {
+    return catalogAndIdentifier(spark, nameParts, null, null, defaultCatalog);
+  }
+
   /**
-   * A modified version of Spark's LookupCatalog.CatalogAndIdentifier.unapply
-   * Attempts to find the catalog and identifier a multipart identifier represents
+   * A modified version of Spark's LookupCatalog.CatalogAndIdentifier.unapply.
+   * Attempts to find the catalog and identifier a multipart identifier represents.
+   * The identifier contains a snapshotId or an asOfTimestamp field if applicable,
+   * to allow loading a table with the schema of the corresponding snapshot.
    * @param spark Spark session to use for resolution
    * @param nameParts Multipart identifier representing a table
+   * @param snapshotId Id of snapshot
+   * @param asOfTimestamp Timestamp to use for identifying a snapshot
    * @param defaultCatalog Catalog to use if none is specified
    * @return The CatalogPlugin and Identifier for the table
    */
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts,
+                                                          Long snapshotId, Long asOfTimestamp,
                                                           CatalogPlugin defaultCatalog) {
     CatalogManager catalogManager = spark.sessionState().catalogManager();
 
@@ -790,6 +822,18 @@ public class Spark3Util {
       currentNamespace = defaultCatalog.defaultNamespace();
     }
 
+    // This static method is eventually called with null snapshotId and asOfTimestamp values via
+    // catalogAndIdentifier(SparkSession, List<String>, CatalogPlugin) by
+    // org.apache.iceberg.spark.procedures.BaseProcedure#toCatalogAndIdentifier and by
+    // org.apache.iceberg.actions.SparkActions.migrate and org.apache.iceberg.actions.SparkActions.snapshot.
+    // We preserve using Identifier.of to obtain the Identifier for those invocations, as that is the type
+    // of Identifier used elsewhere in the execution of procedures and actions.
+    BiFunction<String[], String, Identifier> identifierProvider;
+    if (snapshotId == null && asOfTimestamp == null) {
+      identifierProvider = Identifier::of;
+    } else {
+      identifierProvider = (ns, n) -> org.apache.iceberg.spark.TableIdentifier.of(ns, n, snapshotId, asOfTimestamp);
+    }
     Pair<CatalogPlugin, Identifier> catalogIdentifier = SparkUtil.catalogAndIdentifier(nameParts,
         catalogName ->  {
           try {
@@ -798,7 +842,7 @@ public class Spark3Util {
             return null;
           }
         },
-        Identifier::of,
+        identifierProvider,
         defaultCatalog,
         currentNamespace
     );
