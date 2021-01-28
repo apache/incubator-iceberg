@@ -20,11 +20,11 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.FileScanTask;
@@ -35,12 +35,14 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -49,11 +51,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-public class TestHadoopCommits extends HadoopTableTestBase {
+public class TestHadoopCommitsBase extends HadoopTableTestBase {
 
   @Test
   public void testCreateTable() throws Exception {
@@ -180,7 +181,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
   @Test
   public void testStaleMetadata() throws Exception {
-    Table tableCopy = TABLES.load(tableLocation);
+    Table tableCopy = tables.load(tableLocation);
 
     Assert.assertTrue("Should create v1 metadata",
         version(1).exists() && version(1).isFile());
@@ -216,7 +217,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
   @Test
   public void testStaleVersionHint() throws Exception {
-    Table stale = TABLES.load(tableLocation);
+    Table stale = tables.load(tableLocation);
 
     Assert.assertTrue("Should create v1 metadata",
         version(1).exists() && version(1).isFile());
@@ -238,7 +239,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     // roll the version hint back to 1
     replaceVersionHint(1);
 
-    Table reloaded = TABLES.load(tableLocation);
+    Table reloaded = tables.load(tableLocation);
     Assert.assertEquals("Updated schema for newly loaded table should match",
         UPDATED_SCHEMA.asStruct(), reloaded.schema().asStruct());
 
@@ -309,27 +310,12 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         1, metadata.currentSnapshot().allManifests().size());
   }
 
-  @Test
-  public void testRenameReturnFalse() throws Exception {
-    FileSystem mockFs = mock(FileSystem.class);
-    when(mockFs.exists(any())).thenReturn(true, false);
-    when(mockFs.rename(any(), any())).thenReturn(false);
-    testRenameWithFileSystem(mockFs);
-  }
-
-  @Test
-  public void testRenameThrow() throws Exception {
-    FileSystem mockFs = mock(FileSystem.class);
-    when(mockFs.exists(any())).thenReturn(true, false);
-    when(mockFs.rename(any(), any())).thenThrow(new IOException("test injected"));
-    testRenameWithFileSystem(mockFs);
-  }
-
   /**
-   * Test rename during {@link HadoopTableOperations#commit(TableMetadata, TableMetadata)} with the provided
+   * Test rename/close during {@link HadoopTableOperations#commit(TableMetadata, TableMetadata)} with the provided
    * {@link FileSystem} object. The provided FileSystem will be injected for commit call.
+   * can optionally inject the {@link FileSystem} into the {@link FileIO} of the {@link HadoopTableOperations}
    */
-  private void testRenameWithFileSystem(FileSystem mockFs) throws Exception {
+  protected void testCommitWithFileSystem(FileSystem mockFs, boolean injectToOps) throws Exception {
     assertTrue("Should create v1 metadata",
         version(1).exists() && version(1).isFile());
     assertFalse("Should not create v2 or newer versions",
@@ -351,13 +337,22 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     // mock / spy the classes for testing
     TableOperations tops = baseTable.operations();
+    TableMetadata meta2 = tops.current();
     assertTrue(tops instanceof HadoopTableOperations);
     HadoopTableOperations spyOps = Mockito.spy((HadoopTableOperations) tops);
-
     // inject the mockFS into the TableOperations
     doReturn(mockFs).when(spyOps).getFileSystem(any(), any());
+    if (injectToOps) {
+      // inject the mockFS into the FileIO of the table
+      FileIO spyIO = Mockito.spy(spyOps.io());
+      doAnswer((InvocationOnMock invocation) ->
+              HadoopOutputFile.fromPath(new Path(invocation.getArgumentAt(0, String.class)), mockFs)
+      ).when(spyIO).newOutputFile(any());
+      doReturn(spyIO).when(spyOps).io();
+    }
+
     try {
-      spyOps.commit(tops.current(), meta1);
+      spyOps.commit(meta2, meta1);
       fail("Commit should fail due to mock file system");
     } catch (CommitFailedException expected) {
     }
@@ -388,7 +383,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     assertTrue("Metadata should be compressed with old format.",
         metadataFiles.stream().allMatch(f -> f.getName().endsWith(".metadata.json.gz")));
 
-    Table reloaded = TABLES.load(tableLocation);
+    Table reloaded = tables.load(tableLocation);
 
     List<FileScanTask> tasks = Lists.newArrayList(reloaded.newScan().planFiles());
     Assert.assertEquals("Should scan 1 files", 1, tasks.size());

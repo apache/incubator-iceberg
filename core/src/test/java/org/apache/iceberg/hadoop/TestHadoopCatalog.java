@@ -452,7 +452,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   public void testVersionHintFileErrorWithFile() throws Exception {
     addVersionsToTable(table);
 
-    HadoopTableOperations tableOperations = (HadoopTableOperations) TABLES.newTableOps(tableLocation);
+    HadoopTableOperations tableOperations = (HadoopTableOperations) tables.newTableOps(tableLocation);
 
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
@@ -465,7 +465,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     // Check the result of the findVersion(), and load the table and check the current snapshotId
     Assert.assertEquals(1, tableOperations.findVersion());
-    Assert.assertEquals(secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
+    Assert.assertEquals(secondSnapshotId, tables.load(tableLocation).currentSnapshot().snapshotId());
 
     // Write newer data to confirm that we are writing the correct file
     io.deleteFile(versionHintFile.getPath());
@@ -475,7 +475,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     // Check the result of the findVersion(), and load the table and check the current snapshotId
     Assert.assertEquals(3, tableOperations.findVersion());
-    Assert.assertEquals(secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
+    Assert.assertEquals(secondSnapshotId, tables.load(tableLocation).currentSnapshot().snapshotId());
 
     // Write an empty version hint file
     io.deleteFile(versionHintFile.getPath());
@@ -483,21 +483,21 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     // Check the result of the findVersion(), and load the table and check the current snapshotId
     Assert.assertEquals(3, tableOperations.findVersion());
-    Assert.assertEquals(secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
+    Assert.assertEquals(secondSnapshotId, tables.load(tableLocation).currentSnapshot().snapshotId());
 
     // Just delete the file
     io.deleteFile(versionHintFile.getPath());
 
     // Check the result of the versionHint(), and load the table and check the current snapshotId
     Assert.assertEquals(3, tableOperations.findVersion());
-    Assert.assertEquals(secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
+    Assert.assertEquals(secondSnapshotId, tables.load(tableLocation).currentSnapshot().snapshotId());
   }
 
   @Test
   public void testVersionHintFileMissingMetadata() throws Exception {
     addVersionsToTable(table);
 
-    HadoopTableOperations tableOperations = (HadoopTableOperations) TABLES.newTableOps(tableLocation);
+    HadoopTableOperations tableOperations = (HadoopTableOperations) tables.newTableOps(tableLocation);
 
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
@@ -510,7 +510,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     // Check the result of the findVersion(), and load the table and check the current snapshotId
     Assert.assertEquals(3, tableOperations.findVersion());
-    Assert.assertEquals(secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
+    Assert.assertEquals(secondSnapshotId, tables.load(tableLocation).currentSnapshot().snapshotId());
 
     // Remove all the version files, and see if we can recover. Hint... not :)
     io.deleteFile(tableOperations.getMetadataFile(2).toString());
@@ -522,7 +522,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         "Should not be able to find the table",
         NoSuchTableException.class,
         "Table does not exist",
-        () -> TABLES.load(tableLocation));
+        () -> tables.load(tableLocation));
   }
 
   @Test

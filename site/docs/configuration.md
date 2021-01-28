@@ -120,6 +120,13 @@ Note: `iceberg.hive.lock-check-max-wait-ms` should be less than the [transaction
 of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newer versions). Otherwise, the heartbeats on the lock (which happens during the lock checks) would end up expiring in the 
 Hive Metastore before the lock is retried from Iceberg.
 
+The following properties from the Hadoop configuration are used by Hadoop Tables
+
+| Property                                      | Default  | Description                                                            |
+| --------------------------------------------- | -------- | ---------------------------------------------------------------------- |
+| iceberg.engine.hadoop.`SCHEME`.atomic.write   | false    | Controls whether atomic write will be used instead of atomic rename. `SCHEME` is the scheme used, e.g. `{hdfs, cos}`    |
+
+
 ## Spark configuration
 
 ### Catalogs

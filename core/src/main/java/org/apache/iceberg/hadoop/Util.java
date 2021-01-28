@@ -51,6 +51,15 @@ public class Util {
     }
   }
 
+  public static boolean shouldUseAtomicWrite(Path path, Configuration conf) {
+    String scheme = path.toUri().getScheme();
+    String fullConfigName = String.join(".",
+            ConfigProperties.USE_ATOMIC_WRITE_PREFIX,
+            scheme,
+            ConfigProperties.USE_ATOMIC_WRITE_SUFFIX);
+    return conf.getBoolean(fullConfigName, false);
+  }
+
   public static String[] blockLocations(CombinedScanTask task, Configuration conf) {
     Set<String> locationSets = Sets.newHashSet();
     for (FileScanTask f : task.files()) {

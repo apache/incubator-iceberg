@@ -72,6 +72,7 @@ import org.slf4j.LoggerFactory;
  * is not supported yet.
  *
  * Note: The HadoopCatalog requires that the underlying file system supports atomic rename.
+ *       atomic write can also be used (instead of atomic rename) - this is configured on a per-scheme basis.
  */
 public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
 

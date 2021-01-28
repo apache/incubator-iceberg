@@ -52,7 +52,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * TableOperations implementation for file systems that support atomic rename.
+ * TableOperations implementation for file systems that support atomic rename
+ * or atomic write (configurable)
  * <p>
  * This maintains metadata in a "metadata" folder under the table location.
  */
@@ -63,6 +64,9 @@ public class HadoopTableOperations implements TableOperations {
   private final Configuration conf;
   private final Path location;
   private final FileIO fileIO;
+  // if set to true, atomic write will be used for committing
+  // instead of atomic rename
+  private final boolean useAtomicWrite;
 
   private volatile TableMetadata currentMetadata = null;
   private volatile Integer version = null;
@@ -72,6 +76,7 @@ public class HadoopTableOperations implements TableOperations {
     this.conf = conf;
     this.location = location;
     this.fileIO = fileIO;
+    this.useAtomicWrite = Util.shouldUseAtomicWrite(location, conf);
   }
 
   @Override
@@ -143,13 +148,10 @@ public class HadoopTableOperations implements TableOperations {
     String codecName = metadata.property(
         TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
     TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
-    String fileExtension = TableMetadataParser.getFileExtension(codec);
-    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
-    TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
 
     int nextVersion = (current.first() != null ? current.first() : 0) + 1;
     Path finalMetadataFile = metadataFilePath(nextVersion, codec);
-    FileSystem fs = getFileSystem(tempMetadataFile, conf);
+    FileSystem fs = getFileSystem(finalMetadataFile, conf);
 
     try {
       if (fs.exists(finalMetadataFile)) {
@@ -161,8 +163,24 @@ public class HadoopTableOperations implements TableOperations {
           "Failed to check if next version exists: %s", finalMetadataFile);
     }
 
-    // this rename operation is the atomic commit operation
-    renameToFinal(fs, tempMetadataFile, finalMetadataFile);
+    if (useAtomicWrite) {
+      // using atomic write
+      try {
+        TableMetadataParser.write(metadata, io().newOutputFile(finalMetadataFile.toString()));
+      } catch (RuntimeIOException e) {
+        CommitFailedException cfe = new CommitFailedException(
+                "Failed to commit changes using atomic write: %s", finalMetadataFile.toString());
+        cfe.addSuppressed(e);
+        throw cfe;
+      }
+    } else {
+      // using atomic rename
+      String fileExtension = TableMetadataParser.getFileExtension(codec);
+      Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
+      TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
+      // this rename operation is the atomic commit operation
+      renameToFinal(fs, tempMetadataFile, finalMetadataFile);
+    }
 
     // update the best-effort version pointer
     writeVersionHint(nextVersion);

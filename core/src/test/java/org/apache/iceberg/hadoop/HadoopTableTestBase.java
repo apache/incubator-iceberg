@@ -71,8 +71,6 @@ public class HadoopTableTestBase {
       .bucket("data", 16)
       .build();
 
-  static final HadoopTables TABLES = new HadoopTables(new Configuration());
-
   static final DataFile FILE_A = DataFiles.builder(SPEC)
       .withPath("/path/to/data-a.parquet")
       .withFileSizeInBytes(0)
@@ -101,6 +99,8 @@ public class HadoopTableTestBase {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
+  final HadoopTables tables = new HadoopTables(new Configuration());
+
   File tableDir = null;
   String tableLocation = null;
   File metadataDir = null;
@@ -115,7 +115,7 @@ public class HadoopTableTestBase {
     this.tableLocation = tableDir.toURI().toString();
     this.metadataDir = new File(tableDir, "metadata");
     this.versionHintFile = new File(metadataDir, "version-hint.text");
-    this.table = TABLES.create(SCHEMA, SPEC, tableLocation);
+    this.table = tables.create(SCHEMA, SPEC, tableLocation);
   }
 
   List<File> listManifestFiles() {

@@ -19,12 +19,27 @@
 
 package org.apache.iceberg.hadoop;
 
-public class ConfigProperties {
+import java.io.IOException;
+import org.apache.hadoop.fs.FileSystem;
+import org.junit.Test;
 
-  private ConfigProperties() {
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+public class TestHadoopCommitsAtomicRename extends TestHadoopCommitsBase {
+
+  @Test
+  public void testRenameReturnFalse() throws Exception {
+    FileSystem mockFs = mock(FileSystem.class);
+    when(mockFs.rename(any(), any())).thenReturn(false);
+    testCommitWithFileSystem(mockFs, false);
   }
 
-  public static final String ENGINE_HIVE_ENABLED = "iceberg.engine.hive.enabled";
-  public static final String USE_ATOMIC_WRITE_PREFIX = "iceberg.engine.hadoop";
-  public static final String USE_ATOMIC_WRITE_SUFFIX = "atomic.write";
+  @Test
+  public void testRenameThrow() throws Exception {
+    FileSystem mockFs = mock(FileSystem.class);
+    when(mockFs.rename(any(), any())).thenThrow(new IOException("test injected"));
+    testCommitWithFileSystem(mockFs, false);
+  }
 }

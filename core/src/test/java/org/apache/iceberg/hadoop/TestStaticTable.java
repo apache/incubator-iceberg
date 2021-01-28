@@ -31,11 +31,11 @@ import org.junit.Test;
 public class TestStaticTable extends HadoopTableTestBase {
 
   private Table getStaticTable() {
-    return TABLES.load(((HasTableOperations) table).operations().current().metadataFileLocation());
+    return tables.load(((HasTableOperations) table).operations().current().metadataFileLocation());
   }
 
   private Table getStaticTable(MetadataTableType type) {
-    return TABLES.load(((HasTableOperations) table).operations().current().metadataFileLocation() + "#" + type);
+    return tables.load(((HasTableOperations) table).operations().current().metadataFileLocation() + "#" + type);
   }
 
   @Test
