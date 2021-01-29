@@ -21,6 +21,11 @@ package org.apache.iceberg.flink;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +54,6 @@ import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
-import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.TableFactory;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
@@ -60,6 +64,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.catalog.Catalog;
@@ -69,12 +74,17 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -648,39 +658,141 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public List<CatalogPartitionSpec> listPartitions(ObjectPath tablePath)
       throws TableNotExistException, TableNotPartitionedException, CatalogException {
+    return getPartitions(tablePath, Expressions.alwaysTrue());
+  }
+
+  @Override
+  public List<CatalogPartitionSpec> listPartitions(ObjectPath tablePath, CatalogPartitionSpec partitionSpec)
+      throws TableNotExistException, TableNotPartitionedException, CatalogException {
+    Table table = loadIcebergTable(tablePath);
+    Expression filter = Expressions.alwaysTrue();
+    if (partitionSpec != null) {
+      Schema schema = table.schema();
+      filter = getPartitionFilter(schema, partitionSpec);
+    }
+
+    return getPartitions(tablePath, filter);
+  }
+
+  private List<CatalogPartitionSpec> getPartitions(ObjectPath tablePath, Expression filter)
+      throws TableNotPartitionedException, CatalogException, TableNotExistException {
     Table table = loadIcebergTable(tablePath);
 
     if (table.spec().isUnpartitioned()) {
       throw new TableNotPartitionedException(icebergCatalog.name(), tablePath);
     }
 
-    Set<CatalogPartitionSpec> set = Sets.newHashSet();
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+    TableScan scan = table.newScan().filter(filter);
+    Set<Map<String, Object>> setMap = Sets.newHashSet();
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       for (DataFile dataFile : CloseableIterable.transform(tasks, FileScanTask::file)) {
-        Map<String, String> map = Maps.newHashMap();
+        Map<String, Object> map = Maps.newHashMap();
         StructLike structLike = dataFile.partition();
         PartitionSpec spec = table.specs().get(dataFile.specId());
         for (int i = 0; i < structLike.size(); i++) {
-          map.put(spec.fields().get(i).name(), String.valueOf(structLike.get(i, Object.class)));
+          String name = spec.fields().get(i).name();
+          map.put(name, getValue(table.schema(), name, i, structLike));
         }
-        set.add(new CatalogPartitionSpec(map));
+
+        setMap.add(map);
       }
     } catch (IOException e) {
       throw new CatalogException(String.format("Failed to list partitions of table %s", tablePath), e);
     }
 
-    return Lists.newArrayList(set);
+    List<Map<String, Object>> list = Lists.newArrayList(setMap);
+    sortPartitions(list);
+    List<CatalogPartitionSpec> partitionSpecs = Lists.newArrayListWithCapacity(list.size());
+    for (Map<String, Object> partitionMap : list) {
+      Map<String, String> partitions = partitionMap.entrySet().stream().collect(Collectors.toMap(
+          Map.Entry::getKey,
+          e -> String.valueOf(e.getValue())
+      ));
+      partitionSpecs.add(new CatalogPartitionSpec(partitions));
+    }
+
+    return partitionSpecs;
   }
 
-  @Override
-  public List<CatalogPartitionSpec> listPartitions(ObjectPath tablePath, CatalogPartitionSpec partitionSpec)
-      throws CatalogException {
-    throw new UnsupportedOperationException();
+  /**
+   * Sort the partition map by the value
+   *
+   * @param list the partition list
+   */
+  @SuppressWarnings("unchecked")
+  private void sortPartitions(List<Map<String, Object>> list) {
+    list.sort((map1, map2) -> {
+      for (Map.Entry<String, Object> entry : map1.entrySet()) {
+        String key = entry.getKey();
+        Object value = entry.getValue();
+        Object value1 = map2.get(key);
+        if (value instanceof Comparable && value1 instanceof Comparable && !value.equals(value1)) {
+          return ((Comparable<Object>) value).compareTo(value1);
+        }
+      }
+
+      return 0;
+    });
   }
 
+  private Object getValue(Schema schema, String name, int index, StructLike structLike) {
+    Type type = schema.findType(name);
+    if (type instanceof Types.DateType) {
+      return DateTimeUtil.dateFromDays(structLike.get(index, Integer.class));
+    } else if (type instanceof Types.TimeType) {
+      return DateTimeUtil.timeFromMicros(structLike.get(index, Long.class));
+    } else if (type instanceof Types.TimestampType) {
+      return DateTimeUtil.timestampFromMicros(structLike.get(index, Long.class));
+    } else if (type instanceof Types.BinaryType) {
+      return new String(structLike.get(index, ByteBuffer.class).array());
+    } else {
+      return structLike.get(index, Object.class);
+    }
+  }
+
+  private Expression getPartitionFilter(Schema schema, CatalogPartitionSpec partitionSpec) {
+    Map<String, String> partitions = partitionSpec.getPartitionSpec();
+
+    Expression filter = Expressions.alwaysTrue();
+    for (Map.Entry<String, String> entry : partitions.entrySet()) {
+      String name = entry.getKey();
+      String value = entry.getValue();
+      Type type = schema.findType(name);
+      Expression equalExpression = Expressions.alwaysTrue();
+      // Long, MAP, ROW, ARRAY type are not supported by flink,so we do not add them  here.
+      if (type instanceof Types.IntegerType) {
+        equalExpression = Expressions.equal(name, Integer.valueOf(value));
+      } else if (type instanceof Types.StringType) {
+        equalExpression = Expressions.equal(name, value);
+      } else if (type instanceof Types.DoubleType) {
+        equalExpression = Expressions.equal(name, Double.valueOf(value));
+      } else if (type instanceof Types.FloatType) {
+        equalExpression = Expressions.equal(name, Float.valueOf(value));
+      } else if (type instanceof Types.DateType) {
+        equalExpression = Expressions.equal(name, DateTimeUtil.daysFromDate(LocalDate.parse(value)));
+      } else if (type instanceof Types.TimeType) {
+        equalExpression = Expressions.equal(name, DateTimeUtil.microsFromTime(LocalTime.parse(value)));
+      } else if (type instanceof Types.TimestampType) {
+        equalExpression = Expressions.equal(name, DateTimeUtil.microsFromTimestamp(LocalDateTime.parse(value)));
+      } else if (type instanceof Types.BooleanType) {
+        equalExpression = Expressions.equal(name, Boolean.valueOf(value));
+      } else if (type instanceof Types.DecimalType) {
+        equalExpression = Expressions.equal(name, new BigDecimal(value));
+      } else if (type instanceof Types.BinaryType) {
+        equalExpression = Expressions.equal(name, value.getBytes());
+      }
+
+      filter = Expressions.and(filter, equalExpression);
+    }
+
+    return filter;
+  }
+
+
   @Override
-  public List<CatalogPartitionSpec> listPartitionsByFilter(ObjectPath tablePath, List<Expression> filters)
-      throws CatalogException {
+  public List<CatalogPartitionSpec> listPartitionsByFilter(ObjectPath tablePath,
+      List<org.apache.flink.table.expressions.Expression> filters) throws CatalogException {
+    // TODO: call getPartitions method to get the partitions
     throw new UnsupportedOperationException();
   }
 
