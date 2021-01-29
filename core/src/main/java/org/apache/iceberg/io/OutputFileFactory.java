@@ -26,6 +26,7 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Factory responsible for generating unique but recognizable data file names.

@@ -2,6 +2,7 @@ version.txt
 versions.lock
 versions.props
 books.json
+Cat.avsc
 new-books.json
 build
 .gitignore

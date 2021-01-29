@@ -1,0 +1,8 @@
+{
+    "name": "Cat",
+    "namespace": "org.apache.iceberg.test",
+    "type": "record",
+    "fields" : [
+        {"name": "breed", "type": "string"}
+    ]
+}

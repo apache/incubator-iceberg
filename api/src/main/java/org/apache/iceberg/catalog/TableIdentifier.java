@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.catalog;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -28,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 /**
  * Identifies a table in iceberg catalog.
  */
-public class TableIdentifier {
+public class TableIdentifier implements Serializable {
 
   private static final Splitter DOT = Splitter.on('.');
 

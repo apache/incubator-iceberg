@@ -19,13 +19,14 @@
 
 package org.apache.iceberg.catalog;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 
 /**
  * A namespace in a {@link Catalog}.
  */
-public class Namespace {
+public class Namespace implements Serializable {
   private static final Namespace EMPTY_NAMESPACE = new Namespace(new String[] {});
   private static final Joiner DOT = Joiner.on('.');
 

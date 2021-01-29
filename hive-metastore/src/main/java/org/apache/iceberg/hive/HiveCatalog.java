@@ -64,6 +64,8 @@ import org.slf4j.LoggerFactory;
 public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
+  public static final String DEFAULT_NAME = "hive";
+
   private String name;
   private HiveClientPool clients;
   private Configuration conf;
@@ -75,7 +77,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   public HiveCatalog(Configuration conf) {
-    this.name = "hive";
+    this.name = DEFAULT_NAME;
     this.clients = new HiveClientPool(conf);
     this.conf = conf;
     this.createStack = Thread.currentThread().getStackTrace();

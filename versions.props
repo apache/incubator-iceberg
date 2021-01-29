@@ -1,6 +1,8 @@
 org.slf4j:* = 1.7.25
 org.apache.avro:avro = 1.9.2
 org.apache.flink:* = 1.11.0
+org.apache.beam:beam-sdks-java-core = 2.27.0
+org.apache.beam:beam-runners-direct-java = 2.27.0
 org.apache.hadoop:* = 2.7.3
 org.apache.hive:hive-metastore = 2.3.7
 org.apache.hive:hive-serde = 2.3.7
@@ -30,3 +32,4 @@ org.apache.hive:hive-service = 2.3.7
 org.apache.tez:tez-dag = 0.8.4
 org.apache.tez:tez-mapreduce = 0.8.4
 com.adobe.testing:s3mock-junit4 = 2.1.28
+org.hamcrest:* = 2.2

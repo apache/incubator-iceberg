@@ -17,12 +17,24 @@
  * under the License.
  */
 
+pluginManagement {
+  repositories {
+    gradlePluginPortal()
+    jcenter()
+    maven {
+      name "JCenter Gradle Plugins"
+      url  "https://dl.bintray.com/gradle/gradle-plugins"
+    }
+  }
+}
+
 rootProject.name = 'iceberg'
 include 'api'
 include 'common'
 include 'core'
 include 'data'
 include 'aws'
+include 'beam'
 include 'flink'
 include 'flink-runtime'
 include 'mr'
@@ -44,6 +56,7 @@ project(':common').name = 'iceberg-common'
 project(':core').name = 'iceberg-core'
 project(':data').name = 'iceberg-data'
 project(':aws').name = 'iceberg-aws'
+project(':beam').name = 'iceberg-beam'
 project(':flink').name = 'iceberg-flink'
 project(':flink-runtime').name = 'iceberg-flink-runtime'
 project(':mr').name = 'iceberg-mr'

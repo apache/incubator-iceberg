@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import java.util.List;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.BinaryType;
@@ -35,7 +36,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 /**
  * Interface for data files listed in a table manifest.
  */
-public interface DataFile extends ContentFile<DataFile> {
+public interface DataFile extends ContentFile<DataFile>, Serializable {
   // fields for adding delete data files
   Types.NestedField CONTENT = optional(134, "content", IntegerType.get(),
       "Contents of the file: 0=data, 1=position deletes, 2=equality deletes");

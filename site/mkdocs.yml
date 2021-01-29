@@ -67,6 +67,7 @@ nav:
   - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Flink: flink.md
   - Hive: hive.md
+  - Beam: beam.md
   - Integrations:
     - AWS: aws.md
   - API:
