@@ -226,18 +226,22 @@ public class TestEvaluator {
   public void testStartsWith() {
     StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, startsWith("s", "abc"));
-    Assert.assertTrue("abc startsWith abc => true", evaluator.eval(TestHelpers.Row.of("abc")));
-    Assert.assertFalse("abc startsWith Abc => false", evaluator.eval(TestHelpers.Row.of("Abc")));
-    Assert.assertFalse("a startsWith abc => false", evaluator.eval(TestHelpers.Row.of("a")));
+    Assert.assertTrue("abc startsWith abc should be true", evaluator.eval(TestHelpers.Row.of("abc")));
+    Assert.assertFalse("Abc startsWith abc should be false", evaluator.eval(TestHelpers.Row.of("Abc")));
+    Assert.assertFalse("a startsWith abc should be false", evaluator.eval(TestHelpers.Row.of("a")));
+    Assert.assertTrue("abcd startsWith abc should be true", evaluator.eval(TestHelpers.Row.of("abcd")));
   }
 
   @Test
   public void testNotStartsWith() {
     StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
     Evaluator evaluator = new Evaluator(struct, notStartsWith("s", "abc"));
-    Assert.assertFalse("abc notStartsWith abc => false", evaluator.eval(TestHelpers.Row.of("abc")));
-    Assert.assertTrue("abc notStartsWith Abc => true", evaluator.eval(TestHelpers.Row.of("Abc")));
-    Assert.assertTrue("a notStartsWith abc => true", evaluator.eval(TestHelpers.Row.of("a")));
+    Assert.assertFalse("abc notStartsWith abc should be false", evaluator.eval(TestHelpers.Row.of("abc")));
+    Assert.assertTrue("Abc notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of("Abc")));
+    Assert.assertTrue("a notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of("a")));
+    Assert.assertFalse("abcde notStartsWith abc should be false", evaluator.eval(TestHelpers.Row.of("abcde")));
+    Assert.assertTrue("Abcde notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of("Abcde")));
+    Assert.assertTrue("null notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of((String.valueOf(null))));
   }
 
   @Test
