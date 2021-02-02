@@ -241,7 +241,6 @@ public class TestEvaluator {
     Assert.assertTrue("a notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of("a")));
     Assert.assertFalse("abcde notStartsWith abc should be false", evaluator.eval(TestHelpers.Row.of("abcde")));
     Assert.assertTrue("Abcde notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of("Abcde")));
-    Assert.assertTrue("null notStartsWith abc should be true", evaluator.eval(TestHelpers.Row.of((String.valueOf(null))));
   }
 
   @Test
