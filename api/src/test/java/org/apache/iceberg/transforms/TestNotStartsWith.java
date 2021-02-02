@@ -37,7 +37,6 @@ import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
 import org.junit.Assert;
 import org.junit.Test;
@@ -50,21 +49,20 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 public class TestNotStartsWith {
 
   private static final String COLUMN = "someStringCol";
-  private static final NestedField FIELD = optional(1, COLUMN, Types.StringType.get());
-  private static final Schema SCHEMA = new Schema(FIELD);
+  private static final Schema SCHEMA = new Schema(optional(1, COLUMN, Types.StringType.get()));
 
   // All 50 rows have someStringCol = 'bbb', none are null (despite being optional).
   private static final DataFile FILE_1 = new TestDataFile("file_1.avro", Row.of(), 50,
-          // any value counts, including nulls
-          ImmutableMap.of(1, 50L),
-          // null value counts
-          ImmutableMap.of(1, 0L),
-          // nan value counts
-          null,
-          // lower bounds
-          ImmutableMap.of(1, toByteBuffer(StringType.get(), "bbb")),
-          // upper bounds
-          ImmutableMap.of(1, toByteBuffer(StringType.get(), "bbb")));
+      // any value counts, including nulls
+      ImmutableMap.of(1, 50L),
+      // null value counts
+      ImmutableMap.of(1, 0L),
+      // nan value counts
+      null,
+      // lower bounds
+      ImmutableMap.of(1, toByteBuffer(StringType.get(), "bbb")),
+      // upper bounds
+      ImmutableMap.of(1, toByteBuffer(StringType.get(), "bbb")));
 
   @Test
   public void testTruncateProjections() {
