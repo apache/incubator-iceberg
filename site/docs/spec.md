@@ -502,8 +502,8 @@ Table metadata consists of the following fields:
 | _optional_ | _optional_ | **`current-snapshot-id`**| `long` ID of the current table snapshot. |
 | _optional_ | _optional_ | **`snapshots`**| A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
 | _optional_ | _optional_ | **`snapshot-log`**| A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
-| _optional_ | _required_ | **`sort-orders`**| A list of sort orders, stored as full sort order objects. |
-| _optional_ | _required_ | **`default-sort-order-id`**| Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files. |
+| _optional_ | _required_ | **`sort-orders`**| A list of sort orders, stored as full sort order objects. Note that this field is optional when v2 is reading because v1 metadata is still valid, but a v2 writer must always write this field. |
+| _optional_ | _required_ | **`default-sort-order-id`**| Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files. Also note that this field is optional when v2 is reading because v1 metadata is still valid, but a v2 writer must always write this field. |
 
 For serialization details, see Appendix C.
 
