@@ -477,9 +477,7 @@ public class TestFilteredScan {
   public void testPartitionedByDataNotStartsWithFilter() {
     File location = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
 
-    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
-        "path", location.toString())
-    );
+    DataSourceOptions options = new DataSourceOptions(ImmutableMap.of("path", location.toString()));
 
     IcebergSource source = new IcebergSource();
     DataSourceReader reader = source.createReader(options);
