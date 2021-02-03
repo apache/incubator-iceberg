@@ -112,7 +112,7 @@ public class TestPredicateBinding {
 
   @Test
   @SuppressWarnings("unchecked")
-  public void tesPredicateBindingForStringPrefixComparisons() {
+  public void testPredicateBindingForStringPrefixComparisons() {
     StructType struct = StructType.of(required(17, "x", Types.StringType.get()));
 
     for (Expression.Operation op : Arrays.asList(STARTS_WITH, NOT_STARTS_WITH)) {
