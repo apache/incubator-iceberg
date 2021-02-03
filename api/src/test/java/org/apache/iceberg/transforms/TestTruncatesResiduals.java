@@ -180,12 +180,13 @@ public class TestTruncatesResiduals {
     assertResidualValue(spec, startsWith("value", "bcd"), "ab", Expression.Operation.FALSE);
     assertResidualPredicate(spec, startsWith("value", "bcd"), "bc");
     assertResidualValue(spec, startsWith("value", "bcd"), "cd", Expression.Operation.FALSE);
+    assertResidualPredicate(spec, startsWith("value", "bcd"), "bcdd");
 
     // not starts with
-    assertResidualValue(spec, notStartsWith("value", "bc"), "ab", Expression.Operation.TRUE);
-    assertResidualValue(spec, notStartsWith("value", "bc"), "bc", Expression.Operation.FALSE);
     assertResidualPredicate(spec, notStartsWith("value", "bcd"), "ab");
     assertResidualValue(spec, notStartsWith("value", "bcd"), "bc", Expression.Operation.FALSE);
     assertResidualPredicate(spec, notStartsWith("value", "bcd"), "cd");
+    assertResidualValue(spec, notStartsWith("value", "bcd"), "bcd", Expression.Operation.FALSE);
+    assertResidualValue(spec, notStartsWith("value", "bcd"), "bcdd", Expression.Operation.FALSE);
   }
 }
