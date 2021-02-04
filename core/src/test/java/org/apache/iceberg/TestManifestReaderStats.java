@@ -44,19 +44,13 @@ public class TestManifestReaderStats extends TableTestBase {
     super(formatVersion);
   }
 
-  private static final Map<Integer, Long> VALUE_COUNT = ImmutableMap.of(
-          3, 3L,
-          4, 3L);
-  private static final Map<Integer, Long> NULL_VALUE_COUNTS = ImmutableMap.of(
-          3, 0L,
-          4, 0L);
+  private static final Map<Integer, Long> VALUE_COUNT = ImmutableMap.of(3, 3L);
+  private static final Map<Integer, Long> NULL_VALUE_COUNTS = ImmutableMap.of(3, 0L);
   private static final Map<Integer, Long> NAN_VALUE_COUNTS = ImmutableMap.of(3, 1L);
-  private static final Map<Integer, ByteBuffer> LOWER_BOUNDS = ImmutableMap.of(
-          3, Conversions.toByteBuffer(Types.IntegerType.get(), 2),
-          4, Conversions.toByteBuffer(Types.StringType.get(), "Z"));
-  private static final Map<Integer, ByteBuffer> UPPER_BOUNDS = ImmutableMap.of(
-          3, Conversions.toByteBuffer(Types.IntegerType.get(), 4),
-          4, Conversions.toByteBuffer(Types.StringType.get(), "Z"));
+  private static final Map<Integer, ByteBuffer> LOWER_BOUNDS =
+      ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 2));
+  private static final Map<Integer, ByteBuffer> UPPER_BOUNDS =
+      ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 4));
 
   private static final Metrics METRICS = new Metrics(3L, null,
       VALUE_COUNT, NULL_VALUE_COUNTS, NAN_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS);
@@ -84,13 +78,6 @@ public class TestManifestReaderStats extends TableTestBase {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
         .filterRows(Expressions.equal("id", 3))) {
-      CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
-      ManifestEntry<DataFile> entry = entries.iterator().next();
-      assertFullStats(entry.file());
-    }
-
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .filterRows(Expressions.notStartsWith("data", "Z"))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
       assertFullStats(entry.file());
