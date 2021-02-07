@@ -403,8 +403,11 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
+      // Iceberg does not implement SQL 3-boolean logic. Therefore, for null values, we have decided to
+      // return ROWS_MIGHT_MATCH in order to allow the query engine to further evaluate the file, as
+      // null does not start with any non-null value.
       if (containsNullsOnly(id)) {
-        return ROWS_CANNOT_MATCH;
+        return ROWS_MIGHT_MATCH;
       }
 
       ByteBuffer prefixAsBytes = lit.toByteBuffer();

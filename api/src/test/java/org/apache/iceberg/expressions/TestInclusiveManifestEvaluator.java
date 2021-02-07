@@ -477,6 +477,11 @@ public class TestInclusiveManifestEvaluator {
 
     shouldRead = ManifestEvaluator.forRowFilter(notStartsWith("all_same_value_or_null", "A"), SPEC, false).eval(FILE);
     Assert.assertTrue("Should read: range matches", shouldRead);
+
+    // Iceberg does not implement SQL's 3-way boolean logic, so the choice of an all null column matching is
+    // by definition in order to surface more values to the query engine to allow it to make its own decision.
+    shouldRead = ManifestEvaluator.forRowFilter(notStartsWith("all_nulls", "A"), SPEC, false).eval(FILE);
+    Assert.assertTrue("Should read: range matches", shouldRead);
   }
 
   @Test

@@ -345,9 +345,11 @@ public class ManifestEvaluator {
       int pos = Accessors.toPosition(ref.accessor());
       PartitionFieldSummary fieldStats = stats.get(pos);
 
-      // values are all null (and stats exist) and literal cannot contain null
+      // Iceberg does not implement SQL 3-boolean logic. Therefore, for all null values, we have decided to
+      // return ROWS_MIGHT_MATCH in order to allow the query engine to further evaluate this partition, as
+      // null does not start with any non-null value.
       if (fieldStats.lowerBound() == null) {
-        return ROWS_CANNOT_MATCH;
+        return ROWS_MIGHT_MATCH; // values are all null and literal cannot contain null
       }
 
       ByteBuffer prefixAsBytes = lit.toByteBuffer();
