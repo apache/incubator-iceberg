@@ -84,7 +84,6 @@ import static org.apache.iceberg.Files.localOutput;
 import static org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp;
 import static org.apache.spark.sql.functions.callUDF;
 import static org.apache.spark.sql.functions.column;
-import static org.apache.spark.sql.functions.not;
 
 @RunWith(Parameterized.class)
 public class TestFilteredScan {
@@ -541,27 +540,6 @@ public class TestFilteredScan {
 
     List<String> matchedData = df.select("data")
         .where("data NOT LIKE 'jun%'")
-        .as(Encoders.STRING())
-        .collectAsList();
-
-    List<String> expected = testRecords(SCHEMA).stream()
-        .map(r -> r.getField("data").toString())
-        .filter(d -> !d.startsWith("jun"))
-        .collect(Collectors.toList());
-
-    Assert.assertEquals(9, matchedData.size());
-    Assert.assertEquals(new HashSet<>(expected), new HashSet<>(matchedData));
-  }
-
-  @Test
-  public void testUnpartitionedNotStartsWithUsingSparkFunctions() {
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(unpartitioned.toString());
-
-    List<String> matchedData = df.select("data")
-        .filter(not(column("data").startsWith("jun")))
         .as(Encoders.STRING())
         .collectAsList();
 
