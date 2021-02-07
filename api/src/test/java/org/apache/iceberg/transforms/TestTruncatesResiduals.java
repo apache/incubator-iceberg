@@ -183,10 +183,10 @@ public class TestTruncatesResiduals {
     assertResidualPredicate(spec, startsWith("value", "bcd"), "bcdd");
 
     // not starts with
-    assertResidualPredicate(spec, notStartsWith("value", "bcd"), "ab");
-    assertResidualValue(spec, notStartsWith("value", "bcd"), "bc", Expression.Operation.FALSE);
-    assertResidualPredicate(spec, notStartsWith("value", "bcd"), "cd");
-    assertResidualValue(spec, notStartsWith("value", "bcd"), "bcd", Expression.Operation.FALSE);
-    assertResidualValue(spec, notStartsWith("value", "bcd"), "bcdd", Expression.Operation.FALSE);
+    assertResidualValue(spec, notStartsWith("value", "bcd"), "ab", Expression.Operation.TRUE);
+    assertResidualPredicate(spec, notStartsWith("value", "bcd"), "bc");
+    assertResidualValue(spec, notStartsWith("value", "bcd"), "cd", Expression.Operation.TRUE);
+    assertResidualPredicate(spec, notStartsWith("value", "bcd"), "bcd");
+    assertResidualPredicate(spec, notStartsWith("value", "bcd"), "bcdd");
   }
 }

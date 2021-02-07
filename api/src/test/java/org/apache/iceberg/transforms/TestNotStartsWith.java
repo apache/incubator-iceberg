@@ -29,11 +29,12 @@ import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.False;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.expressions.True;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
@@ -69,45 +70,44 @@ public class TestNotStartsWith {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).truncate(COLUMN, 4).build();
 
     assertProjectionInclusive(spec, notStartsWith(COLUMN, "ab"), "ab", Expression.Operation.NOT_STARTS_WITH);
-    assertProjectionInclusive(spec, notStartsWith(COLUMN, "abab"), "abab", Expression.Operation.NOT_STARTS_WITH);
-    assertProjectionInclusive(spec, notStartsWith(COLUMN, "ababab"), "abab", Expression.Operation.NOT_STARTS_WITH);
+    assertProjectionInclusive(spec, notStartsWith(COLUMN, "abab"), "abab", Expression.Operation.NOT_EQ);
+    Expression projection = Projections.inclusive(spec).project(notStartsWith(COLUMN, "ababab"));
+    Assert.assertTrue(projection instanceof True);
 
     assertProjectionStrict(spec, notStartsWith(COLUMN, "ab"), "ab", Expression.Operation.NOT_STARTS_WITH);
     assertProjectionStrict(spec, notStartsWith(COLUMN, "abab"), "abab", Expression.Operation.NOT_EQ);
-
-    Expression projection = Projections.strict(spec).project(notStartsWith(COLUMN, "abcde"));
-    Assert.assertTrue(projection instanceof False);
+    assertProjectionStrict(spec, notStartsWith(COLUMN, "ababab"), "abab", Expression.Operation.NOT_STARTS_WITH);
+    assertProjectionStrict(spec, notStartsWith(COLUMN, "abcde"), "abcd", Expression.Operation.NOT_STARTS_WITH);
   }
 
   @Test
   public void testTruncateStringWhenProjectedPredicateTermIsLongerThanWidth() {
     Truncate<String> trunc = Truncate.get(Types.StringType.get(), 2);
-    Expression expr = notStartsWith(COLUMN, "abcde");
+    UnboundPredicate<String> expr = Expressions.notStartsWith(Expressions.transform(COLUMN, trunc), "abcde");
     BoundPredicate<String> boundExpr = (BoundPredicate<String>) Binder.bind(SCHEMA.asStruct(),  expr, false);
-
     UnboundPredicate<String> projected = trunc.project(COLUMN, boundExpr);
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), projected);
 
     Assert.assertFalse("notStartsWith(abcde, truncate(abcde,2)) => false",
         evaluator.eval(TestHelpers.Row.of("abcde")));
 
-    Assert.assertFalse("notStartsWith(abcde, truncate(ab, 2)) => false",
+    Assert.assertTrue("notStartsWith(abcde, truncate(ab, 2)) => true",
         evaluator.eval(TestHelpers.Row.of("ab")));
 
-    Assert.assertFalse("notStartsWith(abcde, truncate(abcdz, 2)) => false",
+    Assert.assertTrue("notStartsWith(abcde, truncate(abcdz, 2)) => true",
         evaluator.eval(TestHelpers.Row.of("abcdz")));
 
     Assert.assertTrue("notStartsWith(abcde, truncate(a, 2)) => true",
         evaluator.eval(TestHelpers.Row.of("a")));
 
     Assert.assertTrue("notStartsWith(abcde, truncate(abzcde, 2)) => true",
-        evaluator.eval(TestHelpers.Row.of("azcde")));
+        evaluator.eval(TestHelpers.Row.of("abzcde")));
   }
 
   @Test
   public void testTruncateStringWhenProjectedPredicateTermIsShorterThanWidth() {
     Truncate<String> trunc = Truncate.get(Types.StringType.get(), 16);
-    Expression expr = notStartsWith(COLUMN, "ab");
+    Expression expr = Expressions.notStartsWith(Expressions.transform(COLUMN, trunc), "ab");
     BoundPredicate<String> boundExpr = (BoundPredicate<String>) Binder.bind(SCHEMA.asStruct(),  expr, false);
     UnboundPredicate<String> projected = trunc.project(COLUMN, boundExpr);
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), projected);
@@ -137,7 +137,6 @@ public class TestNotStartsWith {
         evaluator.eval(TestHelpers.Row.of("ab")));
 
     Assert.assertTrue("notStartsWith(abcdefg, truncate(a, 16)) => true",
-        evaluator.eval(TestHelpers.Row.of("a")));
   }
 
   @Test

@@ -48,7 +48,7 @@ public class TestStartsWith {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).truncate(COLUMN, 4).build();
 
     assertProjectionInclusive(spec, startsWith(COLUMN, "ab"), "ab", Expression.Operation.STARTS_WITH);
-    assertProjectionInclusive(spec, startsWith(COLUMN, "abab"), "abab", Expression.Operation.STARTS_WITH);
+    assertProjectionInclusive(spec, startsWith(COLUMN, "abab"), "abab", Expression.Operation.EQ);
     assertProjectionInclusive(spec, startsWith(COLUMN, "ababab"), "abab", Expression.Operation.STARTS_WITH);
 
     assertProjectionStrict(spec, startsWith(COLUMN, "ab"), "ab", Expression.Operation.STARTS_WITH);
