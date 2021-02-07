@@ -62,7 +62,7 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
-public class TestSparkParquetReadMetadataColumns {
+public class TestSparkParquetReadRowGroupFilter {
   private static final Schema DATA_SCHEMA = new Schema(
       required(100, "id", Types.LongType.get()),
       required(101, "data", Types.StringType.get())
@@ -71,13 +71,17 @@ public class TestSparkParquetReadMetadataColumns {
   private static final Schema PROJECTION_SCHEMA = new Schema(
       required(100, "id", Types.LongType.get()),
       required(101, "data", Types.StringType.get()),
-      MetadataColumns.ROW_POSITION,
-      MetadataColumns.IS_DELETED
+      MetadataColumns.ROW_POSITION
   );
 
   private static final int NUM_ROWS = 1000;
   private static final List<InternalRow> DATA_ROWS;
-  private static final List<InternalRow> EXPECTED_ROWS;
+  private static final List<InternalRow> ROWS_WITH_ROW_NUMBERS;
+  private static final Expression filterDoesNotMatch = Expressions.notStartsWith("data", "str");
+  // We filter for $"data" notStartsWith "str1", along the row group splits, to ensure the
+  // parquet row group filter works before rows are individually evaluated
+  private static final Expression filterMatchesSomeRowGroups = Expressions.notStartsWith("data", "str1");
+  private static final List<List<InternalRow>> EXPECTED_ROWS_WHEN_FILTERED_TO_ROW_GROUP;
   private static final int NUM_ROW_GROUPS = 10;
   private static final int ROWS_PER_SPLIT = NUM_ROWS / NUM_ROW_GROUPS;
   private static final int RECORDS_PER_BATCH = ROWS_PER_SPLIT / 10;
@@ -95,7 +99,7 @@ public class TestSparkParquetReadMetadataColumns {
       DATA_ROWS.add(row);
     }
 
-    EXPECTED_ROWS = Lists.newArrayListWithCapacity(NUM_ROWS);
+    ROWS_WITH_ROW_NUMBERS = Lists.newArrayListWithCapacity(NUM_ROWS);
     for (long i = 0; i < NUM_ROWS; i += 1) {
       InternalRow row = new GenericInternalRow(PROJECTION_SCHEMA.columns().size());
       if (i >= NUM_ROWS / 2) {
@@ -105,8 +109,18 @@ public class TestSparkParquetReadMetadataColumns {
       }
       row.update(1, UTF8String.fromString("str" + i));
       row.update(2, i);
-      row.update(3, false);
-      EXPECTED_ROWS.add(row);
+      ROWS_WITH_ROW_NUMBERS.add(row);
+    }
+
+    EXPECTED_ROWS_WHEN_FILTERED_TO_ROW_GROUP = Lists.newArrayListWithExpectedSize(NUM_ROW_GROUPS);
+    for (int i = 0; i < NUM_ROW_GROUPS; i += 1) {
+      boolean shouldReadRowGroup = ROWS_WITH_ROW_NUMBERS.subList(i * ROWS_PER_SPLIT, (i + 1) * ROWS_PER_SPLIT)
+              .stream()
+              .anyMatch(r -> !r.getUTF8String(1).startsWith(UTF8String.fromString("str1")));
+      List<InternalRow> expectedRowsForRowGroup = shouldReadRowGroup ?
+              ROWS_WITH_ROW_NUMBERS.subList(i * ROWS_PER_SPLIT, (i + 1) * ROWS_PER_SPLIT) :
+              Lists.newArrayList();
+      EXPECTED_ROWS_WHEN_FILTERED_TO_ROW_GROUP.add(expectedRowsForRowGroup);
     }
   }
 
@@ -124,7 +138,7 @@ public class TestSparkParquetReadMetadataColumns {
   private final boolean vectorized;
   private File testFile;
 
-  public TestSparkParquetReadMetadataColumns(boolean vectorized) {
+  public TestSparkParquetReadRowGroupFilter(boolean vectorized) {
     this.vectorized = vectorized;
   }
 
@@ -161,34 +175,23 @@ public class TestSparkParquetReadMetadataColumns {
   }
 
   @Test
-  public void testReadRowNumbers() throws IOException {
-    readAndValidate(null, null, null, EXPECTED_ROWS);
+  public void testReadRowGroupsWhenFilterNeverMatches() throws IOException {
+    // No row group matches
+    readAndValidate(filterDoesNotMatch, null, null, Lists.newArrayList());
   }
 
   @Test
-  public void testReadRowNumbersWithFilter() throws IOException {
-    // current iceberg supports row group filter.
-    for (int i = 1; i < 5; i += 1) {
-      readAndValidate(
-          Expressions.and(Expressions.lessThan("id", NUM_ROWS / 2),
-              Expressions.greaterThanOrEqual("id", i * ROWS_PER_SPLIT)),
-          null,
-          null,
-          EXPECTED_ROWS.subList(i * ROWS_PER_SPLIT, NUM_ROWS / 2));
-    }
-  }
-
-  @Test
-  public void testReadRowNumbersWithSplits() throws IOException {
+  public void testReadRowGroupsWithFilter() throws IOException {
     ParquetFileReader fileReader = new ParquetFileReader(
-        HadoopInputFile.fromPath(new Path(testFile.getAbsolutePath()), new Configuration()),
-        ParquetReadOptions.builder().build());
+            HadoopInputFile.fromPath(new Path(testFile.getAbsolutePath()), new Configuration()),
+            ParquetReadOptions.builder().build());
     List<BlockMetaData> rowGroups = fileReader.getRowGroups();
     for (int i = 0; i < NUM_ROW_GROUPS; i += 1) {
-      readAndValidate(null,
-          rowGroups.get(i).getColumns().get(0).getStartingPos(),
-          rowGroups.get(i).getCompressedSize(),
-          EXPECTED_ROWS.subList(i * ROWS_PER_SPLIT, (i + 1) * ROWS_PER_SPLIT));
+      List<InternalRow> expected = EXPECTED_ROWS_WHEN_FILTERED_TO_ROW_GROUP.get(i);
+      readAndValidate(filterMatchesSomeRowGroups,
+              rowGroups.get(i).getColumns().get(0).getStartingPos(),
+              rowGroups.get(i).getCompressedSize(),
+              expected);
     }
   }
 

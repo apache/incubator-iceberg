@@ -490,8 +490,11 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_MIGHT_MATCH;
         }
 
+        // Iceberg does not implement SQL 3-way boolean logic, so we return ROWS_MIGHT_MATCH
+        // for notStartsWith on all null columns by definition and allow the processing engine
+        // to handle further filtering.
         if (!colStats.hasNonNullValue()) {
-          return ROWS_CANNOT_MATCH;
+          return ROWS_MIGHT_MATCH;
         }
 
         ByteBuffer prefix = lit.toByteBuffer();
