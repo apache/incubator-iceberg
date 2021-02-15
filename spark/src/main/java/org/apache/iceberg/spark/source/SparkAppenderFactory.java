@@ -26,6 +26,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
@@ -45,6 +46,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
+import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
@@ -54,6 +56,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private final Schema writeSchema;
   private final StructType dsSchema;
   private final PartitionSpec spec;
+  private final SortOrder sortOrder;
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
@@ -62,7 +65,18 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private StructType posDeleteSparkType = null;
 
   SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema, PartitionSpec spec,
+                       SortOrder sortOrder) {
+    this(properties, writeSchema, dsSchema, spec, sortOrder, null, null, null);
+  }
+
+  SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema, PartitionSpec spec,
                        int[] equalityFieldIds, Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
+    this(properties, writeSchema, dsSchema, spec, null, equalityFieldIds, eqDeleteRowSchema, posDeleteRowSchema);
+  }
+
+  SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema, PartitionSpec spec,
+                       SortOrder sortOrder, int[] equalityFieldIds, Schema eqDeleteRowSchema,
+                       Schema posDeleteRowSchema) {
     this.properties = properties;
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
@@ -70,6 +84,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
+    this.sortOrder = sortOrder;
   }
 
   static Builder builderFor(Table table, Schema writeSchema, StructType dsSchema) {
@@ -149,7 +164,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
 
   @Override
   public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat fileFormat) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties, SortOrderUtil.getSortedColumns(sortOrder));
     try {
       switch (fileFormat) {
         case PARQUET:

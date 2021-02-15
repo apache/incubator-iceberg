@@ -41,6 +41,7 @@ import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
@@ -101,6 +102,7 @@ class SparkWrite {
   private final long targetFileSize;
   private final Schema writeSchema;
   private final StructType dsSchema;
+  private final SortOrder sortOrder;
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean partitionedFanoutEnabled;
 
@@ -115,6 +117,7 @@ class SparkWrite {
     this.wapId = wapId;
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
+    this.sortOrder = table.sortOrder();
     this.extraSnapshotMetadata = Maps.newHashMap();
 
     writeInfo.options().forEach((key, value) -> {

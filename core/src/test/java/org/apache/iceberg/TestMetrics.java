@@ -33,6 +33,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
@@ -595,6 +596,81 @@ public abstract class TestMetrics {
     Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.BinaryType.get(), expectedMinBounds, expectedMaxBounds, metrics);
+  }
+
+  @Test
+  public void testSortedColumnMetrics() throws IOException {
+    Record firstRecord = GenericRecord.create(SIMPLE_SCHEMA);
+    firstRecord.setField("booleanCol", true);
+    firstRecord.setField("intCol", Integer.MIN_VALUE);
+    firstRecord.setField("longCol", Long.MIN_VALUE);
+    firstRecord.setField("floatCol", Float.NaN);
+    firstRecord.setField("doubleCol", 2.0D);
+    firstRecord.setField("decimalCol", new BigDecimal("0.00"));
+    firstRecord.setField("stringCol", "AAA");
+    firstRecord.setField("dateCol", DateTimeUtil.dateFromDays(1500));
+    firstRecord.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
+    firstRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
+    firstRecord.setField("fixedCol", fixed);
+    firstRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
+    firstRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
+
+
+    Record secondRecord = GenericRecord.create(SIMPLE_SCHEMA);
+
+    secondRecord.setField("booleanCol", false);
+    secondRecord.setField("intCol", Integer.MAX_VALUE);
+    secondRecord.setField("longCol", Long.MAX_VALUE);
+    secondRecord.setField("floatCol", Float.NaN);
+    secondRecord.setField("doubleCol", 2.0D);
+    secondRecord.setField("decimalCol", new BigDecimal("10.00"));
+    secondRecord.setField("stringCol", "ZZZZZZZZZZZZZZZZZZZZ");
+    secondRecord.setField("dateCol", DateTimeUtil.dateFromDays(3000));
+    secondRecord.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
+    secondRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
+    secondRecord.setField("fixedCol", fixed);
+    secondRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
+    secondRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
+
+    Metrics metrics = getMetrics(
+        SIMPLE_SCHEMA,
+        MetricsConfig.fromProperties(
+            ImmutableMap.of("write.metadata.metrics.default", "none"),
+            ImmutableSet.of("booleanCol", "intCol", "longCol", "decimalCol", "stringCol", "dateCol")),
+        firstRecord, secondRecord);
+
+    Assert.assertEquals(2L, (long) metrics.recordCount());
+    assertBounds(1, BooleanType.get(), false, true, metrics);
+    assertBounds(2, IntegerType.get(), Integer.MIN_VALUE, Integer.MAX_VALUE, metrics);
+    assertBounds(3, LongType.get(), Long.MIN_VALUE, Long.MAX_VALUE, metrics);
+    assertBounds(6, DecimalType.of(10, 2),
+        new BigDecimal("0.00"), new BigDecimal("10.00"), metrics);
+    assertBounds(7, StringType.get(),
+        CharBuffer.wrap("AAA"), CharBuffer.wrap("ZZZZZZZZZZZZZZZZZZZZ"), metrics);
+    assertBounds(8, DateType.get(), 1500, 3000, metrics);
+  }
+
+  @Test
+  public void testMetricsForSortedNestedStructFields() throws IOException {
+
+    Record leafStruct = GenericRecord.create(LEAF_STRUCT_TYPE);
+    leafStruct.setField("leafLongCol", Long.MAX_VALUE);
+    leafStruct.setField("leafBinaryCol", ByteBuffer.wrap("A".getBytes()));
+    Record nestedStruct = GenericRecord.create(NESTED_STRUCT_TYPE);
+    nestedStruct.setField("longCol", Long.MAX_VALUE);
+    nestedStruct.setField("leafStructCol", leafStruct);
+    nestedStruct.setField("doubleCol", Double.NaN);
+    Record record = GenericRecord.create(NESTED_SCHEMA);
+    record.setField("intCol", Integer.MAX_VALUE);
+    record.setField("nestedStructCol", nestedStruct);
+
+    Metrics metrics = getMetrics(NESTED_SCHEMA, MetricsConfig.fromProperties(
+        ImmutableMap.of("write.metadata.metrics.default", "none"),
+        ImmutableSet.of("nestedStructCol.longCol", "nestedStructCol.leafStructCol.leafLongCol")),
+        record);
+
+    assertBounds(3, LongType.get(), Long.MAX_VALUE, Long.MAX_VALUE, metrics);
+    assertBounds(5, LongType.get(), Long.MAX_VALUE, Long.MAX_VALUE, metrics);
   }
 
   protected void assertCounts(int fieldId, Long valueCount, Long nullValueCount, Metrics metrics) {

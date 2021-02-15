@@ -25,6 +25,7 @@ import org.apache.iceberg.MetricsModes.Full;
 import org.apache.iceberg.MetricsModes.None;
 import org.apache.iceberg.MetricsModes.Truncate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -74,5 +75,35 @@ public class TestMetricsModes {
     MetricsConfig config = MetricsConfig.fromProperties(properties);
     Assert.assertEquals("Invalid mode should be defaulted to library default (truncate(16))",
         MetricsModes.Truncate.withLength(16), config.columnMode("col"));
+  }
+
+  @Test
+  public void testMetricsConfigSortedCols() {
+    Map<String, String> properties = ImmutableMap.of(
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "counts",
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2", "none");
+
+    MetricsConfig config = MetricsConfig.fromProperties(properties, ImmutableSet.of("col2", "col3"));
+    Assert.assertEquals("Non-sorted existing column should not be overridden",
+        Counts.get(), config.columnMode("col1"));
+    Assert.assertEquals("Sorted column defaults should not override user specified config",
+        None.get(), config.columnMode("col2"));
+    Assert.assertEquals("Unspecified sorted column should use default", Full.get(), config.columnMode("col3"));
+  }
+
+  @Test
+  public void testMetricsConfigSortedColDefault() {
+    Map<String, String> properties = ImmutableMap.of(
+        TableProperties.SORTED_COL_DEFAULT_METRICS_MODE, "truncate(16)",
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "counts",
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2", "none");
+
+    MetricsConfig config = MetricsConfig.fromProperties(properties, ImmutableSet.of("col2", "col3"));
+    Assert.assertEquals("Non-sorted existing column should not be overridden",
+        Counts.get(), config.columnMode("col1"));
+    Assert.assertEquals("Sorted column defaults should not override user specified config",
+        None.get(), config.columnMode("col2"));
+    Assert.assertEquals("Unspecified sorted column should use default",
+        Truncate.withLength(16), config.columnMode("col3"));
   }
 }
