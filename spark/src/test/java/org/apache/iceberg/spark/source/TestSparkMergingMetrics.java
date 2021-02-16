@@ -58,7 +58,11 @@ public class TestSparkMergingMetrics extends TestMergingMetrics<InternalRow> {
     };
 
     FileAppender<InternalRow> appender =
+<<<<<<< HEAD
         SparkAppenderFactory.builderFor(testTable, SCHEMA, SparkSchemaUtil.convert(SCHEMA)).build()
+=======
+        SparkAppenderFactory.builderFor(new HashMap<>(), SCHEMA, SparkSchemaUtil.convert(SCHEMA)).build()
+>>>>>>> Create SparkAppenderFactory builder, avoid argument explosion
             .newAppender(org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);
     try (FileAppender<InternalRow> fileAppender = appender) {
       records.stream().map(r -> new StructInternalRow(SCHEMA.asStruct()).setStruct(r)).forEach(fileAppender::add);

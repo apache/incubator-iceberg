@@ -64,6 +64,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private StructType eqDeleteSparkType = null;
   private StructType posDeleteSparkType = null;
 
+<<<<<<< HEAD
   SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema, PartitionSpec spec,
                        SortOrder sortOrder) {
     this(properties, writeSchema, dsSchema, spec, sortOrder, null, null, null);
@@ -74,6 +75,8 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     this(properties, writeSchema, dsSchema, spec, null, equalityFieldIds, eqDeleteRowSchema, posDeleteRowSchema);
   }
 
+=======
+>>>>>>> Create SparkAppenderFactory builder, avoid argument explosion
   SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema, PartitionSpec spec,
                        SortOrder sortOrder, int[] equalityFieldIds, Schema eqDeleteRowSchema,
                        Schema posDeleteRowSchema) {
@@ -81,10 +84,62 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
     this.spec = spec;
+    this.sortOrder = sortOrder;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
-    this.sortOrder = sortOrder;
+  }
+
+  public static SparkAppenderFactoryBuilder builderFor(Map<String, String> properties,
+      Schema writeSchema, StructType dsSchema) {
+    return new SparkAppenderFactoryBuilder(properties, writeSchema, dsSchema);
+  }
+
+  public static class SparkAppenderFactoryBuilder {
+    private final Map<String, String> properties;
+    private final Schema writeSchema;
+    private final StructType dsSchema;
+    private PartitionSpec spec = PartitionSpec.unpartitioned();
+    private SortOrder sortOrder = SortOrder.unsorted();
+    private int[] equalityFieldIds;
+    private Schema eqDeleteRowSchema;
+    private Schema posDeleteRowSchema;
+
+    SparkAppenderFactoryBuilder(Map<String, String> properties, Schema writeSchema, StructType dsSchema) {
+      this.properties = properties;
+      this.writeSchema = writeSchema;
+      this.dsSchema = dsSchema;
+    }
+
+    public SparkAppenderFactoryBuilder partitionSpec(PartitionSpec newSpec) {
+      this.spec = newSpec;
+      return this;
+    }
+
+    public SparkAppenderFactoryBuilder sortOrder(SortOrder newSortOrder) {
+      this.sortOrder = newSortOrder;
+      return this;
+    }
+
+    public SparkAppenderFactoryBuilder equalityFieldIds(int[] newEqualityFieldIds) {
+      this.equalityFieldIds = newEqualityFieldIds;
+      return this;
+    }
+
+    public SparkAppenderFactoryBuilder eqDeleteRowSchema(Schema newEqDeleteRowSchema) {
+      this.eqDeleteRowSchema = newEqDeleteRowSchema;
+      return this;
+    }
+
+    public SparkAppenderFactoryBuilder posDelRowSchema(Schema newPosDelRowSchema) {
+      this.posDeleteRowSchema = newPosDelRowSchema;
+      return this;
+    }
+
+    public SparkAppenderFactory build() {
+      return new SparkAppenderFactory(properties, writeSchema, dsSchema, spec,
+          sortOrder, equalityFieldIds, eqDeleteRowSchema, posDeleteRowSchema);
+    }
   }
 
   static Builder builderFor(Table table, Schema writeSchema, StructType dsSchema) {

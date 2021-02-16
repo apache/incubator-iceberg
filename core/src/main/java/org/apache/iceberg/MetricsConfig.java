@@ -110,11 +110,13 @@ public class MetricsConfig implements Serializable {
         });
 
     // Add default sorted column config, if set
-    sortedCols.stream().forEach(sc -> {
-      if (!props.containsKey(METRICS_MODE_COLUMN_CONF_PREFIX + sc)) {
-        spec.columnModes.put(sc, sortedColDefaultMode);
-      }
-    });
+    if (sortedCols != null) {
+      sortedCols.stream().forEach(sc -> {
+        if (!props.containsKey(METRICS_MODE_COLUMN_CONF_PREFIX + sc)) {
+          spec.columnModes.put(sc, sortedColDefaultMode);
+        }
+      });
+    }
 
     return spec;
   }

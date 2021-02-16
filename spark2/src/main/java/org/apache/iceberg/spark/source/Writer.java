@@ -261,6 +261,7 @@ class Writer implements DataSourceWriter {
 
     @Override
     public DataWriter<InternalRow> createDataWriter(int partitionId, long taskId, long epochId) {
+<<<<<<< HEAD
       Table table = tableBroadcast.value();
 
       OutputFileFactory fileFactory = new OutputFileFactory(table, format, partitionId, taskId);
@@ -268,6 +269,12 @@ class Writer implements DataSourceWriter {
 
       PartitionSpec spec = table.spec();
       FileIO io = table.io();
+=======
+      OutputFileFactory fileFactory = new OutputFileFactory(
+          spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
+      SparkAppenderFactory appenderFactory = SparkAppenderFactory.builderFor(properties, writeSchema, dsSchema)
+          .partitionSpec(spec).build();
+>>>>>>> Create SparkAppenderFactory builder, avoid argument explosion
 
       if (spec.isUnpartitioned()) {
         return new Unpartitioned24Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize);

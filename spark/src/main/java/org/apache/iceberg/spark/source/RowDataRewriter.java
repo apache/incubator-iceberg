@@ -86,9 +86,18 @@ public class RowDataRewriter implements Serializable {
     RowDataReader dataReader = new RowDataReader(task, table, schema, caseSensitive);
 
     StructType structType = SparkSchemaUtil.convert(schema);
+<<<<<<< HEAD
     SparkAppenderFactory appenderFactory =
         SparkAppenderFactory.builderFor(table, schema, structType).spec(spec).build();
     OutputFileFactory fileFactory = new OutputFileFactory(table, spec, format, partitionId, taskId);
+=======
+    SparkAppenderFactory appenderFactory = SparkAppenderFactory
+        .builderFor(properties, schema, structType)
+        .partitionSpec(spec)
+        .sortOrder(sortOrder).build();
+    OutputFileFactory fileFactory = new OutputFileFactory(
+        spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
+>>>>>>> Create SparkAppenderFactory builder, avoid argument explosion
 
     TaskWriter<InternalRow> writer;
     if (spec.isUnpartitioned()) {
