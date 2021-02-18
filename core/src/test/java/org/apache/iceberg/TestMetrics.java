@@ -624,7 +624,7 @@ public abstract class TestMetrics {
     secondRecord.setField("floatCol", Float.NaN);
     secondRecord.setField("doubleCol", 2.0D);
     secondRecord.setField("decimalCol", new BigDecimal("10.00"));
-    secondRecord.setField("stringCol", "ZZZZZZZZZZZZZZZZZZZZ");
+    secondRecord.setField("stringCol", "ZZZ");
     secondRecord.setField("dateCol", DateTimeUtil.dateFromDays(3000));
     secondRecord.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
     secondRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
@@ -646,7 +646,7 @@ public abstract class TestMetrics {
     assertBounds(6, DecimalType.of(10, 2),
         new BigDecimal("0.00"), new BigDecimal("10.00"), metrics);
     assertBounds(7, StringType.get(),
-        CharBuffer.wrap("AAA"), CharBuffer.wrap("ZZZZZZZZZZZZZZZZZZZZ"), metrics);
+        CharBuffer.wrap("AAA"), CharBuffer.wrap("ZZZ"), metrics);
     assertBounds(8, DateType.get(), 1500, 3000, metrics);
   }
 

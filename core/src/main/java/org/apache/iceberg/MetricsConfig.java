@@ -33,8 +33,6 @@ import org.slf4j.LoggerFactory;
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE;
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX;
-import static org.apache.iceberg.TableProperties.SORTED_COL_DEFAULT_METRICS_MODE;
-import static org.apache.iceberg.TableProperties.SORTED_COL_DEFAULT_METRICS_MODE_VALUE;
 
 public class MetricsConfig implements Serializable {
 
@@ -86,9 +84,24 @@ public class MetricsConfig implements Serializable {
 
   public static MetricsConfig fromProperties(Map<String, String> props, Set<String> sortedCols) {
     MetricsConfig spec = new MetricsConfig();
-    spec.defaultMode = getDefault(props, DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
-    MetricsMode sortedColDefaultMode = getDefault(props,
-        SORTED_COL_DEFAULT_METRICS_MODE, SORTED_COL_DEFAULT_METRICS_MODE_VALUE);
+    String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
+    try {
+      spec.defaultMode = MetricsModes.fromString(defaultModeAsString);
+    } catch (IllegalArgumentException err) {
+      // Mode was invalid, log the error and use the default
+      LOG.warn("Ignoring invalid default metrics mode: {}", defaultModeAsString, err);
+      spec.defaultMode = MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
+    }
+
+    // Add default sorted column config, if set
+    MetricsMode sortedColDefaultMode = MetricsModes.promoteSortedColumnDefault(spec.defaultMode);
+    if (sortedCols != null) {
+      sortedCols.stream().forEach(sc -> {
+        if (!props.containsKey(METRICS_MODE_COLUMN_CONF_PREFIX + sc)) {
+          spec.columnModes.put(sc, sortedColDefaultMode);
+        }
+      });
+    }
 
     props.keySet().stream()
         .filter(key -> key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX))
@@ -100,7 +113,7 @@ public class MetricsConfig implements Serializable {
           } catch (IllegalArgumentException err) {
             // Mode was invalid, log the error and use the default (or default for sorted columns)
             LOG.warn("Ignoring invalid metrics mode for column {}: {}", columnAlias, props.get(key), err);
-            if (sortedCols.contains(key)) {
+            if (sortedCols.contains(columnAlias)) {
               mode = sortedColDefaultMode;
             } else {
               mode = spec.defaultMode;
@@ -108,16 +121,6 @@ public class MetricsConfig implements Serializable {
           }
           spec.columnModes.put(columnAlias, mode);
         });
-
-    // Add default sorted column config, if set
-    if (sortedCols != null) {
-      sortedCols.stream().forEach(sc -> {
-        if (!props.containsKey(METRICS_MODE_COLUMN_CONF_PREFIX + sc)) {
-          spec.columnModes.put(sc, sortedColDefaultMode);
-        }
-      });
-    }
-
     return spec;
   }
 
@@ -132,18 +135,5 @@ public class MetricsConfig implements Serializable {
 
   public MetricsMode columnMode(String columnAlias) {
     return columnModes.getOrDefault(columnAlias, defaultMode);
-  }
-
-  private static MetricsMode getDefault(Map<String, String> props, String propKey, String defaultVal) {
-    String defaultModeAsString = props.getOrDefault(propKey, defaultVal);
-    MetricsMode mode;
-    try {
-      mode = MetricsModes.fromString(defaultModeAsString);
-    } catch (IllegalArgumentException err) {
-      // Mode was invalid, log the error and use the default
-      LOG.warn("Ignoring invalid default metrics mode: {}", defaultModeAsString, err);
-      mode = MetricsModes.fromString(defaultVal);
-    }
-    return mode;
   }
 }

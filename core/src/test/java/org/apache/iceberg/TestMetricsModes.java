@@ -78,23 +78,9 @@ public class TestMetricsModes {
   }
 
   @Test
-  public void testMetricsConfigSortedCols() {
+  public void testMetricsConfigSortedColsDefault() {
     Map<String, String> properties = ImmutableMap.of(
-        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "counts",
-        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2", "none");
-
-    MetricsConfig config = MetricsConfig.fromProperties(properties, ImmutableSet.of("col2", "col3"));
-    Assert.assertEquals("Non-sorted existing column should not be overridden",
-        Counts.get(), config.columnMode("col1"));
-    Assert.assertEquals("Sorted column defaults should not override user specified config",
-        None.get(), config.columnMode("col2"));
-    Assert.assertEquals("Unspecified sorted column should use default", Full.get(), config.columnMode("col3"));
-  }
-
-  @Test
-  public void testMetricsConfigSortedColDefault() {
-    Map<String, String> properties = ImmutableMap.of(
-        TableProperties.SORTED_COL_DEFAULT_METRICS_MODE, "truncate(16)",
+        TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts",
         TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "counts",
         TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2", "none");
 
@@ -105,5 +91,21 @@ public class TestMetricsModes {
         None.get(), config.columnMode("col2"));
     Assert.assertEquals("Unspecified sorted column should use default",
         Truncate.withLength(16), config.columnMode("col3"));
+    Assert.assertEquals("Unspecified normal column should use default",
+        Counts.get(), config.columnMode("col4"));
+  }
+
+  @Test
+  public void testMetricsConfigSortedColsDefaultByInvalid() {
+    Map<String, String> properties = ImmutableMap.of(
+        TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts",
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "full",
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2", "invalid");
+
+    MetricsConfig config = MetricsConfig.fromProperties(properties, ImmutableSet.of("col2", "col3"));
+    Assert.assertEquals("Non-sorted existing column should not be overridden",
+        Full.get(), config.columnMode("col1"));
+    Assert.assertEquals("Sorted column defaults applies as user entered invalid mode",
+        Truncate.withLength(16), config.columnMode("col2"));
   }
 }
