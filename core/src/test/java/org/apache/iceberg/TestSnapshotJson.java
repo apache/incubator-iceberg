@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -40,7 +41,7 @@ public class TestSnapshotJson {
   @Test
   public void testJsonConversion() {
     Snapshot expected = new BaseSnapshot(ops.io(), System.currentTimeMillis(),
-        "file:/tmp/manifest1.avro", "file:/tmp/manifest2.avro");
+        new HashMap<>(), "file:/tmp/manifest1.avro", "file:/tmp/manifest2.avro");
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
 
@@ -62,7 +63,7 @@ public class TestSnapshotJson {
 
     Snapshot expected = new BaseSnapshot(ops.io(), id, parentId, System.currentTimeMillis(),
         DataOperations.REPLACE, ImmutableMap.of("files-added", "4", "files-deleted", "100"),
-        manifests);
+        manifests, new HashMap<>());
 
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
@@ -102,9 +103,11 @@ public class TestSnapshotJson {
     }
 
     Snapshot expected = new BaseSnapshot(
-        ops.io(), id, 34, parentId, System.currentTimeMillis(), null, null, localInput(manifestList).location());
+        ops.io(), id, 34, parentId, System.currentTimeMillis(), null, null, localInput(manifestList).location(),
+        new HashMap<>());
     Snapshot inMemory = new BaseSnapshot(
-        ops.io(), id, parentId, expected.timestampMillis(), null, null, manifests);
+        ops.io(), id, parentId, expected.timestampMillis(), null, null, manifests,
+        new HashMap<>());
 
     Assert.assertEquals("Files should match in memory list",
         inMemory.allManifests(), expected.allManifests());

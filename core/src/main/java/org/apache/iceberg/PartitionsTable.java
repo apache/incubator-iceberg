@@ -19,7 +19,10 @@
 
 package org.apache.iceberg;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
@@ -47,6 +50,25 @@ public class PartitionsTable extends BaseMetadataTable {
         Types.NestedField.required(3, "file_count", Types.IntegerType.get())
     );
     this.name = name;
+  }
+
+  private static StaticDataTask.Row convertPartition(Partition partition) {
+    return StaticDataTask.Row.of(partition.key, partition.recordCount, partition.fileCount);
+  }
+
+  private static Iterable<Partition> partitions(Table table, Long snapshotId) {
+    PartitionMap partitions = new PartitionMap(table.spec().partitionType());
+    TableScan scan = table.newScan();
+
+    if (snapshotId != null) {
+      scan = scan.useSnapshot(snapshotId);
+    }
+
+    for (FileScanTask task : scan.planFiles()) {
+      partitions.get(task.file().partition()).update(task.file());
+    }
+
+    return partitions.all();
   }
 
   @Override
@@ -94,31 +116,6 @@ public class PartitionsTable extends BaseMetadataTable {
     }
   }
 
-  private static StaticDataTask.Row convertPartition(Partition partition) {
-    return StaticDataTask.Row.of(partition.key, partition.recordCount, partition.fileCount);
-  }
-
-  private static Iterable<Partition> partitions(Table table, Long snapshotId) {
-    PartitionMap partitions = new PartitionMap(table.spec().partitionType());
-    TableScan scan = table.newScan();
-
-    if (snapshotId != null) {
-      scan = scan.useSnapshot(snapshotId);
-    }
-
-    for (FileScanTask task : scan.planFiles()) {
-      partitions.get(task.file().partition()).update(task.file());
-    }
-
-    return partitions.all();
-  }
-
-  private class PartitionsScan extends StaticTableScan {
-    PartitionsScan() {
-      super(ops, table, PartitionsTable.this.schema(), PartitionsTable.this::task);
-    }
-  }
-
   static class PartitionMap {
     private final Map<StructLikeWrapper, Partition> partitions = Maps.newHashMap();
     private final Types.StructType type;
@@ -141,6 +138,42 @@ public class PartitionsTable extends BaseMetadataTable {
     Iterable<Partition> all() {
       return partitions.values();
     }
+
+    List<PartitionStatsEntry> getAllPartitionStatsEntries() {
+      List<PartitionStatsEntry> partitionStatsEntries = Lists.newArrayList();
+      partitions.values().forEach(partition ->
+          partitionStatsEntries.add(new GenericPartitionStatsEntry(
+              (PartitionData) partition.key,
+              partition.fileCount,
+              partition.recordCount)));
+      return partitionStatsEntries;
+    }
+
+    void addPartitionStatsEntries(List<PartitionStatsEntry> partitionStatsEntries) {
+      if (Objects.isNull(partitionStatsEntries)) {
+        return;
+      }
+      partitionStatsEntries.forEach(entry -> this.get(entry.getPartition()).add(entry.getFileCount(),
+          entry.getRowCount()));
+    }
+
+    void subtractFromPartitionStatsEntries(List<PartitionStatsEntry> partitionStatsEntries) {
+      partitionStatsEntries.forEach(entry -> {
+            Partition partition = this.get(entry.getPartition());
+            partition.setFileAndRecordCount(entry.getFileCount() - partition.getFileCount(),
+                entry.getRowCount() - partition.getRecordCount());
+          }
+      );
+    }
+
+    void subtractPartitionMap(PartitionMap partitionMap) {
+      partitionMap.all().forEach(subPartition -> {
+        Partition partition = this.get(subPartition.key);
+        partition.setFileAndRecordCount(partition.getFileCount() - subPartition.getFileCount(),
+            partition.getRecordCount() - subPartition.getRecordCount());
+      });
+    }
+
   }
 
   static class Partition {
@@ -154,9 +187,33 @@ public class PartitionsTable extends BaseMetadataTable {
       this.fileCount = 0;
     }
 
-    void update(DataFile file) {
-      this.recordCount += file.recordCount();
-      this.fileCount += 1;
+    synchronized void update(DataFile file) {
+      this.recordCount = this.recordCount + file.recordCount();
+      this.fileCount = this.fileCount + 1;
+    }
+
+    synchronized void add(int fileCnt, long rowCnt) {
+      this.fileCount = this.fileCount + fileCnt;
+      this.recordCount = this.recordCount + rowCnt;
+    }
+
+    public long getRecordCount() {
+      return recordCount;
+    }
+
+    public int getFileCount() {
+      return fileCount;
+    }
+
+    public synchronized void setFileAndRecordCount(int fCount, long rCount) {
+      this.fileCount = fCount;
+      this.recordCount = rCount;
+    }
+  }
+
+  private class PartitionsScan extends StaticTableScan {
+    PartitionsScan() {
+      super(ops, table, PartitionsTable.this.schema(), PartitionsTable.this::task);
     }
   }
 }

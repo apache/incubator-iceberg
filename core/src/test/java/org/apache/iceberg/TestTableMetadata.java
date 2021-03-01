@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -88,13 +89,20 @@ public class TestTableMetadata {
   @Test
   public void testJsonConversion() throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+    Map<Integer, String> partitionStatsFileMap = new HashMap<>();
+    partitionStatsFileMap.put(0, "Dummy Loc0");
+    partitionStatsFileMap.put(1, "Dummy Loc1");
+    partitionStatsFileMap.put(2, "Dummy Loc2");
+    partitionStatsFileMap.put(3, "Dummy Loc3");
+    partitionStatsFileMap.put(4, "Dummy Loc4");
+
     Snapshot previousSnapshot = new BaseSnapshot(
         ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())), new HashMap<>());
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
         ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())), partitionStatsFileMap);
 
     List<HistoryEntry> snapshotLog = ImmutableList.<HistoryEntry>builder()
         .add(new SnapshotLogEntry(previousSnapshot.timestampMillis(), previousSnapshot.snapshotId()))
@@ -163,11 +171,11 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
         ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())), new HashMap<>());
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
         ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())), new HashMap<>());
 
     TableMetadata expected = new TableMetadata(null, 1, null, TEST_LOCATION,
         0, System.currentTimeMillis(), 3, TableMetadata.INITIAL_SCHEMA_ID,
@@ -275,11 +283,11 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
         ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())), new HashMap<>());
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
         ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())), new HashMap<>());
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
@@ -306,11 +314,11 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
         ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())), new HashMap<>());
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
         ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())), new HashMap<>());
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
@@ -346,11 +354,11 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
         ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())), new HashMap<>());
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
         ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())), new HashMap<>());
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
@@ -398,11 +406,11 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
         ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
+        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())), new HashMap<>());
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
         ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())), new HashMap<>());
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();

@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,6 +34,7 @@ import java.util.function.Consumer;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -150,6 +152,42 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    */
   protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate);
 
+  /**
+  Implementation of this method update stats for each partition and
+  returns Map which defines partition specification for which updates happen
+  Map Key: Partition Specification Id Map Value: New location of partition Stats file
+   */
+  protected abstract Map<Integer, String> updatePartitionStats();
+
+  protected List<PartitionStatsEntry> getOldPartitionStatsBySpec(int specID) {
+    if (Objects.isNull(base.currentSnapshot())) {
+      return Lists.newArrayList();
+    }
+
+    Map partitionStatsFileMap = base.currentSnapshot().partitionStatsFiles();
+    String oldPartStatsFileLoc = null;
+    if (Objects.nonNull(partitionStatsFileMap)) {
+      oldPartStatsFileLoc = (String) partitionStatsFileMap.getOrDefault(specID, null);
+    }
+    if (Objects.isNull(oldPartStatsFileLoc)) {
+      return Lists.newArrayList();
+    }
+    InputFile inpf = ops.io().newInputFile(oldPartStatsFileLoc);
+    return PartitionStats.read(inpf, specID, base.specsById());
+  }
+
+  protected void writePartitionStatsEntries(List<PartitionStatsEntry> partitionStatsEntries, OutputFile file,
+                                            int specID) {
+    try {
+      PartitionSpec spec = base.spec(specID);
+      PartitionStatsWriter partitionStatsWriter = PartitionStats.write(spec, file);
+      partitionStatsWriter.addAll(partitionStatsEntries);
+      partitionStatsWriter.close();
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write partitionStats File");
+    }
+  }
+
   @Override
   public Snapshot apply() {
     this.base = refresh();
@@ -161,6 +199,19 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     validate(base);
 
     List<ManifestFile> manifests = apply(base);
+
+    // Update Partition Stats for new Snapshot
+    Map updatedPartitionStatsLocs = updatePartitionStats();
+
+    if (Objects.nonNull(base.currentSnapshot())) {
+      Map oldPartitionStatsLocs = base.currentSnapshot().partitionStatsFiles();
+      if (Objects.nonNull(oldPartitionStatsLocs)) {
+        oldPartitionStatsLocs.keySet().forEach(key -> {
+          int specID = (Integer) key;
+          updatedPartitionStatsLocs.putIfAbsent(specID, oldPartitionStatsLocs.get(key));
+        });
+      }
+    }
 
     if (base.formatVersion() > 1 || base.propertyAsBoolean(MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT)) {
       OutputFile manifestList = manifestListPath();
@@ -187,12 +238,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       return new BaseSnapshot(ops.io(),
           sequenceNumber, snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          manifestList.location());
+          manifestList.location(), updatedPartitionStatsLocs);
 
     } else {
       return new BaseSnapshot(ops.io(),
           snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          manifests);
+          manifests, updatedPartitionStatsLocs);
     }
   }
 
@@ -355,6 +406,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected OutputFile newManifestOutput() {
     return ops.io().newOutputFile(
         ops.metadataFileLocation(FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement())));
+  }
+
+  protected OutputFile newPartitionStatsFile(int specId) {
+    return ops.io().newOutputFile(ops.metadataFileLocation(FileFormat.AVRO.addExtension(
+        String.format("partitionStats-%d-%s", specId, commitUUID))));
   }
 
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {

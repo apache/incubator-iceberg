@@ -140,7 +140,9 @@ public class TableTestBase {
 
   List<File> listManifestFiles(File tableDirToList) {
     return Lists.newArrayList(new File(tableDirToList, "metadata").listFiles((dir, name) ->
-        !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+        !name.startsWith("snap") &&
+            !name.startsWith("partitionStats") &&
+            Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
   protected TestTables.TestTable create(Schema schema, PartitionSpec spec) {

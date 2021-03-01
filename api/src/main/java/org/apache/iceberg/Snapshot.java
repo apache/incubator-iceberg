@@ -126,4 +126,12 @@ public interface Snapshot extends Serializable {
    * @return the location of the manifest list for this Snapshot
    */
   String manifestListLocation();
+
+  /**
+   * Return a PartitionStatsFile Location map for this snapshot.
+   * Key: SpecId, Value: PartitionStatsFile Location for Partition Specification defined by this SpecId
+   *
+   * @return PartitionStatsFile Location map.
+   */
+  Map<Integer, String> partitionStatsFiles();
 }

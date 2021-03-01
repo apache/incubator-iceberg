@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -187,6 +188,13 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     apply.addAll(base.currentSnapshot().deleteManifests());
 
     return apply;
+  }
+
+  @Override
+  protected Map<Integer, String> updatePartitionStats() {
+    /* This is only rewrite of manifest files. We are not adding/removing any new data file.
+    So should not update any partition stats. returning empty map */
+    return new HashMap<>();
   }
 
   private boolean requiresRewrite(Set<ManifestFile> currentManifests) {

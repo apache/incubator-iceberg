@@ -521,4 +521,62 @@ class V2Metadata {
       throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
     }
   }
+
+  /**
+   * Wrapper used to write PartitionStats entry to v2 metadata.
+   */
+  static class IndexedPartitionStatsEntry<F> implements PartitionStatsEntry, IndexedRecord {
+    private final org.apache.avro.Schema avroSchema;
+    private final IndexedStructLike partitionWrapper;
+    private PartitionStatsEntry wrapped = null;
+
+    IndexedPartitionStatsEntry(Types.StructType partitionType) {
+      this.avroSchema = AvroSchemaUtil.convert(fileType(partitionType), "partitionStats_file");
+      this.partitionWrapper = new IndexedStructLike(avroSchema.getField("partition").schema());
+    }
+
+    @SuppressWarnings("unchecked")
+    PartitionStatsEntry wrap(PartitionStatsEntry partitionStatsEntry) {
+      this.wrapped = partitionStatsEntry;
+      return this;
+    }
+
+    @Override
+    public org.apache.avro.Schema getSchema() {
+      return avroSchema;
+    }
+
+    @Override
+    public Object get(int pos) {
+      switch (pos) {
+        case 0:
+          return partitionWrapper.wrap(wrapped.getPartition());
+        case 1:
+          return wrapped.getFileCount();
+        case 2:
+          return wrapped.getRowCount();
+      }
+      throw new IllegalArgumentException("Unknown field ordinal: " + pos);
+    }
+
+    @Override
+    public void put(int i, Object v) {
+      throw new UnsupportedOperationException("Cannot read into IndexedPartitionStatsFile");
+    }
+
+    @Override
+    public StructLike getPartition() {
+      return wrapped.getPartition();
+    }
+
+    @Override
+    public int getFileCount() {
+      return wrapped.getFileCount();
+    }
+
+    @Override
+    public long getRowCount() {
+      return wrapped.getRowCount();
+    }
+  }
 }

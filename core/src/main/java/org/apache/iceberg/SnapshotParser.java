@@ -23,9 +23,11 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -46,6 +48,7 @@ public class SnapshotParser {
   private static final String OPERATION = "operation";
   private static final String MANIFESTS = "manifests";
   private static final String MANIFEST_LIST = "manifest-list";
+  private static final String PARTITION_STATS_FILES = "partition-stats-files";
 
   static void toJson(Snapshot snapshot, JsonGenerator generator)
       throws IOException {
@@ -88,7 +91,16 @@ public class SnapshotParser {
       generator.writeEndArray();
     }
 
+    if (Objects.nonNull(snapshot.partitionStatsFiles()) && snapshot.partitionStatsFiles().size() > 0) {
+      generator.writeObjectFieldStart(PARTITION_STATS_FILES);
+      for (Map.Entry<Integer, String> keyValue : snapshot.partitionStatsFiles().entrySet()) {
+        generator.writeStringField(keyValue.getKey().toString(), keyValue.getValue());
+      }
+      generator.writeEndObject();
+    }
+
     generator.writeEndObject();
+
   }
 
   public static String toJson(Snapshot snapshot) {
@@ -104,6 +116,7 @@ public class SnapshotParser {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static Snapshot fromJson(FileIO io, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse table version from a non-object: %s", node);
@@ -139,17 +152,31 @@ public class SnapshotParser {
       summary = builder.build();
     }
 
+    Map<Integer, String> partitionStatsFileMap = new HashMap<>();
+    if (node.has(PARTITION_STATS_FILES)) {
+      JsonNode pNode = node.get(PARTITION_STATS_FILES);
+      if (Objects.nonNull(pNode) && pNode.isObject()) {
+        Iterator<String> fields = pNode.fieldNames();
+        while (fields.hasNext()) {
+          String field = fields.next();
+          partitionStatsFileMap.put(Integer.valueOf(field), JsonUtil.getString(field, pNode));
+        }
+      }
+    }
+
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
-      return new BaseSnapshot(io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, manifestList);
+      return new BaseSnapshot(io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, manifestList,
+          partitionStatsFileMap);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
           location -> new GenericManifestFile(io.newInputFile(location), 0));
-      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, manifests);
+      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, manifests,
+          partitionStatsFileMap);
     }
   }
 

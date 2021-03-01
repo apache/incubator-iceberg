@@ -20,8 +20,10 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -49,6 +51,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final List<DataFile> newFiles = Lists.newArrayList();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
+  private final PartitionStatsMap partitionStatsMap;
   private ManifestFile newManifest = null;
   private boolean hasNewFiles = false;
 
@@ -59,6 +62,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     this.spec = ops.current().spec();
     this.snapshotIdInheritanceEnabled = ops.current()
         .propertyAsBoolean(SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+    this.partitionStatsMap = new PartitionStatsMap(ops.current().specsById());
   }
 
   @Override
@@ -89,6 +93,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     this.hasNewFiles = true;
     newFiles.add(file);
     summaryBuilder.addedFile(spec, file);
+    partitionStatsMap.put(file);
     return this;
   }
 
@@ -145,6 +150,27 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     }
 
     return newManifests;
+  }
+
+  @Override
+  protected Map<Integer, String> updatePartitionStats() {
+    Map<Integer, String> newPartitionStatsLocations = new HashMap<>();
+    boolean unpartitioned = ops.current().spec().isUnpartitioned();
+    if (unpartitioned) {
+      return newPartitionStatsLocations;
+    }
+
+    int currentSpecID = ops.current().spec().specId();
+    List<PartitionStatsEntry> oldStatsEntries = getOldPartitionStatsBySpec(currentSpecID);
+    PartitionsTable.PartitionMap partitionMap = partitionStatsMap.getPartitionMap(currentSpecID);
+    if (Objects.isNull(partitionMap)) {
+      partitionMap = partitionStatsMap.getEmptyPartitionMap(currentSpecID);
+    }
+    partitionMap.addPartitionStatsEntries(oldStatsEntries);
+    OutputFile outputFile = newPartitionStatsFile(currentSpecID);
+    newPartitionStatsLocations.put(currentSpecID, outputFile.location());
+    writePartitionStatsEntries(partitionMap.getAllPartitionStatsEntries(), outputFile, currentSpecID);
+    return newPartitionStatsLocations;
   }
 
   @Override

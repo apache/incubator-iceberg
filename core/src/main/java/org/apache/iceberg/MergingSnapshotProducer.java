@@ -21,8 +21,10 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -67,6 +69,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final ManifestMergeManager<DeleteFile> deleteMergeManager;
   private final ManifestFilterManager<DeleteFile> deleteFilterManager;
   private final boolean snapshotIdInheritanceEnabled;
+  private final PartitionStatsMap partitionStatsMap;
 
   // update data
   private final List<DataFile> newFiles = Lists.newArrayList();
@@ -100,6 +103,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     this.deleteFilterManager = new DeleteFileFilterManager();
     this.snapshotIdInheritanceEnabled = ops.current()
         .propertyAsBoolean(SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+    this.partitionStatsMap = new PartitionStatsMap(ops.current().specsById());
   }
 
   @Override
@@ -182,6 +186,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     addedFilesSummary.addedFile(spec, file);
     hasNewFiles = true;
     newFiles.add(file);
+    partitionStatsMap.put(file);
   }
 
   /**
@@ -339,8 +344,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Snapshot current = base.currentSnapshot();
 
     // filter any existing manifests
-    List<ManifestFile> filtered = filterManager.filterManifests(
-        base.schema(), current != null ? current.dataManifests() : null);
+    List<ManifestFile> filtered = filterManager.filterManifests(base.schema(),
+        current != null ? current.dataManifests() : null);
     long minDataSequenceNumber = filtered.stream()
         .map(ManifestFile::minSequenceNumber)
         .filter(seq -> seq > 0) // filter out unassigned sequence numbers in rewritten manifests
@@ -492,6 +497,51 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     return cachedNewDeleteManifest;
+  }
+
+  @Override
+  protected Map<Integer, String> updatePartitionStats() {
+    Map<Integer, String> newPartitionStatsLocations = new HashMap<>();
+    boolean unpartitioned = ops.current().spec().isUnpartitioned();
+    if (unpartitioned) {
+      return newPartitionStatsLocations;
+    }
+
+    int currentSpecID = ops.current().spec().specId();
+    /**
+     *  Update Partition Stats for Delete operation
+     */
+    PartitionStatsMap deletePartitionStatsMap = filterManager.getPartitionStatsMap();
+    deletePartitionStatsMap.getAllUpdatedPartitionSpec().forEach(
+        specId -> {
+          if (specId != currentSpecID) {
+            List<PartitionStatsEntry> statsEntries = getOldPartitionStatsBySpec(specId);
+            PartitionsTable.PartitionMap parMap = deletePartitionStatsMap.getPartitionMap(specId);
+            parMap.subtractFromPartitionStatsEntries(statsEntries);
+            OutputFile outputFile = newPartitionStatsFile(specId);
+            newPartitionStatsLocations.put(specId, outputFile.location());
+            writePartitionStatsEntries(parMap.getAllPartitionStatsEntries(), outputFile, specId);
+          }
+        }
+    );
+
+    /**
+     *  Update Partition Stats for Add operation
+     */
+    List<PartitionStatsEntry> oldStatsEntries = getOldPartitionStatsBySpec(currentSpecID);
+    PartitionsTable.PartitionMap partitionMap = partitionStatsMap.getPartitionMap(currentSpecID);
+    if (Objects.isNull(partitionMap)) {
+      partitionMap = partitionStatsMap.getEmptyPartitionMap(currentSpecID);
+    }
+    partitionMap.addPartitionStatsEntries(oldStatsEntries);
+    PartitionsTable.PartitionMap deletePartitionMap = deletePartitionStatsMap.getPartitionMap(currentSpecID);
+    if (Objects.nonNull(deletePartitionMap)) {
+      partitionMap.subtractPartitionMap(deletePartitionMap);
+    }
+    OutputFile outputFile = newPartitionStatsFile(currentSpecID);
+    newPartitionStatsLocations.put(currentSpecID, outputFile.location());
+    writePartitionStatsEntries(partitionMap.getAllPartitionStatsEntries(), outputFile, currentSpecID);
+    return newPartitionStatsLocations;
   }
 
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {

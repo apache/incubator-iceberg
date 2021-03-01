@@ -43,6 +43,7 @@ class BaseSnapshot implements Snapshot {
   private final String manifestListLocation;
   private final String operation;
   private final Map<String, String> summary;
+  private final Map<Integer, String> partitionStatsFiles;
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
@@ -56,10 +57,10 @@ class BaseSnapshot implements Snapshot {
    */
   BaseSnapshot(FileIO io,
                long snapshotId,
-               String... manifestFiles) {
+               Map<Integer, String> partitionStatsFiles, String... manifestFiles) {
     this(io, snapshotId, null, System.currentTimeMillis(), null, null,
         Lists.transform(Arrays.asList(manifestFiles),
-            path -> new GenericManifestFile(io.newInputFile(path), 0)));
+            path -> new GenericManifestFile(io.newInputFile(path), 0)), partitionStatsFiles);
   }
 
   BaseSnapshot(FileIO io,
@@ -69,7 +70,7 @@ class BaseSnapshot implements Snapshot {
                long timestampMillis,
                String operation,
                Map<String, String> summary,
-               String manifestList) {
+               String manifestList, Map<Integer, String> partitionStatsFiles) {
     this.io = io;
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
@@ -78,6 +79,7 @@ class BaseSnapshot implements Snapshot {
     this.operation = operation;
     this.summary = summary;
     this.manifestListLocation = manifestList;
+    this.partitionStatsFiles = partitionStatsFiles;
   }
 
   BaseSnapshot(FileIO io,
@@ -86,8 +88,9 @@ class BaseSnapshot implements Snapshot {
                long timestampMillis,
                String operation,
                Map<String, String> summary,
-               List<ManifestFile> dataManifests) {
-    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null);
+               List<ManifestFile> dataManifests, Map<Integer, String> partitionStatsFiles) {
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null,
+        partitionStatsFiles);
     this.allManifests = dataManifests;
   }
 
@@ -178,6 +181,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public String manifestListLocation() {
     return manifestListLocation;
+  }
+
+  @Override
+  public Map<Integer, String> partitionStatsFiles() {
+    return partitionStatsFiles;
   }
 
   private void cacheChanges() {

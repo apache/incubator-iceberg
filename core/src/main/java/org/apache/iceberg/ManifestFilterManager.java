@@ -75,6 +75,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private boolean failAnyDelete = false;
   private boolean failMissingDeletePaths = false;
   private int duplicateDeleteCount = 0;
+  private final PartitionStatsMap deletePartitionStatsMap;
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
@@ -87,6 +88,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     this.specsById = specsById;
     this.deleteFilePartitions = PartitionSet.create(specsById);
     this.dropPartitions = PartitionSet.create(specsById);
+    this.deletePartitionStatsMap = new PartitionStatsMap(specsById);
   }
 
   protected abstract void deleteFile(String location);
@@ -364,6 +366,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     return hasDeletedFiles;
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private ManifestFile filterManifestWithDeletedFiles(
       StrictMetricsEvaluator metricsEvaluator, ManifestFile manifest, ManifestReader<F> reader) {
     boolean isDelete = reader.isDeleteManifestReader();
@@ -390,6 +393,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                   this.deleteExpression, file.path());
 
               writer.delete(entry);
+              if (entry.file() instanceof DataFile) {
+                deletePartitionStatsMap.put((DataFile) entry.file());
+              }
 
               CharSequenceWrapper wrapper = CharSequenceWrapper.wrap(entry.file().path());
               if (deletedPaths.contains(wrapper)) {
@@ -434,5 +440,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private Evaluator inclusiveDeleteEvaluator(PartitionSpec spec) {
     Expression inclusiveExpr = Projections.inclusive(spec).project(deleteExpression);
     return new Evaluator(spec.partitionType(), inclusiveExpr);
+  }
+
+  public PartitionStatsMap getPartitionStatsMap() {
+    return deletePartitionStatsMap;
   }
 }

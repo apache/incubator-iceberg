@@ -21,6 +21,7 @@ package org.apache.iceberg.actions;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
@@ -67,6 +68,26 @@ abstract class BaseSparkAction<R> implements Action<R> {
   }
 
   /**
+   * Returns all the path locations of all PartitionStats File for a given list of snapshots
+   *
+   * @param snapshots snapshots
+   * @return the paths of Partition Stats File
+   */
+  private List<String> getPartitionStatsListPaths(Iterable<Snapshot> snapshots) {
+    List<String> partitionStatsFileList = Lists.newArrayList();
+    for (Snapshot snapshot : snapshots) {
+      Map partitionStatsMap = snapshot.partitionStatsFiles();
+      if (partitionStatsMap != null) {
+        partitionStatsMap.keySet().forEach(key -> {
+          String partitionStatsLoc = (String) partitionStatsMap.get(key);
+          partitionStatsFileList.add(partitionStatsLoc);
+        });
+      }
+    }
+    return partitionStatsFileList;
+  }
+
+  /**
    * Returns all Metadata file paths which may not be in the current metadata. Specifically
    * this includes "version-hint" files as well as entries in metadata.previousFiles.
    * @param ops TableOperations for the table we will be getting paths from
@@ -110,6 +131,11 @@ abstract class BaseSparkAction<R> implements Action<R> {
     return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
   }
 
+  protected Dataset<Row> buildPartitionStatsFileListDF(SparkSession spark, Table table) {
+    List<String> manifestLists = getPartitionStatsListPaths(table.snapshots());
+    return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
+  }
+
   protected Dataset<Row> buildManifestListDF(SparkSession spark, String metadataFileLocation) {
     StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, table().io());
     return buildManifestListDF(spark, new BaseTable(ops, table().name()));
@@ -123,9 +149,10 @@ abstract class BaseSparkAction<R> implements Action<R> {
   protected Dataset<Row> buildValidMetadataFileDF(SparkSession spark, Table table, TableOperations ops) {
     Dataset<Row> manifestDF = buildManifestFileDF(spark, table.name());
     Dataset<Row> manifestListDF = buildManifestListDF(spark, table);
+    Dataset<Row> partitionStatListsDF = buildPartitionStatsFileListDF(spark, table);
     Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(spark, ops);
 
-    return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
+    return manifestDF.union(otherMetadataFileDF).union(partitionStatListsDF).union(manifestListDF);
   }
 
   // Attempt to use Spark3 Catalog resolution if available on the path
