@@ -42,8 +42,8 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
   protected FileAppenderFactory<Record> createAppenderFactory(List<Integer> equalityFieldIds,
                                                               Schema eqDeleteSchema,
                                                               Schema posDeleteRowSchema) {
-    return new GenericAppenderFactory(table.schema(), table.spec(), ArrayUtil.toIntArray(equalityFieldIds),
-        eqDeleteSchema, posDeleteRowSchema);
+    return new GenericAppenderFactory(table.schema(), table.spec(), table.sortOrder(),
+        ArrayUtil.toIntArray(equalityFieldIds), eqDeleteSchema, posDeleteRowSchema);
   }
 
   @Override

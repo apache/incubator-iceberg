@@ -27,6 +27,7 @@ import java.util.Set;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SortOrderUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,10 +80,11 @@ public class MetricsConfig implements Serializable {
   }
 
   public static MetricsConfig fromProperties(Map<String, String> props) {
-    return fromProperties(props, new HashSet<>());
+    return fromSortOrder(props, null);
   }
 
-  public static MetricsConfig fromProperties(Map<String, String> props, Set<String> sortedCols) {
+  public static MetricsConfig fromSortOrder(Map<String, String> props, SortOrder sortOrder) {
+    Set<String> sortedCols = SortOrderUtil.getSortedColumns(sortOrder);
     MetricsConfig spec = new MetricsConfig();
     String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     try {
@@ -93,7 +95,7 @@ public class MetricsConfig implements Serializable {
       spec.defaultMode = MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     }
 
-    // Add default sorted column config, if set
+    // Add default sorted column config
     MetricsMode sortedColDefaultMode = MetricsModes.promoteSortedColumnDefault(spec.defaultMode);
     if (sortedCols != null) {
       sortedCols.stream().forEach(sc -> {

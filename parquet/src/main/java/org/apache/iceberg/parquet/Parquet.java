@@ -61,7 +61,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ArrayUtil;
-import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroReadSupport;
@@ -118,8 +117,8 @@ public class Parquet {
     public WriteBuilder forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
-      metricsConfig(MetricsConfig.fromProperties(table.properties(),
-          SortOrderUtil.getSortedColumns(table.sortOrder())));
+      metricsConfig(MetricsConfig.fromSortOrder(table.properties(),
+          table.sortOrder()));
       return this;
     }
 
@@ -309,8 +308,8 @@ public class Parquet {
       rowSchema(table.schema());
       withSpec(table.spec());
       setAll(table.properties());
-      metricsConfig(MetricsConfig.fromProperties(
-          table.properties(), SortOrderUtil.getSortedColumns(table.sortOrder())));
+      metricsConfig(MetricsConfig.fromSortOrder(
+          table.properties(), table.sortOrder()));
       return this;
     }
 

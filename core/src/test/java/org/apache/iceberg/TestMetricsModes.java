@@ -25,11 +25,13 @@ import org.apache.iceberg.MetricsModes.Full;
 import org.apache.iceberg.MetricsModes.None;
 import org.apache.iceberg.MetricsModes.Truncate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestMetricsModes {
 
@@ -84,7 +86,15 @@ public class TestMetricsModes {
         TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "counts",
         TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2", "none");
 
-    MetricsConfig config = MetricsConfig.fromProperties(properties, ImmutableSet.of("col2", "col3"));
+    Schema schema = new Schema(
+        required(1, "col1", Types.IntegerType.get()),
+        required(2, "col2", Types.IntegerType.get()),
+        required(3, "col3", Types.IntegerType.get()),
+        required(4, "col4", Types.IntegerType.get())
+    );
+    SortOrder sortOrder = SortOrder.builderFor(schema).asc("col2").asc("col3").build();
+
+    MetricsConfig config = MetricsConfig.fromSortOrder(properties, sortOrder);
     Assert.assertEquals("Non-sorted existing column should not be overridden",
         Counts.get(), config.columnMode("col1"));
     Assert.assertEquals("Sorted column defaults should not override user specified config",
@@ -102,7 +112,14 @@ public class TestMetricsModes {
         TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "full",
         TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2", "invalid");
 
-    MetricsConfig config = MetricsConfig.fromProperties(properties, ImmutableSet.of("col2", "col3"));
+    Schema schema = new Schema(
+        required(1, "col1", Types.IntegerType.get()),
+        required(2, "col2", Types.IntegerType.get()),
+        required(3, "col3", Types.IntegerType.get())
+    );
+    SortOrder sortOrder = SortOrder.builderFor(schema).asc("col2").asc("col3").build();
+
+    MetricsConfig config = MetricsConfig.fromSortOrder(properties, sortOrder);
     Assert.assertEquals("Non-sorted existing column should not be overridden",
         Full.get(), config.columnMode("col1"));
     Assert.assertEquals("Sorted column defaults applies as user entered invalid mode",

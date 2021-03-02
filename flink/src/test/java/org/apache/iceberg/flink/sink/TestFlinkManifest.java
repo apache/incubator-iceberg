@@ -80,7 +80,7 @@ public class TestFlinkManifest {
         table.schema().findField("data").fieldId()
     };
     this.appenderFactory = new FlinkAppenderFactory(table.schema(), FlinkSchemaUtil.convert(table.schema()),
-        table.properties(), table.spec(), equalityFieldIds, table.schema(), null);
+        table.properties(), table.spec(), table.sortOrder(), equalityFieldIds, table.schema(), null);
   }
 
 
@@ -224,7 +224,7 @@ public class TestFlinkManifest {
   }
 
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
-    return SimpleDataUtil.writeFile(table.schema(), table.spec(), CONF,
+    return SimpleDataUtil.writeFile(table.schema(), table.spec(), table.sortOrder(), CONF,
         tablePath, FileFormat.PARQUET.addExtension(filename), rows);
   }
 

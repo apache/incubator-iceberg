@@ -39,6 +39,7 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.NaNUtil;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -71,11 +72,14 @@ public abstract class TestMergingMetrics<T> {
   protected static final Types.NestedField MAP_FIELD_2 = optional(20, "map2",
       Types.MapType.ofOptional(21, 22, Types.IntegerType.get(), Types.DoubleType.get())
   );
-  protected static final Types.NestedField STRUCT_FIELD = optional(23, "structField", Types.StructType.of(
+
+  protected static final Types.StructType NESTED_FIELDS = Types.StructType.of(
       required(24, "booleanField", Types.BooleanType.get()),
       optional(25, "date", Types.DateType.get()),
-      optional(27, "timestamp", Types.TimestampType.withZone())
-  ));
+      optional(27, "timestamp", Types.TimestampType.withZone()));
+
+  protected static final Types.NestedField STRUCT_FIELD = optional(23, "structField", NESTED_FIELDS);
+
 
   private static final Map<Types.NestedField, Integer> FIELDS_WITH_NAN_COUNT_TO_ID = ImmutableMap.of(
       FLOAT_FIELD, 3, DOUBLE_FIELD, 4, FLOAT_LIST, 10, MAP_FIELD_1, 18, MAP_FIELD_2, 22
@@ -109,6 +113,10 @@ public abstract class TestMergingMetrics<T> {
   }
 
   protected abstract FileAppender<T> writeAndGetAppender(List<Record> records) throws Exception;
+
+  protected abstract FileAppender<T> writeAndGetAppender(List<Record> records,
+                                                         Map<String, String> properties,
+                                                         SortOrder sortOrder) throws Exception;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -263,5 +271,57 @@ public abstract class TestMergingMetrics<T> {
     } else {
       return isMax ? Float.max((Float) val1, (Float) val2) : Float.min((Float) val1, (Float) val2);
     }
+  }
+
+  @Test
+  public void verifySortedColMetric() throws Exception {
+    Record record = GenericRecord.create(SCHEMA);
+    record.setField("id", 3);
+    record.setField("float", Float.NaN); // FLOAT_FIELD - 1
+    record.setField("double", Double.NaN); // DOUBLE_FIELD - 1
+    record.setField("floatlist", ImmutableList.of(3.3F, 2.8F, Float.NaN, -25.1F, Float.NaN)); // FLOAT_LIST - 2
+    record.setField("map1", ImmutableMap.of(Float.NaN, "a", 0F, "b")); // MAP_FIELD_1 - 1
+    record.setField("map2", ImmutableMap.of(
+        0, 0D, 1, Double.NaN, 2, 2D, 3, Double.NaN, 4, Double.NaN)); // MAP_FIELD_2 - 3
+
+    Record nestedStruct = GenericRecord.create(NESTED_FIELDS);
+    nestedStruct.setField("booleanField", true);
+    nestedStruct.setField("date", DateTimeUtil.dateFromDays(1500));
+    nestedStruct.setField("timestamp", null);
+    record.setField("structField", nestedStruct);
+
+    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).asc("id").asc("structField.date").build();
+    Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
+    FileAppender<T> appender = writeAndGetAppender(ImmutableList.of(record), props, sortOrder);
+
+    // Only two sorted fields (id, structField.date) will have metrics
+    Map<Integer, ByteBuffer> lowerBounds = appender.metrics().lowerBounds();
+    Assert.assertEquals(3, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)));
+    Assert.assertFalse(lowerBounds.containsKey(2));
+    Assert.assertFalse(lowerBounds.containsKey(3));
+    Assert.assertFalse(lowerBounds.containsKey(4));
+    Assert.assertFalse(lowerBounds.containsKey(5));
+    Assert.assertFalse(lowerBounds.containsKey(6));
+    Assert.assertFalse(lowerBounds.containsKey(7));
+    Assert.assertFalse(lowerBounds.containsKey(8));
+    Assert.assertFalse(lowerBounds.containsKey(9));
+    Assert.assertFalse(lowerBounds.containsKey(11));
+    Assert.assertFalse(lowerBounds.containsKey(24));
+    Assert.assertEquals(1500, (int) Conversions.fromByteBuffer(Types.DateType.get(), lowerBounds.get(25)));
+    Assert.assertFalse(lowerBounds.containsKey(27));
+
+    Map<Integer, ByteBuffer> upperBounds = appender.metrics().upperBounds();
+    Assert.assertEquals(3, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)));
+    Assert.assertFalse(upperBounds.containsKey(3));
+    Assert.assertFalse(upperBounds.containsKey(4));
+    Assert.assertFalse(upperBounds.containsKey(5));
+    Assert.assertFalse(upperBounds.containsKey(6));
+    Assert.assertFalse(upperBounds.containsKey(7));
+    Assert.assertFalse(upperBounds.containsKey(8));
+    Assert.assertFalse(upperBounds.containsKey(9));
+    Assert.assertFalse(upperBounds.containsKey(11));
+    Assert.assertFalse(upperBounds.containsKey(24));
+    Assert.assertEquals(1500, (int) Conversions.fromByteBuffer(Types.DateType.get(), upperBounds.get(25)));
+    Assert.assertFalse(upperBounds.containsKey(27));
   }
 }

@@ -332,7 +332,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
   private TaskWriterFactory<RowData> createTaskWriterFactory(List<Integer> equalityFieldIds) {
     return new RowDataTaskWriterFactory(table.schema(), FlinkSchemaUtil.convert(table.schema()),
-        table.spec(), table.locationProvider(), table.io(), table.encryption(), 128 * 1024 * 1024,
-        format, table.properties(), equalityFieldIds);
+        table.spec(), table.sortOrder(), table.locationProvider(), table.io(), table.encryption(),
+        128 * 1024 * 1024, format, table.properties(), equalityFieldIds);
   }
 }

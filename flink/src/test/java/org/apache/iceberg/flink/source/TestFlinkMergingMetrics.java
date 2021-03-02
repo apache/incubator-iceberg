@@ -21,10 +21,12 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TestMergingMetrics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -41,10 +43,17 @@ public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
 
   @Override
   protected FileAppender<RowData> writeAndGetAppender(List<Record> records) throws IOException {
+    return writeAndGetAppender(records, ImmutableMap.of(), SortOrder.unsorted());
+  }
+
+  @Override
+  protected FileAppender<RowData> writeAndGetAppender(List<Record> records,
+                                                      Map<String, String> properties,
+                                                      SortOrder sortOrder) throws IOException {
     RowType flinkSchema = FlinkSchemaUtil.convert(SCHEMA);
 
     FileAppender<RowData> appender =
-        new FlinkAppenderFactory(SCHEMA, flinkSchema, ImmutableMap.of(), PartitionSpec.unpartitioned())
+        new FlinkAppenderFactory(SCHEMA, flinkSchema, properties, PartitionSpec.unpartitioned(), sortOrder)
             .newAppender(org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);
     try (FileAppender<RowData> fileAppender = appender) {
       records.stream().map(r -> RowDataConverter.convert(SCHEMA, r)).forEach(fileAppender::add);

@@ -26,6 +26,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataWriter;
@@ -49,25 +50,29 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
   private final Schema schema;
   private final PartitionSpec spec;
+  private final SortOrder sortOrder;
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
   private final Map<String, String> config = Maps.newHashMap();
 
   public GenericAppenderFactory(Schema schema) {
-    this(schema, PartitionSpec.unpartitioned(), null, null, null);
+    this(schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, null, null);
   }
 
-  public GenericAppenderFactory(Schema schema, PartitionSpec spec) {
-    this(schema, spec, null, null, null);
+  public GenericAppenderFactory(Schema schema, PartitionSpec spec, SortOrder sortOrder) {
+    this(schema, spec, sortOrder, null, null, null);
   }
 
-  public GenericAppenderFactory(Schema schema, PartitionSpec spec,
+  public GenericAppenderFactory(Schema schema,
+                                PartitionSpec spec,
+                                SortOrder sortOrder,
                                 int[] equalityFieldIds,
                                 Schema eqDeleteRowSchema,
                                 Schema posDeleteRowSchema) {
     this.schema = schema;
     this.spec = spec;
+    this.sortOrder = sortOrder;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
@@ -85,7 +90,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
   @Override
   public FileAppender<Record> newAppender(OutputFile outputFile, FileFormat fileFormat) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    MetricsConfig metricsConfig = MetricsConfig.fromSortOrder(config, sortOrder);
     try {
       switch (fileFormat) {
         case AVRO:

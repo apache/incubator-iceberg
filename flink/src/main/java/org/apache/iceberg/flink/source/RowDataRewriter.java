@@ -76,6 +76,7 @@ public class RowDataRewriter {
         table.schema(),
         flinkSchema,
         table.spec(),
+        table.sortOrder(),
         table.locationProvider(),
         io,
         encryptionManager,

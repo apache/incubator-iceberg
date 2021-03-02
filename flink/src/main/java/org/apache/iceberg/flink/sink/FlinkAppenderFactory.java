@@ -30,6 +30,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -53,6 +54,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   private final RowType flinkSchema;
   private final Map<String, String> props;
   private final PartitionSpec spec;
+  private final SortOrder sortOrder;
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
@@ -60,17 +62,19 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   private RowType eqDeleteFlinkSchema = null;
   private RowType posDeleteFlinkSchema = null;
 
-  public FlinkAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props, PartitionSpec spec) {
-    this(schema, flinkSchema, props, spec, null, null, null);
+  public FlinkAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props,
+                              PartitionSpec spec, SortOrder sortOrder) {
+    this(schema, flinkSchema, props, spec, sortOrder, null, null, null);
   }
 
   public FlinkAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props,
-                              PartitionSpec spec, int[] equalityFieldIds,
-                              Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
+                              PartitionSpec spec, SortOrder sortOrder,
+                              int[] equalityFieldIds, Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
     this.schema = schema;
     this.flinkSchema = flinkSchema;
     this.props = props;
     this.spec = spec;
+    this.sortOrder = sortOrder;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
@@ -94,7 +98,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
   @Override
   public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
+    MetricsConfig metricsConfig = MetricsConfig.fromSortOrder(props, sortOrder);
     try {
       switch (format) {
         case AVRO:

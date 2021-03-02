@@ -27,6 +27,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.io.FileAppenderFactory;
@@ -43,6 +44,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Schema schema;
   private final RowType flinkSchema;
   private final PartitionSpec spec;
+  private final SortOrder sortOrder;
   private final LocationProvider locations;
   private final FileIO io;
   private final EncryptionManager encryptionManager;
@@ -56,6 +58,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   public RowDataTaskWriterFactory(Schema schema,
                                   RowType flinkSchema,
                                   PartitionSpec spec,
+                                  SortOrder sortOrder,
                                   LocationProvider locations,
                                   FileIO io,
                                   EncryptionManager encryptionManager,
@@ -66,6 +69,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.schema = schema;
     this.flinkSchema = flinkSchema;
     this.spec = spec;
+    this.sortOrder = sortOrder;
     this.locations = locations;
     this.io = io;
     this.encryptionManager = encryptionManager;
@@ -74,10 +78,10 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.equalityFieldIds = equalityFieldIds;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, tableProperties, spec);
+      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, tableProperties, spec, sortOrder);
     } else {
       // TODO provide the ability to customize the equality-delete row schema.
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, tableProperties, spec,
+      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, tableProperties, spec, sortOrder,
           ArrayUtil.toIntArray(equalityFieldIds), schema, null);
     }
   }

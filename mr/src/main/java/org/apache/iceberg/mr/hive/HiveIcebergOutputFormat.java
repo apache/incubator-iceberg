@@ -35,8 +35,12 @@ import org.apache.hadoop.util.Progressable;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+<<<<<<< HEAD
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+=======
+import org.apache.iceberg.SortOrder;
+>>>>>>> Address review comments
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.EncryptionManager;

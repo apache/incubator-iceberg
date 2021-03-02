@@ -33,7 +33,6 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
@@ -632,11 +631,19 @@ public abstract class TestMetrics {
     secondRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
     secondRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
 
+    SortOrder sortOrder = SortOrder.builderFor(SIMPLE_SCHEMA)
+        .asc("booleanCol")
+        .asc("intCol")
+        .asc("longCol")
+        .asc("decimalCol")
+        .asc("stringCol")
+        .asc("dateCol").build();
+
     Metrics metrics = getMetrics(
         SIMPLE_SCHEMA,
-        MetricsConfig.fromProperties(
-            ImmutableMap.of("write.metadata.metrics.default", "none"),
-            ImmutableSet.of("booleanCol", "intCol", "longCol", "decimalCol", "stringCol", "dateCol")),
+        MetricsConfig.fromSortOrder(
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none"),
+            sortOrder),
         firstRecord, secondRecord);
 
     Assert.assertEquals(2L, (long) metrics.recordCount());
@@ -664,9 +671,13 @@ public abstract class TestMetrics {
     record.setField("intCol", Integer.MAX_VALUE);
     record.setField("nestedStructCol", nestedStruct);
 
-    Metrics metrics = getMetrics(NESTED_SCHEMA, MetricsConfig.fromProperties(
-        ImmutableMap.of("write.metadata.metrics.default", "none"),
-        ImmutableSet.of("nestedStructCol.longCol", "nestedStructCol.leafStructCol.leafLongCol")),
+    SortOrder sortOrder = SortOrder.builderFor(NESTED_SCHEMA)
+        .asc("nestedStructCol.longCol")
+        .asc("nestedStructCol.leafStructCol.leafLongCol").build();
+
+    Metrics metrics = getMetrics(NESTED_SCHEMA,
+        MetricsConfig.fromSortOrder(
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none"), sortOrder),
         record);
 
     assertBounds(3, LongType.get(), Long.MAX_VALUE, Long.MAX_VALUE, metrics);

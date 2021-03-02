@@ -433,7 +433,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
    */
   private GenericTaskDeltaWriter createTaskWriter(List<Integer> equalityFieldIds, Schema eqDeleteRowSchema) {
     FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
-        ArrayUtil.toIntArray(equalityFieldIds), eqDeleteRowSchema, null);
+        table.sortOrder(), ArrayUtil.toIntArray(equalityFieldIds), eqDeleteRowSchema, null);
 
     List<String> columns = Lists.newArrayList();
     for (Integer fieldId : equalityFieldIds) {
