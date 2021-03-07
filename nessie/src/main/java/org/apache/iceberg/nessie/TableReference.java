@@ -20,10 +20,34 @@
 package org.apache.iceberg.nessie;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalQuery;
+import java.util.List;
+import java.util.Optional;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TableReference {
+  private static final Logger LOG = LoggerFactory.getLogger(TableReference.class);
+  private static final ZoneId UTC = ZoneId.of("UTC");
+  private static final Splitter REF = Splitter.on("@");
+  private static final Splitter TIMESTAMP = Splitter.on("#");
 
+  private static DynMethods.StaticMethod sparkSessionMethod;
+  private static DynMethods.UnboundMethod sparkContextMethod;
+  private static DynMethods.UnboundMethod sparkConfMethod;
+  private static DynMethods.UnboundMethod sparkConfGetMethod;
+  private static boolean sparkAvailable = false;
+  private static boolean sparkAvailableChecked = false;
   private final TableIdentifier tableIdentifier;
   private final Instant timestamp;
   private final String reference;
@@ -64,31 +88,138 @@ public class TableReference {
    */
   public static TableReference parse(String path) {
     // I am assuming tables can't have @ or # symbols
-    if (path.split("@").length > 2) {
+    if (REF.splitToList(path).size() > 2) {
       throw new IllegalArgumentException(String.format("Can only reference one branch in %s", path));
     }
-    if (path.split("#").length > 2) {
+    if (TIMESTAMP.splitToList(path).size() > 2) {
       throw new IllegalArgumentException(String.format("Can only reference one timestamp in %s", path));
     }
 
     if (path.contains("@") && path.contains("#")) {
-      throw new IllegalArgumentException("Invalid table name:" +
-          " # is not allowed (reference by timestamp is not supported)");
+      List<String> tableRef = REF.splitToList(path);
+      if (tableRef.get(0).contains("#")) {
+        throw new IllegalArgumentException("Invalid table name:" +
+            " # is not allowed before @. Correct format is table@ref#timestamp");
+      }
+      TableIdentifier identifier = TableIdentifier.parse(tableRef.get(0));
+      List<String> timestampRef = TIMESTAMP.splitToList(tableRef.get(1));
+      return new TableReference(identifier, parseTimestamp(timestampRef.get(1)), timestampRef.get(0));
     }
 
     if (path.contains("@")) {
-      String[] tableRef = path.split("@");
-      TableIdentifier identifier = TableIdentifier.parse(tableRef[0]);
-      return new TableReference(identifier, null, tableRef[1]);
+      List<String> tableRef = REF.splitToList(path);
+      TableIdentifier identifier = TableIdentifier.parse(tableRef.get(0));
+      return new TableReference(identifier, null, tableRef.get(1));
     }
 
     if (path.contains("#")) {
-      throw new IllegalArgumentException("Invalid table name:" +
-          " # is not allowed (reference by timestamp is not supported)");
+      List<String> tableTimestamp = TIMESTAMP.splitToList(path);
+      TableIdentifier identifier = TableIdentifier.parse(tableTimestamp.get(0));
+      return new TableReference(identifier, parseTimestamp(tableTimestamp.get(1)), null);
     }
 
     TableIdentifier identifier = TableIdentifier.parse(path);
 
     return new TableReference(identifier, null, null);
+  }
+
+  private enum DateTimeFormatOptions {
+    DATE_TIME(DateTimeFormatter.ISO_DATE_TIME, ZonedDateTime::from),
+    LOCAL_DATE_TIME(DateTimeFormatter.ISO_LOCAL_DATE_TIME, t -> LocalDateTime.from(t).atZone(sparkTimezoneOrUTC())),
+    LOCAL_DATE(DateTimeFormatter.ISO_LOCAL_DATE, t -> LocalDate.from(t).atStartOfDay(sparkTimezoneOrUTC()));
+
+    private final DateTimeFormatter formatter;
+    private final TemporalQuery<ZonedDateTime> converter;
+
+    DateTimeFormatOptions(DateTimeFormatter formatter, TemporalQuery<ZonedDateTime> converter) {
+      this.formatter = formatter;
+      this.converter = converter;
+    }
+
+    public ZonedDateTime convert(String timestampStr) {
+      try {
+        return formatter.parse(timestampStr, converter);
+      } catch (DateTimeParseException e) {
+        return null;
+      }
+    }
+  }
+
+  private static Instant parseTimestamp(String timestamp) {
+    ZonedDateTime parsed;
+    for (DateTimeFormatOptions options : DateTimeFormatOptions.values()) {
+      parsed = options.convert(modifyTimestamp(timestamp));
+      if (parsed != null) {
+        return endOfPeriod(parsed, timestamp).toInstant();
+      }
+    }
+    throw new IllegalArgumentException(
+        String.format("Cannot parse timestamp: %s is not a legal format. (Use an ISO 8601 compliant string)", timestamp)
+    );
+  }
+
+  private static String modifyTimestamp(String timestamp) {
+    if (timestamp.length() == 7) {
+      // only month. add a day
+      return String.format("%s-01", timestamp);
+    } else if (timestamp.length() == 4) {
+      // only year. add a month and day
+      return String.format("%s-01-01", timestamp);
+    } else {
+      return timestamp;
+    }
+  }
+
+  private static ZonedDateTime endOfPeriod(ZonedDateTime instant, String timestamp) {
+    if (timestamp.length() == 10) {
+      // only date. Move to end of day
+      return endOfPeriod(instant, ChronoUnit.DAYS);
+    } else if (timestamp.length() == 7) {
+      // only month. Move to end of month
+      return endOfPeriod(instant, ChronoUnit.MONTHS);
+    } else if (timestamp.length() == 4) {
+      // only month. Move to end of month
+      return endOfPeriod(instant, ChronoUnit.YEARS);
+    } else {
+      return instant;
+    }
+  }
+
+  private static ZonedDateTime endOfPeriod(ZonedDateTime instant, ChronoUnit unit) {
+    return instant.plus(1, unit).minus(1, ChronoUnit.MICROS);
+  }
+
+  private static ZoneId sparkTimezoneOrUTC() {
+    return sparkTimezone().map(ZoneId::of).orElse(UTC);
+  }
+
+  private static Optional<String> sparkTimezone() {
+    if (!sparkAvailableChecked) {
+      sparkAvailableChecked = true;
+      try {
+        sparkSessionMethod = DynMethods.builder("active")
+            .impl("org.apache.spark.sql.SparkSession").buildStatic();
+        sparkContextMethod = DynMethods.builder("sparkContext")
+            .impl("org.apache.spark.sql.SparkSession").build();
+        sparkConfMethod = DynMethods.builder("conf")
+            .impl("org.apache.spark.SparkContext").build();
+        sparkConfGetMethod = DynMethods.builder("get")
+            .impl("org.apache.spark.SparkConf").build();
+        sparkAvailable = true;
+      } catch (RuntimeException e) {
+        sparkAvailable = false; // spark not on classpath
+      }
+    }
+    if (sparkAvailable) {
+      try {
+        Object sparkContext = sparkContextMethod.bind(sparkSessionMethod.invoke()).invoke();
+        Object sparkConf = sparkConfMethod.bind(sparkContext).invoke();
+        return Optional.ofNullable(sparkConfGetMethod.bind(sparkConf).invoke("spark.sql.session.timeZone"));
+      } catch (RuntimeException e) {
+        // we may fail to get Spark timezone, we don't want to crash over that so just log and continue.
+        LOG.warn("Cannot find Spark timezone. Using UTC instead.", e);
+      }
+    }
+    return Optional.empty();
   }
 }

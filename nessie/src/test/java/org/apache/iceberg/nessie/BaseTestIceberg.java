@@ -51,7 +51,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class BaseTestIceberg {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(BaseTestIceberg.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BaseTestIceberg.class);
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -114,7 +114,7 @@ public abstract class BaseTestIceberg {
     try {
       return catalog.createTable(tableIdentifier, schema(count));
     } catch (Throwable t) {
-      LOGGER.error("unable to do create " + tableIdentifier.toString(), t);
+      LOG.error("unable to do create " + tableIdentifier.toString(), t);
       throw t;
     }
   }

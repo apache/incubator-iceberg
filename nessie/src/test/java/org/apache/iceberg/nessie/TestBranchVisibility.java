@@ -21,6 +21,10 @@ package org.apache.iceberg.nessie;
 
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -105,13 +109,45 @@ public class TestBranchVisibility extends BaseTestIceberg {
     Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")),
         metadataLocation(testCatalog, tableIdentifier1));
 
-    // asking for table@branch#hash gives expected regardless of catalog
+    // asking for table@hash gives expected regardless of catalog
     Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainHash)),
         metadataLocation(testCatalog, tableIdentifier1));
+
+
   }
 
   @Test
-  public void testConcurrentChanges() throws NessieNotFoundException {
+  public void testCatalogWithTimestamps() throws InterruptedException, NessieNotFoundException {
+    updateSchema(testCatalog, tableIdentifier2);
+
+    Instant commitBeforeTime = Instant.now().plusSeconds(1); // plus 1 second as a buffer for fast tests
+    String time = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.from(ZoneOffset.UTC)).format(commitBeforeTime);
+    String trimmedTime = time.substring(0, 19);
+
+    // asking for table#timestamp gives expected regardless of catalog
+    Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1#" + trimmedTime)),
+        metadataLocation(testCatalog, tableIdentifier1));
+
+    // asking for table@branch#timestamp gives expected regardless of catalog
+    Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test#" + trimmedTime)),
+        metadataLocation(testCatalog, tableIdentifier1));
+
+    updateSchema(testCatalog, tableIdentifier2);
+    Thread.sleep(2000);
+    updateSchema(testCatalog, tableIdentifier2);
+    String mainHash = tree.getReferenceByName("main").getHash();
+    commitBeforeTime = Instant.now().plusSeconds(1); // plus 1 second as a buffer for fast tests
+    time = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.from(ZoneOffset.UTC)).format(commitBeforeTime);
+    trimmedTime = time.substring(0, 19);
+    Thread.sleep(2000);
+    updateSchema(testCatalog, tableIdentifier2);
+    // asking for table#timestamp gives expected regardless of catalog
+    Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1#" + trimmedTime)),
+        metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainHash)));
+  }
+
+  @Test
+  public void testConcurrentChanges() {
     NessieCatalog emptyTestCatalog = initCatalog("test");
     updateSchema(testCatalog, tableIdentifier1);
     // Updating table with out of date hash. We expect this to succeed because of retry despite the conflict.

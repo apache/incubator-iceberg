@@ -68,9 +68,9 @@ public class TestNessieTable extends BaseTestIceberg {
   private static final String TABLE_NAME = "tbl";
   private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
   private static final ContentsKey KEY = ContentsKey.of(DB_NAME, TABLE_NAME);
-  private static final Schema schema = new Schema(Types.StructType.of(
+  private static final Schema SCHEMA = new Schema(Types.StructType.of(
       required(1, "id", Types.LongType.get())).fields());
-  private static final Schema altered = new Schema(Types.StructType.of(
+  private static final Schema ALTERED = new Schema(Types.StructType.of(
       required(1, "id", Types.LongType.get()),
       optional(2, "data", Types.LongType.get())).fields());
 
@@ -83,7 +83,7 @@ public class TestNessieTable extends BaseTestIceberg {
   @Before
   public void beforeEach() throws IOException {
     super.beforeEach();
-    this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, schema).location());
+    this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, SCHEMA).location());
   }
 
   @After
@@ -183,7 +183,7 @@ public class TestNessieTable extends BaseTestIceberg {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
 
     GenericRecordBuilder recordBuilder =
-        new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
+        new GenericRecordBuilder(AvroSchemaUtil.convert(SCHEMA, "test"));
     List<GenericData.Record> records = new ArrayList<>();
     records.add(recordBuilder.set("id", 1L).build());
     records.add(recordBuilder.set("id", 2L).build());
@@ -243,7 +243,7 @@ public class TestNessieTable extends BaseTestIceberg {
     // Only 2 snapshotFile Should exist and no manifests should exist
     Assert.assertEquals(2, metadataVersionFiles(TABLE_NAME).size());
     Assert.assertEquals(0, manifestFiles(TABLE_NAME).size());
-    Assert.assertEquals(altered.asStruct(), icebergTable.schema().asStruct());
+    Assert.assertEquals(ALTERED.asStruct(), icebergTable.schema().asStruct());
 
   }
 
@@ -316,7 +316,7 @@ public class TestNessieTable extends BaseTestIceberg {
 
   private static String addRecordsToFile(Table table, String filename) throws IOException {
     GenericRecordBuilder recordBuilder =
-        new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
+        new GenericRecordBuilder(AvroSchemaUtil.convert(SCHEMA, "test"));
     List<GenericData.Record> records = new ArrayList<>();
     records.add(recordBuilder.set("id", 1L).build());
     records.add(recordBuilder.set("id", 2L).build());
@@ -325,7 +325,7 @@ public class TestNessieTable extends BaseTestIceberg {
     String fileLocation = table.location().replace("file:", "") +
         String.format("/data/%s.avro", filename);
     try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(fileLocation))
-        .schema(schema)
+        .schema(SCHEMA)
         .named("test")
         .build()) {
       for (GenericData.Record rec : records) {

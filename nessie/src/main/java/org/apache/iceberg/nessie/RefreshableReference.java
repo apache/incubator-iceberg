@@ -25,12 +25,12 @@ import com.dremio.nessie.model.Branch;
 import com.dremio.nessie.model.Hash;
 import com.dremio.nessie.model.Reference;
 
-class UpdateableReference {
+class RefreshableReference {
 
   private Reference reference;
   private final TreeApi client;
 
-  UpdateableReference(Reference reference, TreeApi client) {
+  RefreshableReference(Reference reference, TreeApi client) {
     this.reference = reference;
     this.client = client;
   }
@@ -48,8 +48,8 @@ class UpdateableReference {
     return reference instanceof Branch;
   }
 
-  public UpdateableReference copy() {
-    return new UpdateableReference(reference, client);
+  public RefreshableReference copy() {
+    return new RefreshableReference(reference, client);
   }
 
   public String getHash() {

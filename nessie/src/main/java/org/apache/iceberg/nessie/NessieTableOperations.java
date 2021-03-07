@@ -41,7 +41,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
   private final NessieClient client;
   private final ContentsKey key;
-  private UpdateableReference reference;
+  private RefreshableReference reference;
   private IcebergTable table;
   private FileIO fileIO;
 
@@ -50,7 +50,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
    */
   public NessieTableOperations(
       ContentsKey key,
-      UpdateableReference reference,
+      RefreshableReference reference,
       NessieClient client,
       FileIO fileIO) {
     this.key = key;

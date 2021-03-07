@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.nessie;
 
+import java.time.Instant;
 import org.apache.iceberg.AssertHelpers;
 import org.junit.Assert;
 import org.junit.Test;
@@ -46,20 +47,38 @@ public class TestTableReference {
 
   @Test
   public void timestampOnly() {
-    String path = "foo#baz";
-    AssertHelpers.assertThrows("TableIdentifier is not parsable",
-        IllegalArgumentException.class,
-        "Invalid table name: # is not allowed (reference by timestamp is not supported)", () ->
-            TableReference.parse(path));
+    String path = "foo#2020-10-22";
+    TableReference pti = TableReference.parse(path);
+    Assert.assertEquals("foo", pti.tableIdentifier().name());
+    Assert.assertEquals(Instant.parse("2020-10-22T23:59:59.999999Z"), pti.timestamp());
+    Assert.assertNull(pti.reference());
+  }
+
+  @Test
+  public void timestampMonthOnly() {
+    String path = "foo#2020-10";
+    TableReference pti = TableReference.parse(path);
+    Assert.assertEquals("foo", pti.tableIdentifier().name());
+    Assert.assertEquals(Instant.parse("2020-10-31T23:59:59.999999Z"), pti.timestamp());
+    Assert.assertNull(pti.reference());
+  }
+
+  @Test
+  public void timestampYearOnly() {
+    String path = "foo#2020";
+    TableReference pti = TableReference.parse(path);
+    Assert.assertEquals("foo", pti.tableIdentifier().name());
+    Assert.assertEquals(Instant.parse("2020-12-31T23:59:59.999999Z"), pti.timestamp());
+    Assert.assertNull(pti.reference());
   }
 
   @Test
   public void branchAndTimestamp() {
-    String path = "foo@bar#baz";
-    AssertHelpers.assertThrows("TableIdentifier is not parsable",
-        IllegalArgumentException.class,
-        "Invalid table name: # is not allowed (reference by timestamp is not supported)", () ->
-            TableReference.parse(path));
+    String path = "foo@bar#2020-10-22T16:30:00";
+    TableReference pti = TableReference.parse(path);
+    Assert.assertEquals("foo", pti.tableIdentifier().name());
+    Assert.assertEquals(Instant.parse("2020-10-22T16:30:00.000Z"), pti.timestamp());
+    Assert.assertEquals("bar", pti.reference());
   }
 
   @Test
@@ -68,6 +87,15 @@ public class TestTableReference {
     AssertHelpers.assertThrows("TableIdentifier is not parsable",
         IllegalArgumentException.class,
         "Can only reference one branch in", () ->
+            TableReference.parse(path));
+  }
+
+  @Test
+  public void hashBranchReversed() {
+    String path = "foo#baz@bar";
+    AssertHelpers.assertThrows("TableIdentifier is not parsable",
+        IllegalArgumentException.class,
+        "Invalid table name: # is not allowed before @. Correct format is table@ref#timestamp", () ->
             TableReference.parse(path));
   }
 
