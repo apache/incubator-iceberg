@@ -336,6 +336,22 @@ public class TestFlinkFilters {
     Assert.assertFalse("Conversion should failed", actual.isPresent());
   }
 
+  @Test
+  public void testNotLike() {
+    // TODO - After RewriteNot, is this an issue that we don't use notStartsWith?
+    //        Flink does not support NOT_STARTS_WITH as a direct predicate.
+    Expression expr = resolve(ApiExpressionUtils.unresolvedCall(
+            BuiltInFunctionDefinitions.NOT, Expressions.$("field5").like(Expressions.lit("abc%"))));
+    Optional<org.apache.iceberg.expressions.Expression> actual = FlinkFilters.convert(expr);
+    Assert.assertTrue("Conversion should succeed", actual.isPresent());
+    Not not = (Not) actual.get();
+    Not expected = (Not) org.apache.iceberg.expressions.Expressions.not(
+            org.apache.iceberg.expressions.Expressions.startsWith("field5", "abc"));
+
+    Assert.assertEquals("Predicate operation should match", expected.op(), not.op());
+    assertPredicatesMatch(expected.child(), not.child());
+  }
+
   @SuppressWarnings("unchecked")
   private <T> void matchLiteral(String fieldName, Object flinkLiteral, T icebergLiteral) {
     Expression expr = resolve(Expressions.$(fieldName).isEqual(Expressions.lit(flinkLiteral)));

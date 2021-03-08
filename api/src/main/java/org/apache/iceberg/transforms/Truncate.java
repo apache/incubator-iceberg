@@ -284,7 +284,7 @@ abstract class Truncate<T> implements Transform<T, T> {
 
       if (predicate.isUnaryPredicate()) {
         return Expressions.predicate(predicate.op(), name);
-      } else if (predicate instanceof BoundLiteralPredicate) {
+      } else if (predicate.isLiteralPredicate()) {
         BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
         switch (pred.op()) {
           case STARTS_WITH:
