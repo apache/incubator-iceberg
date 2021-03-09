@@ -42,4 +42,13 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
    * @return this for method chaining
    */
   RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd);
+
+  /**
+   * Add a rewrite that replaces one set of deletes with another that contains the same deleted rows.
+   *
+   * @param deletesToDelete files that will be replaced, cannot be null or empty.
+   * @param deletesToAdd files that will be added, cannot be null or empty.
+   * @return this for method chaining
+   */
+  RewriteFiles rewriteDeletes(Set<DeleteFile> deletesToDelete, Set<DeleteFile> deletesToAdd);
 }

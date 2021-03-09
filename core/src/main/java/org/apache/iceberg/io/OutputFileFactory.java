@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 
@@ -101,6 +102,15 @@ public class OutputFileFactory {
    */
   public EncryptedOutputFile newOutputFile(PartitionKey key) {
     String newDataLocation = locations.newDataLocation(spec, key, generateFilename());
+    OutputFile rawOutputFile = io.newOutputFile(newDataLocation);
+    return encryptionManager.encrypt(rawOutputFile);
+  }
+
+  /**
+   * Generates EncryptedOutputFile for PartitionedWriter.
+   */
+  public EncryptedOutputFile newOutputFile(StructLike partition) {
+    String newDataLocation = locations.newDataLocation(spec, partition, generateFilename());
     OutputFile rawOutputFile = io.newOutputFile(newDataLocation);
     return encryptionManager.encrypt(rawOutputFile);
   }

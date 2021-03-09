@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionKey;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -37,7 +37,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.CharSequenceWrapper;
 
-class SortedPosDeleteWriter<T> implements Closeable {
+public class SortedPosDeleteWriter<T> implements Closeable {
   private static final long DEFAULT_RECORDS_NUM_THRESHOLD = 100_000L;
 
   private final Map<CharSequenceWrapper, List<PosRow<T>>> posDeletes = Maps.newHashMap();
@@ -48,7 +48,7 @@ class SortedPosDeleteWriter<T> implements Closeable {
   private final FileAppenderFactory<T> appenderFactory;
   private final OutputFileFactory fileFactory;
   private final FileFormat format;
-  private final PartitionKey partition;
+  private final StructLike partition;
   private final long recordsNumThreshold;
 
   private int records = 0;
@@ -56,7 +56,7 @@ class SortedPosDeleteWriter<T> implements Closeable {
   SortedPosDeleteWriter(FileAppenderFactory<T> appenderFactory,
                         OutputFileFactory fileFactory,
                         FileFormat format,
-                        PartitionKey partition,
+                        StructLike partition,
                         long recordsNumThreshold) {
     this.appenderFactory = appenderFactory;
     this.fileFactory = fileFactory;
@@ -65,10 +65,10 @@ class SortedPosDeleteWriter<T> implements Closeable {
     this.recordsNumThreshold = recordsNumThreshold;
   }
 
-  SortedPosDeleteWriter(FileAppenderFactory<T> appenderFactory,
-                        OutputFileFactory fileFactory,
-                        FileFormat format,
-                        PartitionKey partition) {
+  public SortedPosDeleteWriter(FileAppenderFactory<T> appenderFactory,
+                               OutputFileFactory fileFactory,
+                               FileFormat format,
+                               StructLike partition) {
     this(appenderFactory, fileFactory, format, partition, DEFAULT_RECORDS_NUM_THRESHOLD);
   }
 
