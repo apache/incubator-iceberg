@@ -19,13 +19,9 @@
 
 package org.apache.iceberg.nessie;
 
-import com.dremio.nessie.api.ContentsApi;
-import com.dremio.nessie.api.TreeApi;
 import com.dremio.nessie.client.NessieClient;
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
-import com.dremio.nessie.model.Branch;
-import com.dremio.nessie.model.Reference;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,46 +53,34 @@ public abstract class BaseTestIceberg {
   public TemporaryFolder temp = new TemporaryFolder();
 
   protected NessieCatalog catalog;
-  protected NessieClient client;
-  protected TreeApi tree;
-  protected ContentsApi contents;
   protected Configuration hadoopConfig;
   protected final String branch;
   private String path;
+  protected NessieClient client;
 
   public BaseTestIceberg(String branch) {
     this.branch = branch;
   }
 
-  private void resetData() throws NessieConflictException, NessieNotFoundException {
-    for (Reference r : tree.getAllReferences()) {
-      if (r instanceof Branch) {
-        tree.deleteBranch(r.getName(), r.getHash());
-      } else {
-        tree.deleteTag(r.getName(), r.getHash());
-      }
-    }
-    tree.createReference(Branch.of("main", null));
+  private void resetData() {
+
   }
 
   @Before
   public void beforeEach() throws IOException {
     String port = System.getProperty("quarkus.http.test-port", "19120");
     path = String.format("http://localhost:%s/api/v1", port);
-    this.client = NessieClient.none(path);
-    tree = client.getTreeApi();
-    contents = client.getContentsApi();
-
-    resetData();
-
-    try {
-      tree.createReference(Branch.of(branch, null));
-    } catch (Exception e) {
-      // ignore, already created. Cant run this in BeforeAll as quarkus hasn't disabled auth
-    }
-
     hadoopConfig = new Configuration();
-    catalog = initCatalog(branch);
+    catalog = initCatalog("main");
+    client = NessieClient.none(path);
+
+    catalog.listReferences().forEach(catalog::deleteReference);
+    catalog.createBranch("main");
+    if (!branch.equals("main")) {
+      catalog.createBranch(branch);
+    }
+    catalog.setCurrentReference(branch);
+
   }
 
   NessieCatalog initCatalog(String ref) {
@@ -134,15 +118,13 @@ public abstract class BaseTestIceberg {
   }
 
   void createBranch(String name, String hash) throws NessieNotFoundException, NessieConflictException {
-    tree.createReference(Branch.of(name, hash));
+    catalog.createBranch(name, hash);
   }
 
   @After
   public void afterEach() throws Exception {
     catalog.close();
-    client.close();
     catalog = null;
-    client = null;
     hadoopConfig = null;
   }
 

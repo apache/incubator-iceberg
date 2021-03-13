@@ -22,7 +22,6 @@ package org.apache.iceberg.nessie;
 
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
-import com.dremio.nessie.model.Branch;
 import com.dremio.nessie.model.ContentsKey;
 import com.dremio.nessie.model.IcebergTable;
 import java.io.File;
@@ -46,6 +45,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.catalog.Reference;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.FileAppender;
@@ -250,11 +250,11 @@ public class TestNessieTable extends BaseTestIceberg {
   @Test
   public void testFailure() throws NessieNotFoundException, NessieConflictException {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
-    Branch branch = (Branch) client.getTreeApi().getReferenceByName(BRANCH);
+    Reference ref = catalog.referenceByName(BRANCH);
 
     IcebergTable table = client.getContentsApi().getContents(KEY, BRANCH).unwrap(IcebergTable.class).get();
 
-    client.getContentsApi().setContents(KEY, branch.getName(), branch.getHash(), "",
+    client.getContentsApi().setContents(KEY, ref.name(), ref.hash(), "",
         IcebergTable.of("dummytable.metadata.json"));
 
     AssertHelpers.assertThrows("Update schema fails with conflict exception, ref not up to date",

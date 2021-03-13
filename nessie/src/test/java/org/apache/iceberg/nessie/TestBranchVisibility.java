@@ -82,10 +82,10 @@ public class TestBranchVisibility extends BaseTestIceberg {
   }
 
   @Test
-  public void testCatalogOnReference() throws NessieNotFoundException {
+  public void testCatalogOnReference() {
     updateSchema(catalog, tableIdentifier1);
     updateSchema(testCatalog, tableIdentifier2);
-    String mainHash = tree.getReferenceByName("main").getHash();
+    String mainHash = catalog.referenceByName("main").hash();
 
     // catalog created with ref points to same catalog as above
     NessieCatalog refCatalog = initCatalog("test");
@@ -97,9 +97,9 @@ public class TestBranchVisibility extends BaseTestIceberg {
   }
 
   @Test
-  public void testCatalogWithTableNames() throws NessieNotFoundException {
+  public void testCatalogWithTableNames() {
     updateSchema(testCatalog, tableIdentifier2);
-    String mainHash = tree.getReferenceByName("main").getHash();
+    String mainHash = catalog.referenceByName("main").hash();
 
     // asking for table@branch gives expected regardless of catalog
     Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")),
@@ -111,7 +111,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
   }
 
   @Test
-  public void testConcurrentChanges() throws NessieNotFoundException {
+  public void testConcurrentChanges() {
     NessieCatalog emptyTestCatalog = initCatalog("test");
     updateSchema(testCatalog, tableIdentifier1);
     // Updating table with out of date hash. We expect this to succeed because of retry despite the conflict.

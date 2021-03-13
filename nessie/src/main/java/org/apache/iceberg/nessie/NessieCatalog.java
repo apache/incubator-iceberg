@@ -25,13 +25,16 @@ import com.dremio.nessie.client.NessieConfigConstants;
 import com.dremio.nessie.error.BaseNessieClientServerException;
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
+import com.dremio.nessie.model.Branch;
 import com.dremio.nessie.model.Contents;
+import com.dremio.nessie.model.Hash;
 import com.dremio.nessie.model.IcebergTable;
 import com.dremio.nessie.model.ImmutableDelete;
 import com.dremio.nessie.model.ImmutableOperations;
 import com.dremio.nessie.model.ImmutablePut;
 import com.dremio.nessie.model.Operations;
 import com.dremio.nessie.model.Reference;
+import com.dremio.nessie.model.Tag;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,6 +48,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsBranches;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -69,7 +73,8 @@ import org.slf4j.LoggerFactory;
  *   objects stored in them to assist with namespace-centric catalog exploration.
  * </p>
  */
-public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
+public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable,
+    SupportsBranches {
   private static final Logger logger = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
   private NessieClient client;
@@ -332,6 +337,101 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
           .map(NessieUtil::toIdentifier);
     } catch (NessieNotFoundException ex) {
       throw new NoSuchNamespaceException(ex, "Unable to list tables due to missing ref. %s", reference.getName());
+    }
+  }
+
+  @Override
+  public void createReference(org.apache.iceberg.catalog.Reference ref) {
+    Reference nessieRef = toReference(ref);
+    if (nessieRef instanceof Hash) {
+      throw new IllegalStateException("Cannot create a hash. Can only create a Branch or Tag.");
+    }
+    try {
+      client.getTreeApi().createReference(nessieRef);
+    } catch (NessieNotFoundException e) {
+      throw new IllegalArgumentException(String.format("Cannot create reference, %s hash does not exist",
+          ref.hash()), e);
+    } catch (NessieConflictException e) {
+      throw new AlreadyExistsException(e, "Cannot create reference, %s already exists", ref);
+    }
+  }
+
+  @Override
+  public void deleteReference(org.apache.iceberg.catalog.Reference ref) {
+    Reference nessieRef = toReference(ref);
+    if (nessieRef instanceof Hash) {
+      throw new IllegalStateException("Cannot delete a hash. Can only delete a Branch or Tag.");
+    }
+    try {
+      if (nessieRef instanceof Branch) {
+        client.getTreeApi().deleteBranch(nessieRef.getName(), nessieRef.getHash());
+      } else {
+        // else here as we have already checked its a valid type
+        client.getTreeApi().deleteTag(nessieRef.getName(), nessieRef.getHash());
+      }
+    } catch (NessieNotFoundException e) {
+      throw new IllegalArgumentException(String.format("Cannot delete reference, %s does not exist",
+          ref.name()), e);
+    } catch (NessieConflictException e) {
+      throw new IllegalStateException(String.format("Cannot delete reference, hash %s is out of date. " +
+              "Update the ref and try again", ref));
+    }
+
+  }
+
+  @Override
+  public Iterable<org.apache.iceberg.catalog.Reference> listReferences() {
+    return client.getTreeApi().getAllReferences().stream().map(NessieCatalog::fromReference)
+        .collect(Collectors.toList());
+  }
+
+  @Override
+  public void deleteReference(String refName) {
+    deleteReference(referenceByName(refName));
+  }
+
+  @Override
+  public void setCurrentReference(String refName) {
+    reference = loadReference(refName);
+  }
+
+  @Override
+  public org.apache.iceberg.catalog.Reference currentReference() {
+    return fromReference(reference.getReference());
+  }
+
+  @Override
+  public org.apache.iceberg.catalog.Reference referenceByName(String refName) {
+    try {
+      return fromReference(client.getTreeApi().getReferenceByName(refName));
+    } catch (NessieNotFoundException e) {
+      throw new IllegalArgumentException(String.format("Cannot delete reference, %s does not exist", name), e);
+    }
+  }
+
+  private static org.apache.iceberg.catalog.Reference fromReference(Reference ref) {
+    if (ref instanceof Branch) {
+      return org.apache.iceberg.catalog.Reference.Branch.of(ref.getName(), ref.getHash());
+    } else if (ref instanceof Tag) {
+      return org.apache.iceberg.catalog.Reference.Tag.of(ref.getName(), ref.getHash());
+    } else if (ref instanceof Hash) {
+      return org.apache.iceberg.catalog.Reference.Hash.of(ref.getHash());
+    } else {
+      throw new IllegalStateException(String.format("Cannot create type %s. Only Hash, Branch and Tag are supported",
+          ref.getClass().getName()));
+    }
+  }
+
+  private static Reference toReference(org.apache.iceberg.catalog.Reference ref) {
+    if (ref instanceof org.apache.iceberg.catalog.Reference.Branch) {
+      return Branch.of(ref.name(), ref.hash());
+    } else if (ref instanceof org.apache.iceberg.catalog.Reference.Tag) {
+      return Tag.of(ref.name(), ref.hash());
+    } else if (ref instanceof org.apache.iceberg.catalog.Reference.Hash) {
+      return Hash.of(ref.hash());
+    } else {
+      throw new IllegalStateException(String.format("Cannot create type %s. Only Hash, Branch and Tag are supported",
+          ref.getClass().getName()));
     }
   }
 }

@@ -72,4 +72,8 @@ class UpdateableReference {
   public String getName() {
     return reference.getName();
   }
+
+  Reference getReference() {
+    return reference;
+  }
 }
