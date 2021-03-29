@@ -70,6 +70,7 @@ statement
     | ALTER TABLE multipartIdentifier ADD PARTITION FIELD transform (AS name=identifier)?   #addPartitionField
     | ALTER TABLE multipartIdentifier DROP PARTITION FIELD transform                        #dropPartitionField
     | ALTER TABLE multipartIdentifier WRITE writeSpec                                       #setWriteDistributionAndOrdering
+    | CREATE (BRANCH|TAG) identifier (IN catalog=identifier)? (AS reference=identifier)?    #nessieCreateRef
     ;
 
 writeSpec
@@ -157,8 +158,8 @@ quotedIdentifier
     ;
 
 nonReserved
-    : ADD | ALTER | AS | ASC | BY | CALL | DESC | DROP | FIELD | FIRST | LAST | NULLS | ORDERED | PARTITION | TABLE | WRITE
-    | DISTRIBUTED | LOCALLY | UNORDERED
+    : ADD | ALTER | AS | ASC | BRANCH | BY | CALL | CREATE| DESC | DROP | FIELD | FIRST | IN | LAST | NULLS | ORDERED | PARTITION | TABLE | WRITE
+    | DISTRIBUTED | LOCALLY | TAG | UNORDERED
     | TRUE | FALSE
     | MAP
     ;
@@ -167,19 +168,23 @@ ADD: 'ADD';
 ALTER: 'ALTER';
 AS: 'AS';
 ASC: 'ASC';
+BRANCH: 'BRANCH';
 BY: 'BY';
 CALL: 'CALL';
+CREATE: 'CREATE';
 DESC: 'DESC';
 DISTRIBUTED: 'DISTRIBUTED';
 DROP: 'DROP';
 FIELD: 'FIELD';
 FIRST: 'FIRST';
+IN: 'IN';
 LAST: 'LAST';
 LOCALLY: 'LOCALLY';
 NULLS: 'NULLS';
 ORDERED: 'ORDERED';
 PARTITION: 'PARTITION';
 TABLE: 'TABLE';
+TAG: 'TAG';
 UNORDERED: 'UNORDERED';
 WRITE: 'WRITE';
 

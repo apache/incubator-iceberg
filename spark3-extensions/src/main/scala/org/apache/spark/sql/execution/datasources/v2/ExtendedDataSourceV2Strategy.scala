@@ -33,6 +33,7 @@ import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.planning.PhysicalOperation
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
+import org.apache.spark.sql.catalyst.plans.logical.CreateBranchField
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilterWithCardinalityCheck
@@ -88,6 +89,10 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
 
     case MergeInto(mergeIntoParams, output, child) =>
       MergeIntoExec(mergeIntoParams, output, planLater(child)) :: Nil
+
+    case c @ CreateBranchField(branch, isBranch, catalog, reference) =>
+      CreateBranchExec(c.output, branch, spark.sessionState.catalogManager.currentCatalog, isBranch, catalog,
+        reference) :: Nil
 
     case _ => Nil
   }

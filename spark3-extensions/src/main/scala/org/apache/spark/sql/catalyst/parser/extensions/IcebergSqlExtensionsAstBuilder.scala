@@ -37,6 +37,7 @@ import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParse
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
+import org.apache.spark.sql.catalyst.plans.logical.CreateBranchField
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
@@ -78,6 +79,14 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     DropPartitionField(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       typedVisit[Transform](ctx.transform))
+  }
+
+  override def visitNessieCreateRef(ctx: NessieCreateRefContext): CreateBranchField = withOrigin(ctx) {
+    val isBranch = ctx.TAG == null
+    val refName = ctx.identifier(0).getText
+    val catalogName = Option(ctx.catalog).map(x => x.getText)
+    val createdFrom = Option(ctx.reference).map(x => x.getText)
+    CreateBranchField(refName, isBranch, catalogName, createdFrom)
   }
 
   /**

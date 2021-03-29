@@ -971,8 +971,12 @@ project(":iceberg-spark3-extensions") {
   }
 
   dependencies {
-    compileOnly project(':iceberg-spark3')
+    apply plugin: 'org.projectnessie'
 
+    compileOnly project(':iceberg-spark3')
+    compileOnly project(':iceberg-nessie')
+
+    quarkusAppRunnerConfig "org.projectnessie:nessie-quarkus:0.2.1"
     compileOnly "org.scala-lang:scala-library"
     compileOnly("org.apache.spark:spark-hive_2.12") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -988,6 +992,12 @@ project(":iceberg-spark3-extensions") {
     runtime "org.antlr:antlr4-runtime:4.7.1"
     antlr "org.antlr:antlr4:4.7.1"
   }
+
+  quarkusAppRunnerProperties {
+    props = ["quarkus.http.test-port": 0]
+  }
+  tasks.getByName("quarkus-start").dependsOn("compileTestJava")
+  tasks.test.dependsOn("quarkus-start").finalizedBy("quarkus-stop")
 
   generateGrammarSource {
     maxHeapSize = "64m"

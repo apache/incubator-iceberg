@@ -110,7 +110,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
 
   private def isIcebergCommand(sqlText: String): Boolean = {
     val normalized = sqlText.toLowerCase(Locale.ROOT).trim()
-    normalized.startsWith("call") || (
+    normalized.startsWith("call") || normalized.startsWith("create branch") || normalized.startsWith("create tag") || (
         normalized.startsWith("alter table") && (
             normalized.contains("add partition field") ||
             normalized.contains("drop partition field") ||
