@@ -406,7 +406,7 @@ public class InclusiveMetricsEvaluator {
       // Iceberg does not implement SQL 3-boolean logic. Therefore, for null values, we have decided to
       // return ROWS_MIGHT_MATCH in order to allow the query engine to further evaluate the file, as
       // null does not start with any non-null value.
-      if (containsNullsOnly(id)) {
+      if (mayContainNull(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -444,6 +444,10 @@ public class InclusiveMetricsEvaluator {
       }
 
       return ROWS_MIGHT_MATCH;
+    }
+
+    private boolean mayContainNull(Integer id) {
+      return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) != 0);
     }
 
     private boolean containsNullsOnly(Integer id) {

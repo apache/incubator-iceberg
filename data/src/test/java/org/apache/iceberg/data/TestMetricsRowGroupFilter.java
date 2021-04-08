@@ -750,7 +750,7 @@ public class TestMetricsRowGroupFilter {
     Assert.assertTrue("Should read: range matches", shouldRead);
 
     shouldRead = shouldRead(notStartsWith("some_nulls", "som"));
-    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+    Assert.assertTrue("Should read: range matches", shouldRead);
   }
 
   @Test

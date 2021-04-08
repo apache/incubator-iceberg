@@ -348,8 +348,8 @@ public class ManifestEvaluator {
       // Iceberg does not implement SQL 3-boolean logic. Therefore, for all null values, we have decided to
       // return ROWS_MIGHT_MATCH in order to allow the query engine to further evaluate this partition, as
       // null does not start with any non-null value.
-      if (fieldStats.lowerBound() == null) {
-        return ROWS_MIGHT_MATCH; // values are all null and literal cannot contain null
+      if (fieldStats.containsNull() || fieldStats.lowerBound() == null) {
+        return ROWS_MIGHT_MATCH;
       }
 
       ByteBuffer prefixAsBytes = lit.toByteBuffer();

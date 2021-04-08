@@ -470,7 +470,7 @@ public class TestInclusiveManifestEvaluator {
     Assert.assertTrue("Should read: range matches", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notStartsWith("all_same_value_or_null", "a"), SPEC, false).eval(FILE);
-    Assert.assertFalse("Should skip: range doesn't match", shouldRead);
+    Assert.assertTrue("Should read: range matches on null", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notStartsWith("all_same_value_or_null", "aa"), SPEC, false).eval(FILE);
     Assert.assertTrue("Should read: range matches", shouldRead);

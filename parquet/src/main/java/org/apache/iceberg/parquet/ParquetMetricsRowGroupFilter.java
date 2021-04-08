@@ -477,23 +477,23 @@ public class ParquetMetricsRowGroupFilter {
     @SuppressWarnings("unchecked")
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
-
       Long valueCount = valueCounts.get(id);
+
+      // Iceberg does not implement SQL 3-boolean logic. Therefore, for all null values, we have decided to
+      // return ROWS_MIGHT_MATCH in order to allow the query engine to further evaluate this partition, as
+      // null does not start with any non-null value.
       if (valueCount == null) {
         // the column is not present and is all nulls
-        return ROWS_CANNOT_MATCH;
+        return ROWS_MIGHT_MATCH;
       }
 
       Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
-        if (hasNonNullButNoMinMax(colStats, valueCount)) {
+        if (mayContainNull(colStats)) {
           return ROWS_MIGHT_MATCH;
         }
 
-        // Iceberg does not implement SQL 3-way boolean logic, so we return ROWS_MIGHT_MATCH
-        // for notStartsWith on all null columns by definition and allow the processing engine
-        // to handle further filtering.
-        if (!colStats.hasNonNullValue()) {
+        if (hasNonNullButNoMinMax(colStats, valueCount)) {
           return ROWS_MIGHT_MATCH;
         }
 
@@ -562,6 +562,10 @@ public class ParquetMetricsRowGroupFilter {
   static boolean hasNonNullButNoMinMax(Statistics statistics, long valueCount) {
     return statistics.getNumNulls() < valueCount &&
         (statistics.getMaxBytes() == null || statistics.getMinBytes() == null);
+  }
+
+  private static boolean mayContainNull(Statistics statistics) {
+    return !statistics.isNumNullsSet() || statistics.getNumNulls() > 0;
   }
 
   private static Function<Object, Object> converterFor(PrimitiveType parquetType, Type icebergType) {
