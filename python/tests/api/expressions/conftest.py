@@ -423,3 +423,21 @@ def inc_man_file():
 @pytest.fixture(scope="session")
 def inc_man_file_ns():
     return TestManifestFile("manifest-list.avro", 1024, 0, int(time.time() * 1000), None, None, None, None)
+
+
+@pytest.fixture(scope="session")
+def residual_spec():
+    inc_schema = Schema(NestedField.required(1, "id", IntegerType.get()),
+                        NestedField.optional(4, "all_nulls", StringType.get()),
+                        NestedField.optional(5, "some_nulls", StringType.get()),
+                        NestedField.optional(6, "no_nulls", StringType.get()),
+                        NestedField.optional(7, "non_part_field", StringType.get())
+                        )
+    return (PartitionSpec.builder_for(inc_schema)
+            .with_spec_id(0)
+            .identity("id")
+            .identity("all_nulls")
+            .identity("some_nulls")
+            .identity("no_nulls")
+            .build()
+            )

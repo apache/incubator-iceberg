@@ -18,6 +18,7 @@
 import datetime
 from decimal import (Decimal,
                      ROUND_HALF_UP)
+from typing import Any
 import uuid
 
 import pytz
@@ -72,6 +73,7 @@ class Literals(object):
 
 
 class Literal(object):
+    value: Any
     JAVA_MAX_INT = 2147483647
     JAVA_MIN_INT = -2147483648
     JAVA_MAX_FLOAT = 3.4028235E38

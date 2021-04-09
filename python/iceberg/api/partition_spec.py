@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from collections import defaultdict
 from urllib.parse import quote_plus
 
 from iceberg.exceptions import ValidationException
@@ -117,9 +118,9 @@ class PartitionSpec(object):
 
     def lazy_fields_by_source_id(self):
         if self.fields_by_source_id is None:
-            self.fields_by_source_id = dict()
+            self.fields_by_source_id = defaultdict(list)
             for field in self.fields:
-                self.fields_by_source_id[field.source_id] = field
+                self.fields_by_source_id[field.source_id].append(field)
 
         return self.fields_by_source_id
 
