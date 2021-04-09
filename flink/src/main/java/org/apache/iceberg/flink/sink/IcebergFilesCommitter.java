@@ -30,12 +30,14 @@ import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.PrimitiveArrayTypeInfo;
+import org.apache.flink.api.java.typeutils.MapTypeInfo;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
@@ -55,6 +57,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,6 +76,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // avoiding committing the same data files twice. This id will be attached to iceberg's meta when committing the
   // iceberg transaction.
   private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
+  static final String CURRENT_WATERMARK = "flink.current-watermark";
+  static final String STORE_WATERMARK = "flink.store-watermark";
 
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
@@ -85,6 +90,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // any data loss in iceberg table. So we keep the finished files <1, <file0, file1>> in memory and retry to commit
   // iceberg table when the next checkpoint happen.
   private final NavigableMap<Long, byte[]> dataFilesPerCheckpoint = Maps.newTreeMap();
+  private final Map<Long, Long> watermarkPerCheckpoint = Maps.newHashMap();
 
   // The completed files cache for current checkpoint. Once the snapshot barrier received, it will be flushed to the
   // 'dataFilesPerCheckpoint'.
@@ -95,6 +101,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private transient Table table;
   private transient ManifestOutputFileFactory manifestOutputFileFactory;
   private transient long maxCommittedCheckpointId;
+  private transient long currentWatermark;
+  private transient boolean storeWatermark;
 
   // There're two cases that we restore from flink checkpoints: the first case is restoring from snapshot created by the
   // same flink job; another case is restoring from snapshot created by another different job. For the second case, we
@@ -106,6 +114,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // All pending checkpoints states for this function.
   private static final ListStateDescriptor<SortedMap<Long, byte[]>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
+  private static final ListStateDescriptor<Map<Long, Long>> WATERMARK_DESCRIPTOR = new ListStateDescriptor<>(
+      "iceberg-flink-watermark", new MapTypeInfo<>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.LONG_TYPE_INFO));
+  private transient ListState<Map<Long, Long>> watermarkState;
 
   IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions) {
     this.tableLoader = tableLoader;
@@ -126,9 +137,16 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.manifestOutputFileFactory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, subTaskId, attemptId);
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
+    Map<String, String> properties = this.table.properties();
+    this.currentWatermark = PropertyUtil.propertyAsLong(properties, CURRENT_WATERMARK, -1L);
+    this.storeWatermark = PropertyUtil.propertyAsBoolean(properties, STORE_WATERMARK, false);
+
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     this.jobIdState = context.getOperatorStateStore().getListState(JOB_ID_DESCRIPTOR);
+    this.watermarkState = context.getOperatorStateStore().getListState(WATERMARK_DESCRIPTOR);
+
     if (context.isRestored()) {
+      watermarkPerCheckpoint.putAll(watermarkState.get().iterator().next());
       String restoredFlinkJobId = jobIdState.get().iterator().next();
       Preconditions.checkState(!Strings.isNullOrEmpty(restoredFlinkJobId),
           "Flink job id parsed from checkpoint snapshot shouldn't be null or empty");
@@ -161,6 +179,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // Reset the snapshot state to the latest state.
     checkpointsState.clear();
     checkpointsState.add(dataFilesPerCheckpoint);
+
+    watermarkPerCheckpoint.put(checkpointId, currentWatermark);
+    watermarkState.clear();
+    watermarkState.add(watermarkPerCheckpoint);
 
     jobIdState.clear();
     jobIdState.add(flinkJobId);
@@ -296,6 +318,13 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     long start = System.currentTimeMillis();
     operation.commit(); // abort is automatically called if this fails.
+
+    Long watermarkForCheckpoint = watermarkPerCheckpoint.get(checkpointId);
+    if (storeWatermark && watermarkForCheckpoint != null && watermarkForCheckpoint > 0) {
+      table.updateProperties().set(CURRENT_WATERMARK, String.valueOf(watermarkForCheckpoint)).commit();
+      LOG.info("Update {} to {}", CURRENT_WATERMARK, watermarkForCheckpoint);
+    }
+
     long duration = System.currentTimeMillis() - start;
     LOG.info("Committed in {} ms", duration);
   }
@@ -303,6 +332,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   @Override
   public void processElement(StreamRecord<WriteResult> element) {
     this.writeResultsOfCurrentCkpt.add(element.getValue());
+  }
+
+  @Override
+  public void processWatermark(Watermark mark) throws Exception {
+    super.processWatermark(mark);
+    if (mark.getTimestamp() != Watermark.MAX_WATERMARK.getTimestamp()) {
+      currentWatermark = mark.getTimestamp();
+    }
   }
 
   @Override

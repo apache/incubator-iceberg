@@ -183,6 +183,66 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   }
 
   @Test
+  public void testCommitTxnWithWatermark() throws Exception {
+    table.updateProperties().set(IcebergFilesCommitter.STORE_WATERMARK, "true").commit();
+    JobID jobID = new JobID();
+    long baseTimestamp = System.currentTimeMillis();
+    int checkpointId = 1;
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobID)) {
+      harness.setup();
+      harness.open();
+      List<RowData> rows = Lists.newArrayListWithExpectedSize(3);
+      for (; checkpointId <= 3; checkpointId++) {
+        long timestamp = baseTimestamp + checkpointId;
+        RowData rowData = SimpleDataUtil.createRowData(checkpointId, "hello" + checkpointId);
+        DataFile dataFile = writeDataFile("data-" + checkpointId, ImmutableList.of(rowData));
+        harness.processElement(of(dataFile), timestamp);
+        rows.add(rowData);
+
+        harness.processWatermark(timestamp);
+        harness.snapshot(checkpointId, timestamp);
+        harness.notifyOfCompletedCheckpoint(checkpointId);
+
+        SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows));
+        table.refresh();
+        Assert.assertEquals(String.valueOf(baseTimestamp + checkpointId),
+                table.properties().get(IcebergFilesCommitter.CURRENT_WATERMARK));
+      }
+    }
+
+    OperatorSubtaskState snapshot;
+    checkpointId = 4;
+    long timestamp4 = baseTimestamp + checkpointId;
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobID)) {
+      harness.setup();
+      harness.open();
+      RowData rowData = SimpleDataUtil.createRowData(checkpointId, "hello" + checkpointId);
+      DataFile dataFile = writeDataFile("data-" + checkpointId, ImmutableList.of(rowData));
+      harness.processElement(of(dataFile), timestamp4);
+
+      harness.processWatermark(timestamp4);
+      snapshot = harness.snapshot(checkpointId, timestamp4);
+
+      table.refresh();
+      // since checkpoint 4 has not been committed, so flink.current-watermark should be watermark for checkpoint3
+      Assert.assertEquals(String.valueOf(baseTimestamp + 3),
+          table.properties().get(IcebergFilesCommitter.CURRENT_WATERMARK));
+    }
+
+    // test restore
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobID)) {
+      harness.setup();
+      // will restore watermark for checkpoint 4
+      harness.initializeState(snapshot);
+      harness.open();
+      table.refresh();
+      // restore from snapshot 4 also will commit watermark for snapshot 4
+      Assert.assertEquals(String.valueOf(baseTimestamp + 4),
+              table.properties().get(IcebergFilesCommitter.CURRENT_WATERMARK));
+    }
+  }
+
+  @Test
   public void testOrderedEventsBetweenCheckpoints() throws Exception {
     // It's possible that two checkpoints happen in the following orders:
     //   1. snapshotState for checkpoint#1;
