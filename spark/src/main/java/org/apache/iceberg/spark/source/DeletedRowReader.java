@@ -31,11 +31,11 @@ import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public class EqualityDeleteRowReader extends RowDataReader {
+public class DeletedRowReader extends RowDataReader {
   private final Schema expectedSchema;
 
-  public EqualityDeleteRowReader(CombinedScanTask task, Schema schema, Schema expectedSchema, String nameMapping,
-                                 FileIO io, EncryptionManager encryptionManager, boolean caseSensitive) {
+  public DeletedRowReader(CombinedScanTask task, Schema schema, Schema expectedSchema, String nameMapping,
+                          FileIO io, EncryptionManager encryptionManager, boolean caseSensitive) {
     super(task, schema, schema, nameMapping, io, encryptionManager, caseSensitive);
     this.expectedSchema = expectedSchema;
   }
@@ -52,6 +52,6 @@ public class EqualityDeleteRowReader extends RowDataReader {
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
-    return matches.findEqualityDeleteRows(open(task, requiredSchema, idToConstant)).iterator();
+    return matches.findDeletedRows(open(task, requiredSchema, idToConstant)).iterator();
   }
 }

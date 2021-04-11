@@ -206,7 +206,7 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
         TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
     for (CombinedScanTask task : tasks) {
-      try (EqualityDeleteRowReader reader = new EqualityDeleteRowReader(task, table.schema(), table.schema(),
+      try (DeletedRowReader reader = new DeletedRowReader(task, table.schema(), table.schema(),
           table.properties().get(DEFAULT_NAME_MAPPING), table.io(), table.encryption(), false)) {
         while (reader.next()) {
           actualRowSet.add(new InternalRowWrapper(SparkSchemaUtil.convert(table.schema())).wrap(reader.get().copy()));

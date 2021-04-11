@@ -35,6 +35,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.deletes.DeleteSetter;
 import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -49,7 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Filter;
+import org.apache.iceberg.util.DeleteMarker;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.parquet.Preconditions;
@@ -65,9 +66,13 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> posDeletes;
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
+  private final DeleteSetter<T> deleteSetter;
   private final Accessor<StructLike> posAccessor;
 
-  protected DeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
+  protected DeleteFilter(FileScanTask task,
+                         Schema tableSchema,
+                         Schema requestedSchema,
+                         DeleteSetter<T> deleteSetter) {
     this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
     this.dataFile = task.file();
 
@@ -89,6 +94,7 @@ public abstract class DeleteFilter<T> {
     this.posDeletes = posDeleteBuilder.build();
     this.eqDeletes = eqDeleteBuilder.build();
     this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
+    this.deleteSetter = deleteSetter;
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
   }
 
@@ -109,13 +115,14 @@ public abstract class DeleteFilter<T> {
   }
 
   public CloseableIterable<T> filter(CloseableIterable<T> records) {
-    return applyEqDeletes(applyPosDeletes(records));
+    CloseableIterable<T> rawRecords = applyEqDeletes(applyPosDeletes(records));
+    return CloseableIterable.filter(rawRecords, row -> !deleteSetter.wrap(row).isDeleted());
   }
 
-  private List<Predicate<T>> applyEqDeletes() {
-    List<Predicate<T>> isInDeleteSets = Lists.newArrayList();
+  private Predicate<T> buildEqDeletesPredicate() {
+    Predicate<T> isDelete = t -> false;
     if (eqDeletes.isEmpty()) {
-      return isInDeleteSets;
+      return isDelete;
     }
 
     Multimap<Set<Integer>, DeleteFile> filesByDeleteIds = Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
@@ -140,42 +147,29 @@ public abstract class DeleteFilter<T> {
           deleteSchema.asStruct());
 
       Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
-      isInDeleteSets.add(isInDeleteSet);
+      isDelete = isDelete.or(isInDeleteSet);
     }
 
-    return isInDeleteSets;
+    return isDelete;
   }
 
-  public CloseableIterable<T> findEqualityDeleteRows(CloseableIterable<T> records) {
-    // Predicate to test whether a row has been deleted by equality deletions.
-    Predicate<T> deletedRows = applyEqDeletes().stream()
-        .reduce(Predicate::or)
-        .orElse(t -> false);
-
-    Filter<T> deletedRowsFilter = new Filter<T>() {
-      @Override
-      protected boolean shouldKeep(T item) {
-        return deletedRows.test(item);
-      }
-    };
-    return deletedRowsFilter.filter(records);
+  public CloseableIterable<T> findDeletedRows(CloseableIterable<T> records) {
+    CloseableIterable<T> rawRecords = applyEqDeletes(applyPosDeletes(records));
+    return CloseableIterable.filter(rawRecords, row -> deleteSetter.wrap(row).isDeleted());
   }
 
   private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
     // Predicate to test whether a row should be visible to user after applying equality deletions.
-    Predicate<T> remainingRows = applyEqDeletes().stream()
-        .map(Predicate::negate)
-        .reduce(Predicate::and)
-        .orElse(t -> true);
+    Predicate<T> remainingRows = buildEqDeletesPredicate().negate();
 
-    Filter<T> remainingRowsFilter = new Filter<T>() {
+    DeleteMarker<T> deleteMarker = new DeleteMarker<T>(deleteSetter) {
       @Override
-      protected boolean shouldKeep(T item) {
+      protected boolean shouldDelete(T item) {
         return remainingRows.test(item);
       }
     };
 
-    return remainingRowsFilter.filter(records);
+    return deleteMarker.setDeleted(records);
   }
 
   private CloseableIterable<T> applyPosDeletes(CloseableIterable<T> records) {
@@ -189,10 +183,14 @@ public abstract class DeleteFilter<T> {
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
       return Deletes.filter(
           records, this::pos,
-          Deletes.toPositionSet(dataFile.path(), CloseableIterable.concat(deletes)));
+          Deletes.toPositionSet(dataFile.path(), CloseableIterable.concat(deletes)),
+          deleteSetter);
     }
 
-    return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));
+    return Deletes.streamingDeleteMarker(records,
+        this::pos,
+        Deletes.deletePositions(dataFile.path(), deletes),
+        deleteSetter);
   }
 
   private CloseableIterable<Record> openPosDeletes(DeleteFile file) {
