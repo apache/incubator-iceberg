@@ -19,7 +19,11 @@
 
 package org.apache.iceberg.actions;
 
+import java.io.IOException;
 import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
@@ -31,6 +35,7 @@ import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
+import org.apache.spark.sql.catalyst.catalog.CatalogUtils;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -142,10 +147,23 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
 
   @Override
   public SnapshotAction withLocation(String location) {
-    Preconditions.checkArgument(!sourceTableLocation().equals(location),
+    String qualifiedLocation = makeQualifiedLocation(location);
+    Preconditions.checkArgument(!sourceTableLocation().equals(qualifiedLocation),
         "Cannot create snapshot where destination location is the same as the source location." +
             " This would cause a mixing of original table created and snapshot created files.");
     this.destTableLocation = location;
     return this;
+  }
+
+  private String makeQualifiedLocation(String location) {
+    try {
+      Path path = new Path(location);
+      Configuration conf = spark().sessionState().newHadoopConf();
+      FileSystem fs = FileSystem.get(path.toUri(), conf);
+      return CatalogUtils.URIToString(fs.makeQualified(path).toUri());
+    } catch (IOException ioe) {
+      LOG.error("Failed to initialize hadoop filesystem.", ioe);
+      return location;
+    }
   }
 }

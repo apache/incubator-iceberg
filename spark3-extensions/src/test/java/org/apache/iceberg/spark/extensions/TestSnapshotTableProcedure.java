@@ -117,6 +117,12 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    AssertHelpers.assertThrows("Should reject calls with invalid target location",
+        IllegalArgumentException.class,
+        "Cannot create snapshot where destination location is the same as the source location.",
+        () -> sql("CALL %s.system.snapshot(source_table => '%s', table => '%s', location => '%s')",
+            catalogName, sourceName, tableName, location));
   }
 
   @Test
