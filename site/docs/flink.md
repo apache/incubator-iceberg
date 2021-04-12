@@ -312,17 +312,47 @@ INSERT OVERWRITE hive_catalog.default.sample PARTITION(data='a') SELECT 6;
 For a partitioned iceberg table, when all the partition columns are set a value in `PARTITION` clause, it is inserting into a static partition, otherwise if partial partition columns (prefix part of all partition columns) are set a value in `PARTITION` clause, it is writing the query result into a dynamic partition.
 For an unpartitioned iceberg table, its data will be completely overwritten by `INSERT OVERWRITE`.
 
-## Reading with DataStream
+## Iceberg Operation with DataStream API
+### Load Iceberg Catalog
+#### Load Hadoop Catalog
+
+```java
+    Map<String, String> properties = new HashMap<>();
+    properties.put("type", "iceberg");
+    properties.put("catalog-type", "hadoop");
+    properties.put("property-version", "1");
+    properties.put("warehouse", "hdfs://nn:8020/warehouse/path");
+
+    CatalogLoader catalogLoader = CatalogLoader.hadoop(HADOOP_CATALOG, new Configuration(), properties);
+```
+
+#### Load Hive Catalog
+
+```java
+    Map<String, String> properties = new HashMap<>();
+    properties.put("type", "iceberg");
+    properties.put("catalog-type", "hive");
+    properties.put("property-version", "1");
+    properties.put("warehouse", "hdfs://nn:8020/warehouse/path");
+    properties.put("uri", "thrift://localhost:9083");
+    properties.put("clients", Integer.toString(2));
+
+    CatalogLoader catalogLoader = CatalogLoader.hive(HIVE_CATALOG, new Configuration(), properties);
+```
+
+*Note*: The following are examples of Load Hadoop Catalog.
+
+### Reading with DataStream
 
 Iceberg support streaming or batch read in Java API now.
 
-### Batch Read
+#### Batch Read
 
 This example will read all records from iceberg table and then print to the stdout console in flink batch job:
 
 ```java
 StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
-TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
 DataStream<RowData> batch = FlinkSource.forRowData()
      .env(env)
      .tableLoader(loader)
@@ -336,13 +366,13 @@ batch.print();
 env.execute("Test Iceberg Batch Read");
 ```
 
-### Streaming read
+#### Streaming read
 
 This example will read incremental records which start from snapshot-id '3821550127947089987' and print to stdout console in flink streaming job:
 
 ```java
 StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
-TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
 DataStream<RowData> stream = FlinkSource.forRowData()
      .env(env)
      .tableLoader(loader)
@@ -354,17 +384,17 @@ DataStream<RowData> stream = FlinkSource.forRowData()
 stream.print();
 
 // Submit and execute this streaming read job.
-env.execute("Test Iceberg Batch Read");
+env.execute("Test Iceberg Streaming Read");
 ```
 
 There are other options that we could set by Java API, please see the [FlinkSource#Builder](./javadoc/master/org/apache/iceberg/flink/source/FlinkSource.html).
 
-## Writing with DataStream
+### Writing with DataStream
 
 Iceberg support writing to iceberg table from different DataStream input.
 
 
-### Appending data.
+#### Appending data.
 
 we have supported writing `DataStream<RowData>` and `DataStream<Row>` to the sink iceberg table natively.
 
@@ -373,7 +403,7 @@ StreamExecutionEnvironment env = ...;
 
 DataStream<RowData> input = ... ;
 Configuration hadoopConf = new Configuration();
-TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
 
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
@@ -385,7 +415,7 @@ env.execute("Test Iceberg DataStream");
 
 The iceberg API also allows users to write generic `DataStream<T>` to iceberg table, more example could be found in this [unit test](https://github.com/apache/iceberg/blob/master/flink/src/test/java/org/apache/iceberg/flink/sink/TestFlinkIcebergSink.java).
 
-### Overwrite data
+#### Overwrite data
 
 To overwrite the data in existing iceberg table dynamically, we could set the `overwrite` flag in FlinkSink builder.
 
@@ -394,7 +424,7 @@ StreamExecutionEnvironment env = ...;
 
 DataStream<RowData> input = ... ;
 Configuration hadoopConf = new Configuration();
-TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
 
 FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
@@ -416,7 +446,7 @@ Iceberg provides API to rewrite small files into large files by submitting flink
 ```java
 import org.apache.iceberg.flink.actions.Actions;
 
-TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
 Table table = tableLoader.loadTable();
 RewriteDataFilesActionResult result = Actions.forTable(table)
         .rewriteDataFiles()
