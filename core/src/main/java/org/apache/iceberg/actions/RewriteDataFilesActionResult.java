@@ -21,6 +21,7 @@ package org.apache.iceberg.actions;
 
 import java.util.List;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class RewriteDataFilesActionResult {
@@ -29,11 +30,21 @@ public class RewriteDataFilesActionResult {
       new RewriteDataFilesActionResult(ImmutableList.of(), ImmutableList.of());
 
   private List<DataFile> deletedDataFiles;
+  private List<DeleteFile> deletedDeleteFiles;
+
   private List<DataFile> addedDataFiles;
+  private List<DeleteFile> addedDeleteFiles;
 
   public RewriteDataFilesActionResult(List<DataFile> deletedDataFiles, List<DataFile> addedDataFiles) {
+    this(deletedDataFiles, ImmutableList.of(), addedDataFiles, ImmutableList.of());
+  }
+
+  public RewriteDataFilesActionResult(List<DataFile> deletedDataFiles, List<DeleteFile> deletedDeleteFiles,
+                                      List<DataFile> addedDataFiles, List<DeleteFile> addedDeleteFiles) {
     this.deletedDataFiles = deletedDataFiles;
+    this.deletedDeleteFiles = deletedDeleteFiles;
     this.addedDataFiles = addedDataFiles;
+    this.addedDeleteFiles = addedDeleteFiles;
   }
 
   static RewriteDataFilesActionResult empty() {
@@ -44,7 +55,15 @@ public class RewriteDataFilesActionResult {
     return deletedDataFiles;
   }
 
+  public List<DeleteFile> deletedDeleteFiles() {
+    return deletedDeleteFiles;
+  }
+
   public List<DataFile> addedDataFiles() {
     return addedDataFiles;
+  }
+
+  public List<DeleteFile> addedDeleteFiles() {
+    return addedDeleteFiles;
   }
 }

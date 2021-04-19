@@ -19,18 +19,16 @@
 
 package org.apache.iceberg.flink.source;
 
-import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -39,8 +37,8 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.flink.sink.TaskWriterFactory;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.RewriteResult;
 import org.apache.iceberg.io.TaskWriter;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +50,6 @@ public class RowDataRewriter {
   private static final Logger LOG = LoggerFactory.getLogger(RowDataRewriter.class);
 
   private final Schema schema;
-  private final FileFormat format;
   private final String nameMapping;
   private final FileIO io;
   private final boolean caseSensitive;
@@ -70,7 +67,7 @@ public class RowDataRewriter {
 
     String formatString = PropertyUtil.propertyAsString(table.properties(), TableProperties.DEFAULT_FILE_FORMAT,
         TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-    this.format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
+    FileFormat format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
     RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
     this.taskWriterFactory = new RowDataTaskWriterFactory(
         table.schema(),
@@ -82,19 +79,27 @@ public class RowDataRewriter {
         Long.MAX_VALUE,
         format,
         table.properties(),
+        // TODO Need to fill the latest equality field ids if plan to produce delete files after rewrite.
         null);
   }
 
-  public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataStream, int parallelism) throws Exception {
+  public RewriteResult rewriteDataForTasks(DataStream<CombinedScanTask> dataStream, int parallelism) throws Exception {
     RewriteMap map = new RewriteMap(schema, nameMapping, io, caseSensitive, encryptionManager, taskWriterFactory);
-    DataStream<List<DataFile>> ds = dataStream.map(map).setParallelism(parallelism);
-    return Lists.newArrayList(ds.executeAndCollect("Rewrite table :" + tableName)).stream().flatMap(Collection::stream)
-        .collect(Collectors.toList());
+
+    RewriteResult.Builder builder = RewriteResult.builder();
+
+    try (CloseableIterator<RewriteResult> results = dataStream.map(map)
+        .setParallelism(parallelism)
+        .executeAndCollect("Rewrite table :" + tableName)) {
+
+      builder.merge(() -> results);
+    }
+
+    return builder.build();
   }
 
-  public static class RewriteMap extends RichMapFunction<CombinedScanTask, List<DataFile>> {
+  public static class RewriteMap extends RichMapFunction<CombinedScanTask, RewriteResult> {
 
-    private TaskWriter<RowData> writer;
     private int subTaskId;
     private int attemptId;
 
@@ -124,16 +129,28 @@ public class RowDataRewriter {
     }
 
     @Override
-    public List<DataFile> map(CombinedScanTask task) throws Exception {
+    public RewriteResult map(CombinedScanTask task) throws Exception {
+      // Initialize the builder of ResultWriter.
+      RewriteResult.Builder resultBuilder = RewriteResult.builder();
+      for (FileScanTask scanTask : task.files()) {
+        resultBuilder.addDataFilesToDelete(scanTask.file());
+        resultBuilder.addDeleteFilesToDelete(scanTask.deletes());
+      }
+
       // Initialize the task writer.
-      this.writer = taskWriterFactory.create();
-      try (RowDataIterator iterator =
-               new RowDataIterator(task, io, encryptionManager, schema, schema, nameMapping, caseSensitive)) {
+      TaskWriter<RowData> writer = taskWriterFactory.create();
+      try (RowDataIterator iterator = new RowDataIterator(task, io, encryptionManager, schema,
+          schema, nameMapping, caseSensitive)) {
+
         while (iterator.hasNext()) {
           RowData rowData = iterator.next();
           writer.write(rowData);
         }
-        return Lists.newArrayList(writer.dataFiles());
+
+        // Add the data files only because deletions from delete files has been eliminated.
+        resultBuilder.addDataFilesToAdd(writer.dataFiles());
+
+        return resultBuilder.build();
       } catch (Throwable originalThrowable) {
         try {
           LOG.error("Aborting commit for  (subTaskId {}, attemptId {})", subTaskId, attemptId);

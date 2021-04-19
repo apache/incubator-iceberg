@@ -23,11 +23,11 @@ import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseRewriteDataFilesAction;
 import org.apache.iceberg.flink.source.RowDataRewriter;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.RewriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDataFilesAction> {
@@ -47,9 +47,10 @@ public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDa
   }
 
   @Override
-  protected List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTasks) {
+  protected RewriteResult rewriteDataForTasks(List<CombinedScanTask> combinedScanTasks) {
     int size = combinedScanTasks.size();
     int parallelism = Math.min(size, maxParallelism);
+
     DataStream<CombinedScanTask> dataStream = env.fromCollection(combinedScanTasks);
     RowDataRewriter rowDataRewriter = new RowDataRewriter(table(), caseSensitive(), fileIO(), encryptionManager());
     try {

@@ -20,12 +20,13 @@
 package org.apache.iceberg.actions;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteFiles;
@@ -37,6 +38,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.RewriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
@@ -196,7 +198,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
 
   @Override
   public RewriteDataFilesActionResult execute() {
-    CloseableIterable<FileScanTask> fileScanTasks = null;
+    CloseableIterable<FileScanTask> fileScanTasks = CloseableIterable.empty();
     try {
       fileScanTasks = table.newScan()
           .caseSensitive(caseSensitive)
@@ -215,13 +217,14 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
 
     Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks = groupTasksByPartition(fileScanTasks.iterator());
     Map<StructLikeWrapper, Collection<FileScanTask>> filteredGroupedTasks = groupedTasks.entrySet().stream()
-        .filter(kv -> kv.getValue().size() > 1)
+        .filter(partitionTasks -> doPartitionNeedRewrite(partitionTasks.getValue()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-    // Nothing to rewrite if there's only one DataFile in each partition.
+    // Nothing to rewrite if there's only one file in each partition.
     if (filteredGroupedTasks.isEmpty()) {
       return RewriteDataFilesActionResult.empty();
     }
+
     // Split and combine tasks under each partition
     List<CombinedScanTask> combinedScanTasks = filteredGroupedTasks.values().stream()
         .map(scanTasks -> {
@@ -230,22 +233,26 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
           return TableScanUtil.planTasks(splitTasks, targetSizeInBytes, splitLookback, splitOpenFileCost);
         })
         .flatMap(Streams::stream)
-        .filter(task -> task.files().size() > 1 || isPartialFileScan(task))
+        .filter(this::doTaskNeedRewrite)
         .collect(Collectors.toList());
 
     if (combinedScanTasks.isEmpty()) {
       return RewriteDataFilesActionResult.empty();
     }
 
-    List<DataFile> addedDataFiles = rewriteDataForTasks(combinedScanTasks);
-    List<DataFile> currentDataFiles = combinedScanTasks.stream()
-        .flatMap(tasks -> tasks.files().stream().map(FileScanTask::file))
-        .collect(Collectors.toList());
-    replaceDataFiles(currentDataFiles, addedDataFiles);
+    // Execute the real rewrite tasks in parallelism.
+    RewriteResult rewriteResult = rewriteDataForTasks(combinedScanTasks);
 
-    return new RewriteDataFilesActionResult(currentDataFiles, addedDataFiles);
+    // Commit the RewriteFiles transaction to iceberg table.
+    replaceDataFiles(rewriteResult);
+
+    return new RewriteDataFilesActionResult(
+        Lists.newArrayList(rewriteResult.dataFilesToDelete()),
+        Lists.newArrayList(rewriteResult.deleteFilesToDelete()),
+        Lists.newArrayList(rewriteResult.dataFilesToAdd()),
+        Lists.newArrayList(rewriteResult.deleteFilesToAdd())
+    );
   }
-
 
   private Map<StructLikeWrapper, Collection<FileScanTask>> groupTasksByPartition(
       CloseableIterator<FileScanTask> tasksIter) {
@@ -262,31 +269,64 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return tasksGroupedByPartition.asMap();
   }
 
-  private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles) {
+  private void replaceDataFiles(RewriteResult result) {
     try {
       RewriteFiles rewriteFiles = table.newRewrite();
-      rewriteFiles.rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
+
+      rewriteFiles.rewriteFiles(
+          Sets.newHashSet(result.dataFilesToDelete()),
+          Sets.newHashSet(result.deleteFilesToDelete()),
+          Sets.newHashSet(result.dataFilesToAdd()),
+          Sets.newHashSet(result.deleteFilesToAdd())
+      );
+
       commit(rewriteFiles);
     } catch (Exception e) {
-      Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
+      // Remove all the newly produced files if possible.
+      Iterable<ContentFile<?>> addedFiles = Iterables.concat(
+          Arrays.asList(result.dataFilesToAdd()),
+          Arrays.asList(result.deleteFilesToAdd())
+      );
+
+      Tasks.foreach(Iterables.transform(addedFiles, f -> f.path().toString()))
           .noRetry()
           .suppressFailureWhenFinished()
           .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
           .run(fileIO::deleteFile);
+
       throw e;
     }
   }
 
-  private boolean isPartialFileScan(CombinedScanTask task) {
+  private boolean doPartitionNeedRewrite(Collection<FileScanTask> partitionTasks) {
+    int files = 0;
+    for (FileScanTask scanTask : partitionTasks) {
+      files += 1; // One for data file.
+      files += scanTask.deletes().size();
+    }
+    return files > 1;
+  }
+
+  private boolean doTaskNeedRewrite(CombinedScanTask task) {
+    Preconditions.checkArgument(task != null && task.files().size() > 0,
+        "Files in CombinedScanTask could not be null or empty");
     if (task.files().size() == 1) {
-      FileScanTask fileScanTask = task.files().iterator().next();
-      return fileScanTask.file().fileSizeInBytes() != fileScanTask.length();
+      FileScanTask scanTask = task.files().iterator().next();
+      if (scanTask.deletes().size() > 0) {
+        // There are 1 data file and several delete files, we need to rewrite them into one data file.
+        return true;
+      } else {
+        // There is only 1 data file. If the rewrite data bytes happens to be a complete data file, then we don't
+        // need to do the real rewrite action.
+        return scanTask.file().fileSizeInBytes() != scanTask.length();
+      }
     } else {
-      return false;
+      // There are multiple FileScanTask.
+      return true;
     }
   }
 
   protected abstract FileIO fileIO();
 
-  protected abstract List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTask);
+  protected abstract RewriteResult rewriteDataForTasks(List<CombinedScanTask> combinedScanTask);
 }
