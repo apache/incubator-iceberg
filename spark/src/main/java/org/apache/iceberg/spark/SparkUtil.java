@@ -25,16 +25,30 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.util.SerializableConfiguration;
 
 public class SparkUtil {
+
+  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG = "spark-handle-timestamp-without-timezone";
+  public static final String TIMESTAMP_WITHOUT_TIMEZONE_ERROR = String.format("Cannot handle timestamp without" +
+          " timezone fields in Spark. Spark does not natively support this type but if you would like to handle all" +
+          " timestamps as timestamp with timezone set '%s' to true. This will not change the underlying values stored" +
+          " but will change their displayed values in Spark. For more information please see" +
+          " https://docs.databricks.com/spark/latest/dataframes-datasets/dates-timestamps.html#ansi-sql-and" +
+                  "-spark-sql-timestamps",
+          HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG);
+
   private SparkUtil() {
   }
 
@@ -99,5 +113,16 @@ public class SparkUtil {
         return Pair.of(catalog, identiferProvider.apply(namespace, name));
       }
     }
+  }
+
+  /**
+   * Responsible for checking if the table schema has a timestamp without timezone column
+   * @param schema table schema to check if it contains a timestamp without timezone column
+   * @return boolean indicating if the schema passed in has a timestamp field without a timezone
+   */
+  public static boolean hasTimestampWithoutZone(Schema schema) {
+    return TypeUtil.find(schema, t ->
+            t.typeId().equals(Type.TypeID.TIMESTAMP) && !((Types.TimestampType) t).shouldAdjustToUTC()
+    ) != null;
   }
 }

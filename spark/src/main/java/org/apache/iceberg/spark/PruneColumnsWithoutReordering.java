@@ -202,11 +202,6 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
             "Cannot project decimal with incompatible precision: %s < %s",
             requestedDecimal.precision(), decimal.precision());
         break;
-      case TIMESTAMP:
-        Types.TimestampType timestamp = (Types.TimestampType) primitive;
-        Preconditions.checkArgument(timestamp.shouldAdjustToUTC(),
-            "Cannot project timestamp (without time zone) as timestamptz (with time zone)");
-        break;
       default:
     }
 
