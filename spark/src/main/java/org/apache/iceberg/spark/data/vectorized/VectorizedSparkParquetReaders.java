@@ -83,8 +83,8 @@ public class VectorizedSparkParquetReaders {
 
     @Override
     public VectorizedReader<?> message(
-            Types.StructType expected, MessageType message,
-            List<VectorizedReader<?>> fieldReaders) {
+        org.apache.iceberg.types.Type expected, MessageType message,
+        List<VectorizedReader<?>> fieldReaders) {
       GroupType groupType = message.asGroupType();
       Map<Integer, VectorizedReader<?>> readersById = Maps.newHashMap();
       List<Type> fields = groupType.getFields();
@@ -94,7 +94,7 @@ public class VectorizedSparkParquetReaders {
           .forEach(pos -> readersById.put(fields.get(pos).getId().intValue(), fieldReaders.get(pos)));
 
       List<Types.NestedField> icebergFields = expected != null ?
-          expected.fields() : ImmutableList.of();
+          expected.asStructType().fields() : ImmutableList.of();
 
       List<VectorizedReader<?>> reorderedFields = Lists.newArrayListWithExpectedSize(
           icebergFields.size());
@@ -117,7 +117,7 @@ public class VectorizedSparkParquetReaders {
 
     @Override
     public VectorizedReader<?> struct(
-        Types.StructType expected, GroupType groupType,
+        org.apache.iceberg.types.Type expected, GroupType groupType,
         List<VectorizedReader<?>> fieldReaders) {
       if (expected != null) {
         throw new UnsupportedOperationException("Vectorized reads are not supported yet for struct fields");
@@ -127,7 +127,7 @@ public class VectorizedSparkParquetReaders {
 
     @Override
     public VectorizedReader<?> primitive(
-        org.apache.iceberg.types.Type.PrimitiveType expected,
+        org.apache.iceberg.types.Type expected,
         PrimitiveType primitive) {
 
       // Create arrow vector for this field

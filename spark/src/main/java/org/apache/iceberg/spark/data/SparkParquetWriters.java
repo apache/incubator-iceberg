@@ -43,11 +43,9 @@ import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
-import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
-import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -70,16 +68,16 @@ public class SparkParquetWriters {
     }
 
     @Override
-    public ParquetValueWriter<?> message(StructType sStruct, MessageType message,
+    public ParquetValueWriter<?> message(DataType sStruct, MessageType message,
                                          List<ParquetValueWriter<?>> fieldWriters) {
       return struct(sStruct, message.asGroupType(), fieldWriters);
     }
 
     @Override
-    public ParquetValueWriter<?> struct(StructType sStruct, GroupType struct,
+    public ParquetValueWriter<?> struct(DataType sStruct, GroupType struct,
                                         List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
-      StructField[] sparkFields = sStruct.fields();
+      StructField[] sparkFields = ((StructType) sStruct).fields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
       List<DataType> sparkTypes = Lists.newArrayList();
       for (int i = 0; i < fields.size(); i += 1) {
@@ -91,7 +89,7 @@ public class SparkParquetWriters {
     }
 
     @Override
-    public ParquetValueWriter<?> list(ArrayType sArray, GroupType array, ParquetValueWriter<?> elementWriter) {
+    public ParquetValueWriter<?> list(DataType sArray, GroupType array, ParquetValueWriter<?> elementWriter) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -100,11 +98,11 @@ public class SparkParquetWriters {
 
       return new ArrayDataWriter<>(repeatedD, repeatedR,
           newOption(repeated.getType(0), elementWriter),
-          sArray.elementType());
+          arrayElementType(sArray));
     }
 
     @Override
-    public ParquetValueWriter<?> map(MapType sMap, GroupType map,
+    public ParquetValueWriter<?> map(DataType sMap, GroupType map,
                                      ParquetValueWriter<?> keyWriter, ParquetValueWriter<?> valueWriter) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
@@ -115,7 +113,7 @@ public class SparkParquetWriters {
       return new MapDataWriter<>(repeatedD, repeatedR,
           newOption(repeatedKeyValue.getType(0), keyWriter),
           newOption(repeatedKeyValue.getType(1), valueWriter),
-          sMap.keyType(), sMap.valueType());
+          mapKeyType(sMap), mapValueType(sMap));
     }
 
     private ParquetValueWriter<?> newOption(org.apache.parquet.schema.Type fieldType, ParquetValueWriter<?> writer) {

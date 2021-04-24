@@ -83,14 +83,14 @@ public abstract class BaseParquetReaders<T> {
     }
 
     @Override
-    public ParquetValueReader<?> message(Types.StructType expected, MessageType message,
+    public ParquetValueReader<?> message(org.apache.iceberg.types.Type expected, MessageType message,
                                          List<ParquetValueReader<?>> fieldReaders) {
       // the top level matches by ID, but the remaining IDs are missing
       return super.struct(expected, message, fieldReaders);
     }
 
     @Override
-    public ParquetValueReader<?> struct(Types.StructType expected, GroupType struct,
+    public ParquetValueReader<?> struct(org.apache.iceberg.types.Type expected, GroupType struct,
                                         List<ParquetValueReader<?>> fieldReaders) {
       // the expected struct is ignored because nested fields are never found when the
       List<ParquetValueReader<?>> newFields = Lists.newArrayListWithExpectedSize(
@@ -107,7 +107,7 @@ public abstract class BaseParquetReaders<T> {
         }
       }
 
-      return createStructReader(types, newFields, expected);
+      return createStructReader(types, newFields, expected.asStructType());
     }
   }
 
@@ -121,13 +121,13 @@ public abstract class BaseParquetReaders<T> {
     }
 
     @Override
-    public ParquetValueReader<?> message(Types.StructType expected, MessageType message,
+    public ParquetValueReader<?> message(org.apache.iceberg.types.Type expected, MessageType message,
                                          List<ParquetValueReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
     }
 
     @Override
-    public ParquetValueReader<?> struct(Types.StructType expected, GroupType struct,
+    public ParquetValueReader<?> struct(org.apache.iceberg.types.Type expected, GroupType struct,
                                         List<ParquetValueReader<?>> fieldReaders) {
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
@@ -145,7 +145,7 @@ public abstract class BaseParquetReaders<T> {
       }
 
       List<Types.NestedField> expectedFields = expected != null ?
-          expected.fields() : ImmutableList.of();
+          expected.asStructType().fields() : ImmutableList.of();
       List<ParquetValueReader<?>> reorderedFields = Lists.newArrayListWithExpectedSize(
           expectedFields.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
@@ -170,11 +170,11 @@ public abstract class BaseParquetReaders<T> {
         }
       }
 
-      return createStructReader(types, reorderedFields, expected);
+      return createStructReader(types, reorderedFields, expected == null ? null : expected.asStructType());
     }
 
     @Override
-    public ParquetValueReader<?> list(Types.ListType expectedList, GroupType array,
+    public ParquetValueReader<?> list(org.apache.iceberg.types.Type expectedList, GroupType array,
                                       ParquetValueReader<?> elementReader) {
       if (expectedList == null) {
         return null;
@@ -194,7 +194,7 @@ public abstract class BaseParquetReaders<T> {
     }
 
     @Override
-    public ParquetValueReader<?> map(Types.MapType expectedMap, GroupType map,
+    public ParquetValueReader<?> map(org.apache.iceberg.types.Type expectedMap, GroupType map,
                                      ParquetValueReader<?> keyReader,
                                      ParquetValueReader<?> valueReader) {
       if (expectedMap == null) {
@@ -219,7 +219,7 @@ public abstract class BaseParquetReaders<T> {
 
     @Override
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
-    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type.PrimitiveType expected,
+    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type expected,
                                            PrimitiveType primitive) {
       if (expected == null) {
         return null;
@@ -291,13 +291,13 @@ public abstract class BaseParquetReaders<T> {
         case BINARY:
           return new ParquetValueReaders.BytesReader(desc);
         case INT32:
-          if (expected != null && expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
+          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
             return new ParquetValueReaders.IntAsLongReader(desc);
           } else {
             return new ParquetValueReaders.UnboxedReader<>(desc);
           }
         case FLOAT:
-          if (expected != null && expected.typeId() == org.apache.iceberg.types.Type.TypeID.DOUBLE) {
+          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.DOUBLE) {
             return new ParquetValueReaders.FloatAsDoubleReader(desc);
           } else {
             return new ParquetValueReaders.UnboxedReader<>(desc);

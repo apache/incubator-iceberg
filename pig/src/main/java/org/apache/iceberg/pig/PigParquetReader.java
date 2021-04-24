@@ -87,14 +87,14 @@ public class PigParquetReader {
 
     @Override
     public ParquetValueReader<?> message(
-        Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
+        org.apache.iceberg.types.Type expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
       // the top level matches by ID, but the remaining IDs are missing
       return super.struct(expected, message, fieldReaders);
     }
 
     @Override
     public ParquetValueReader<?> struct(
-        Types.StructType ignored, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
+        org.apache.iceberg.types.Type ignored, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       // the expected struct is ignored because nested fields are never found when the
       List<ParquetValueReader<?>> newFields = Lists.newArrayListWithExpectedSize(
           fieldReaders.size());
@@ -126,13 +126,13 @@ public class PigParquetReader {
 
     @Override
     public ParquetValueReader<?> message(
-        Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
+        org.apache.iceberg.types.Type expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
     }
 
     @Override
     public ParquetValueReader<?> struct(
-        Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
+        org.apache.iceberg.types.Type expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
       Map<Integer, Type> typesById = Maps.newHashMap();
@@ -146,7 +146,7 @@ public class PigParquetReader {
       }
 
       List<Types.NestedField> expectedFields = expected != null ?
-          expected.fields() : ImmutableList.of();
+          expected.asStructType().fields() : ImmutableList.of();
       List<ParquetValueReader<?>> reorderedFields = Lists.newArrayListWithExpectedSize(
           expectedFields.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
@@ -173,7 +173,7 @@ public class PigParquetReader {
 
     @Override
     public ParquetValueReader<?> list(
-        Types.ListType expectedList, GroupType array, ParquetValueReader<?> elementReader) {
+        org.apache.iceberg.types.Type expectedList, GroupType array, ParquetValueReader<?> elementReader) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -188,7 +188,8 @@ public class PigParquetReader {
 
     @Override
     public ParquetValueReader<?> map(
-        Types.MapType expectedMap, GroupType map, ParquetValueReader<?> keyReader, ParquetValueReader<?> valueReader) {
+        org.apache.iceberg.types.Type expectedMap, GroupType map, ParquetValueReader<?> keyReader,
+        ParquetValueReader<?> valueReader) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -207,7 +208,7 @@ public class PigParquetReader {
 
     @Override
     public ParquetValueReader<?> primitive(
-        org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
+        org.apache.iceberg.types.Type expected, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
       if (primitive.getOriginalType() != null) {

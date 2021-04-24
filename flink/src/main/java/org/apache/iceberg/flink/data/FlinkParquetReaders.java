@@ -80,13 +80,13 @@ public class FlinkParquetReaders {
     }
 
     @Override
-    public ParquetValueReader<RowData> message(Types.StructType expected, MessageType message,
+    public ParquetValueReader<RowData> message(org.apache.iceberg.types.Type expected, MessageType message,
                                                List<ParquetValueReader<?>> fieldReaders) {
-      return struct(expected, message.asGroupType(), fieldReaders);
+      return struct(expected == null ? null : expected.asStructType(), message.asGroupType(), fieldReaders);
     }
 
     @Override
-    public ParquetValueReader<RowData> struct(Types.StructType expected, GroupType struct,
+    public ParquetValueReader<RowData> struct(org.apache.iceberg.types.Type expected, GroupType struct,
                                               List<ParquetValueReader<?>> fieldReaders) {
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
@@ -105,7 +105,7 @@ public class FlinkParquetReaders {
       }
 
       List<Types.NestedField> expectedFields = expected != null ?
-          expected.fields() : ImmutableList.of();
+          expected.asStructType().fields() : ImmutableList.of();
       List<ParquetValueReader<?>> reorderedFields = Lists.newArrayListWithExpectedSize(
           expectedFields.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
@@ -134,7 +134,7 @@ public class FlinkParquetReaders {
     }
 
     @Override
-    public ParquetValueReader<?> list(Types.ListType expectedList, GroupType array,
+    public ParquetValueReader<?> list(org.apache.iceberg.types.Type expectedList, GroupType array,
                                       ParquetValueReader<?> elementReader) {
       if (expectedList == null) {
         return null;
@@ -153,7 +153,7 @@ public class FlinkParquetReaders {
     }
 
     @Override
-    public ParquetValueReader<?> map(Types.MapType expectedMap, GroupType map,
+    public ParquetValueReader<?> map(org.apache.iceberg.types.Type expectedMap, GroupType map,
                                      ParquetValueReader<?> keyReader,
                                      ParquetValueReader<?> valueReader) {
       if (expectedMap == null) {
@@ -178,7 +178,7 @@ public class FlinkParquetReaders {
 
     @Override
     @SuppressWarnings("CyclomaticComplexity")
-    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type.PrimitiveType expected,
+    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type expected,
                                            PrimitiveType primitive) {
       if (expected == null) {
         return null;

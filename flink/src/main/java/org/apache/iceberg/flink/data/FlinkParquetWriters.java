@@ -29,11 +29,7 @@ import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
-import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
-import org.apache.flink.table.types.logical.MapType;
-import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.types.logical.RowType.RowField;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TinyIntType;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -68,27 +64,27 @@ public class FlinkParquetWriters {
     }
 
     @Override
-    public ParquetValueWriter<?> message(RowType sStruct, MessageType message, List<ParquetValueWriter<?>> fields) {
+    public ParquetValueWriter<?> message(LogicalType sStruct, MessageType message, List<ParquetValueWriter<?>> fields) {
       return struct(sStruct, message.asGroupType(), fields);
     }
 
     @Override
-    public ParquetValueWriter<?> struct(RowType sStruct, GroupType struct,
+    public ParquetValueWriter<?> struct(LogicalType fStruct, GroupType struct,
                                         List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
-      List<RowField> flinkFields = sStruct.getFields();
+      List<LogicalType> flinkFields = fStruct.getChildren();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
       List<LogicalType> flinkTypes = Lists.newArrayList();
       for (int i = 0; i < fields.size(); i += 1) {
         writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
-        flinkTypes.add(flinkFields.get(i).getType());
+        flinkTypes.add(flinkFields.get(i));
       }
 
       return new RowDataWriter(writers, flinkTypes);
     }
 
     @Override
-    public ParquetValueWriter<?> list(ArrayType sArray, GroupType array, ParquetValueWriter<?> elementWriter) {
+    public ParquetValueWriter<?> list(LogicalType fArray, GroupType array, ParquetValueWriter<?> elementWriter) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -97,11 +93,11 @@ public class FlinkParquetWriters {
 
       return new ArrayDataWriter<>(repeatedD, repeatedR,
           newOption(repeated.getType(0), elementWriter),
-          sArray.getElementType());
+          arrayElementType(fArray));
     }
 
     @Override
-    public ParquetValueWriter<?> map(MapType sMap, GroupType map,
+    public ParquetValueWriter<?> map(LogicalType fMap, GroupType map,
                                      ParquetValueWriter<?> keyWriter, ParquetValueWriter<?> valueWriter) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
@@ -112,9 +108,8 @@ public class FlinkParquetWriters {
       return new MapDataWriter<>(repeatedD, repeatedR,
           newOption(repeatedKeyValue.getType(0), keyWriter),
           newOption(repeatedKeyValue.getType(1), valueWriter),
-          sMap.getKeyType(), sMap.getValueType());
+          mapKeyType(fMap), mapValueType(fMap));
     }
-
 
     private ParquetValueWriter<?> newOption(org.apache.parquet.schema.Type fieldType, ParquetValueWriter<?> writer) {
       int maxD = type.getMaxDefinitionLevel(path(fieldType.getName()));

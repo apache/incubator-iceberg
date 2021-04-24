@@ -22,6 +22,7 @@ package org.apache.iceberg.parquet;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -76,13 +77,13 @@ public class ParquetAvroValueReaders {
     }
 
     @Override
-    public ParquetValueReader<?> message(Types.StructType expected, MessageType message,
+    public ParquetValueReader<?> message(org.apache.iceberg.types.Type expected, MessageType message,
                                          List<ParquetValueReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
     }
 
     @Override
-    public ParquetValueReader<?> struct(Types.StructType expected, GroupType struct,
+    public ParquetValueReader<?> struct(org.apache.iceberg.types.Type expected, GroupType struct,
                                         List<ParquetValueReader<?>> fieldReaders) {
       Schema avroSchema = avroSchemas.get(expected);
 
@@ -99,7 +100,7 @@ public class ParquetAvroValueReaders {
       }
 
       List<Types.NestedField> expectedFields = expected != null ?
-          expected.fields() : ImmutableList.of();
+          expected.asStructType().fields() : ImmutableList.of();
       List<ParquetValueReader<?>> reorderedFields = Lists.newArrayListWithExpectedSize(
           expectedFields.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
@@ -119,7 +120,7 @@ public class ParquetAvroValueReaders {
     }
 
     @Override
-    public ParquetValueReader<?> list(Types.ListType expectedList, GroupType array,
+    public ParquetValueReader<?> list(org.apache.iceberg.types.Type expectedList, GroupType array,
                                       ParquetValueReader<?> elementReader) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
@@ -134,7 +135,7 @@ public class ParquetAvroValueReaders {
     }
 
     @Override
-    public ParquetValueReader<?> map(Types.MapType expectedMap, GroupType map,
+    public ParquetValueReader<?> map(org.apache.iceberg.types.Type expectedMap, GroupType map,
                                      ParquetValueReader<?> keyReader,
                                      ParquetValueReader<?> valueReader) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
@@ -154,11 +155,11 @@ public class ParquetAvroValueReaders {
     }
 
     @Override
-    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type.PrimitiveType expected,
+    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type expected,
                                            PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
-      boolean isMapKey = fieldNames.contains("key");
+      boolean isMapKey = Arrays.asList(currentPath()).contains("key");
 
       if (primitive.getOriginalType() != null) {
         switch (primitive.getOriginalType()) {
