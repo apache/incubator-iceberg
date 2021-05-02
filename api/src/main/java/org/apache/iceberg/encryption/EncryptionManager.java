@@ -71,4 +71,23 @@ public interface EncryptionManager extends Serializable {
   default Iterable<EncryptedOutputFile> encrypt(Iterable<OutputFile> rawOutput) {
     return Iterables.transform(rawOutput, this::encrypt);
   }
+
+  /**
+   * Encrypt a manifest list
+   * @param rawOutput raw output file
+   * @return encrypted output file
+   */
+  default EncryptedOutputFile encryptManifestList(OutputFile rawOutput) {
+    return encrypt(rawOutput);
+  }
+
+  /**
+   * Encrypt a manifest file
+   * @param rawOutput raw output file
+   * @return encrypted output file
+   */
+  default EncryptedOutputFile encryptManifestFile(OutputFile rawOutput) {
+    return encrypt(rawOutput);
+  }
+
 }

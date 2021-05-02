@@ -20,14 +20,23 @@
 package org.apache.iceberg.util;
 
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 public class JsonUtil {
 
@@ -100,6 +109,11 @@ public class JsonUtil {
     return pNode.asText();
   }
 
+  public static ByteBuffer getBytesOrNull(String property, JsonNode node) {
+    String bytesStr = getStringOrNull(property, node);
+    return bytesStr == null ? null : StandardCharsets.UTF_8.encode(bytesStr);
+  }
+
   public static Map<String, String> getStringMap(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing map %s", property);
     JsonNode pNode = node.get(property);
@@ -130,5 +144,55 @@ public class JsonUtil {
       builder.add(element.asText());
     }
     return builder.build();
+  }
+
+  public static <T> Set<T> getSetOrNull(String property, JsonNode node,
+                                        Function<JsonNode, T> getter,
+                                        Predicate<JsonNode> validator) {
+    if (!node.has(property)) {
+      return null;
+    }
+
+    JsonNode pNode = node.get(property);
+    Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isArray(),
+        "Cannot parse %s from non-array value: %s", property, pNode);
+
+    ImmutableSet.Builder<T> builder = ImmutableSet.builder();
+    Iterator<JsonNode> elements = pNode.elements();
+    while (elements.hasNext()) {
+      JsonNode element = elements.next();
+      if (validator != null) {
+        Preconditions.checkArgument(validator.test(element), "Cannot parse from value: %s", element);
+      }
+
+      builder.add(getter.apply(element));
+    }
+
+    return builder.build();
+  }
+
+  public static Set<Integer> getIntegerSetOrNull(String property, JsonNode node) {
+    return getSetOrNull(property, node, JsonNode::asInt, JsonNode::isNumber);
+  }
+
+  public static void writeArrayIfExists(
+      Supplier<String> str, String field, JsonGenerator generator) throws IOException {
+    if (str.get() != null) {
+      generator.writeStringField(field, str.get());
+    }
+  }
+
+  public static void writeStringIfExists(
+      Supplier<String> str, String field, JsonGenerator generator) throws IOException {
+    if (str.get() != null) {
+      generator.writeStringField(field, str.get());
+    }
+  }
+
+  public static void writeBinaryIfExists(
+      Supplier<ByteBuffer> bytes, String field, JsonGenerator generator) throws IOException {
+    if (bytes.get() != null) {
+      generator.writeStringField(field, StandardCharsets.UTF_8.decode(bytes.get()).toString());
+    }
   }
 }

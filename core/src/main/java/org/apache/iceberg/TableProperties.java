@@ -179,4 +179,24 @@ public class TableProperties {
 
   public static final String MERGE_CARDINALITY_CHECK_ENABLED = "write.merge.cardinality-check.enabled";
   public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
+
+  /**
+   * Encryption manager type
+   */
+  public static final String ENCRYPTION_MANAGER_TYPE = "encryption.manager.type";
+  public static final String ENCRYPTION_MANAGER_TYPE_PLAINTEXT = "plaintext";
+  public static final String ENCRYPTION_MANAGER_TYPE_ENVELOPE = "envelope";
+
+  /**
+   * Allow file format native encryption instead of
+   * encrypting the entire file through Iceberg encryption stream.
+   */
+  public static final String ENCRYPTION_PUSHDOWN_ENABLED = "encryption.pushdown";
+  public static final boolean ENCRYPTION_PUSHDOWN_ENABLED_DEFAULT = false;
+
+  /**
+   * Implementation of the key provider for envelope encryption.
+   */
+  public static final String ENCRYPTION_KEY_PROVIDER_IMPL = "encryption.key.provider-impl";
+
 }
