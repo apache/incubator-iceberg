@@ -614,7 +614,6 @@ public abstract class TestMetrics {
     firstRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
     firstRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
 
-
     Record secondRecord = GenericRecord.create(SIMPLE_SCHEMA);
 
     secondRecord.setField("booleanCol", false);
@@ -639,11 +638,14 @@ public abstract class TestMetrics {
         .asc("stringCol")
         .asc("dateCol").build();
 
+    Table table = TestMetricUtil.createTestTable(ImmutableMap.of(
+        TableProperties.DEFAULT_WRITE_METRICS_MODE, "none"),
+        sortOrder,
+        SIMPLE_SCHEMA);
+
     Metrics metrics = getMetrics(
         SIMPLE_SCHEMA,
-        MetricsConfig.fromSortOrder(
-            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none"),
-            sortOrder),
+        MetricsConfig.fromTable(table),
         firstRecord, secondRecord);
 
     Assert.assertEquals(2L, (long) metrics.recordCount());
@@ -675,9 +677,10 @@ public abstract class TestMetrics {
         .asc("nestedStructCol.longCol")
         .asc("nestedStructCol.leafStructCol.leafLongCol").build();
 
+    Table testTable = TestMetricUtil.createTestTable(null, sortOrder, NESTED_SCHEMA);
+
     Metrics metrics = getMetrics(NESTED_SCHEMA,
-        MetricsConfig.fromSortOrder(
-            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none"), sortOrder),
+        MetricsConfig.fromTable(testTable),
         record);
 
     assertBounds(3, LongType.get(), Long.MAX_VALUE, Long.MAX_VALUE, metrics);

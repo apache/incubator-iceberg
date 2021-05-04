@@ -94,7 +94,9 @@ public class TestMetricsModes {
     );
     SortOrder sortOrder = SortOrder.builderFor(schema).asc("col2").asc("col3").build();
 
-    MetricsConfig config = MetricsConfig.fromSortOrder(properties, sortOrder);
+    Table testTable = TestMetricUtil.createTestTable(properties, sortOrder, schema);
+
+    MetricsConfig config = MetricsConfig.fromTable(testTable);
     Assert.assertEquals("Non-sorted existing column should not be overridden",
         Counts.get(), config.columnMode("col1"));
     Assert.assertEquals("Sorted column defaults should not override user specified config",
@@ -119,7 +121,9 @@ public class TestMetricsModes {
     );
     SortOrder sortOrder = SortOrder.builderFor(schema).asc("col2").asc("col3").build();
 
-    MetricsConfig config = MetricsConfig.fromSortOrder(properties, sortOrder);
+    Table testTable = TestMetricUtil.createTestTable(properties, sortOrder, schema);
+
+    MetricsConfig config = MetricsConfig.fromTable(testTable);
     Assert.assertEquals("Non-sorted existing column should not be overridden",
         Full.get(), config.columnMode("col1"));
     Assert.assertEquals("Sorted column defaults applies as user entered invalid mode",

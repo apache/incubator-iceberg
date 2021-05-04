@@ -33,7 +33,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileIO;
@@ -136,15 +135,9 @@ class Writer implements DataSourceWriter {
 
   @Override
   public DataWriterFactory<InternalRow> createWriterFactory() {
-<<<<<<< HEAD
     // broadcast the table metadata as the writer factory will be sent to executors
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
     return new WriterFactory(tableBroadcast, format, targetFileSize, writeSchema, dsSchema, partitionedFanoutEnabled);
-=======
-    return new WriterFactory(
-        table.spec(), table.sortOrder(), format, table.locationProvider(), table.properties(),
-        io, encryptionManager, targetFileSize, writeSchema, dsSchema, partitionedFanoutEnabled);
->>>>>>> Address review comments
   }
 
   @Override
@@ -250,30 +243,16 @@ class Writer implements DataSourceWriter {
   }
 
   static class WriterFactory implements DataWriterFactory<InternalRow> {
-<<<<<<< HEAD
     private final Broadcast<Table> tableBroadcast;
-=======
-    private final PartitionSpec spec;
-    private final SortOrder sortOrder;
->>>>>>> Address review comments
     private final FileFormat format;
     private final long targetFileSize;
     private final Schema writeSchema;
     private final StructType dsSchema;
     private final boolean partitionedFanoutEnabled;
 
-<<<<<<< HEAD
     WriterFactory(Broadcast<Table> tableBroadcast, FileFormat format, long targetFileSize,
                   Schema writeSchema, StructType dsSchema, boolean partitionedFanoutEnabled) {
       this.tableBroadcast = tableBroadcast;
-=======
-    WriterFactory(PartitionSpec spec, SortOrder sortOrder, FileFormat format, LocationProvider locations,
-                  Map<String, String> properties, Broadcast<FileIO> io,
-                  Broadcast<EncryptionManager> encryptionManager, long targetFileSize,
-                  Schema writeSchema, StructType dsSchema, boolean partitionedFanoutEnabled) {
-      this.spec = spec;
-      this.sortOrder = sortOrder;
->>>>>>> Address review comments
       this.format = format;
       this.targetFileSize = targetFileSize;
       this.writeSchema = writeSchema;
@@ -283,7 +262,6 @@ class Writer implements DataSourceWriter {
 
     @Override
     public DataWriter<InternalRow> createDataWriter(int partitionId, long taskId, long epochId) {
-<<<<<<< HEAD
       Table table = tableBroadcast.value();
 
       OutputFileFactory fileFactory = new OutputFileFactory(table, format, partitionId, taskId);
@@ -291,17 +269,6 @@ class Writer implements DataSourceWriter {
 
       PartitionSpec spec = table.spec();
       FileIO io = table.io();
-=======
-      OutputFileFactory fileFactory = new OutputFileFactory(
-          spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
-<<<<<<< HEAD
-      SparkAppenderFactory appenderFactory = SparkAppenderFactory.builderFor(properties, writeSchema, dsSchema)
-          .partitionSpec(spec).build();
->>>>>>> Create SparkAppenderFactory builder, avoid argument explosion
-=======
-      SparkAppenderFactory appenderFactory = new SparkAppenderFactory(properties,
-          writeSchema, dsSchema, spec, sortOrder);
->>>>>>> Address review comments
 
       if (spec.isUnpartitioned()) {
         return new Unpartitioned24Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize);

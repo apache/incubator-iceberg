@@ -80,7 +80,7 @@ public class TestBaseTaskWriter extends TableTestBase {
 
     int firstFieldId = table.schema().findField("id").fieldId();
     int secondFieldId = table.schema().findField("data").fieldId();
-    this.appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(), table.sortOrder(),
+    this.appenderFactory = new GenericAppenderFactory(table,
         new int[] {firstFieldId, secondFieldId}, table.schema(), null);
 
     table.updateProperties()

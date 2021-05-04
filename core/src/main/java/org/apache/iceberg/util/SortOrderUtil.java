@@ -20,7 +20,8 @@
 package org.apache.iceberg.util;
 
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionField;
@@ -70,12 +71,12 @@ public class SortOrderUtil {
 
   public static Set<String> getSortedColumns(SortOrder sortOrder) {
     if (sortOrder == null) {
-      return new HashSet<>();
+      return Collections.emptySet();
     } else {
       return sortOrder.fields().stream()
           .map(SortField::sourceId)
           .map(sid -> sortOrder.schema().findColumnName(sid))
-          .filter(nf -> nf != null)
+          .filter(Objects::nonNull)
           .collect(Collectors.toSet());
     }
   }

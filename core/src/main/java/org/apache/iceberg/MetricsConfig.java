@@ -80,11 +80,14 @@ public class MetricsConfig implements Serializable {
   }
 
   public static MetricsConfig fromProperties(Map<String, String> props) {
-    return fromSortOrder(props, null);
+    return from(props, null);
   }
 
-  public static MetricsConfig fromSortOrder(Map<String, String> props, SortOrder sortOrder) {
-    Set<String> sortedCols = SortOrderUtil.getSortedColumns(sortOrder);
+  public static MetricsConfig fromTable(Table table) {
+    return from(table.properties(), table.sortOrder());
+  }
+
+  private static MetricsConfig from(Map<String, String> props, SortOrder order) {
     MetricsConfig spec = new MetricsConfig();
     String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     try {
@@ -95,9 +98,11 @@ public class MetricsConfig implements Serializable {
       spec.defaultMode = MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     }
 
-    // Add default sorted column config
+    // First set sorted column with sorted column default (can be overridden by user)
+    final Set<String> sortedCols = new HashSet<>();
     MetricsMode sortedColDefaultMode = MetricsModes.promoteSortedColumnDefault(spec.defaultMode);
-    if (sortedCols != null) {
+    if (order != null) {
+      sortedCols.addAll(SortOrderUtil.getSortedColumns(order));
       sortedCols.stream().forEach(sc -> {
         if (!props.containsKey(METRICS_MODE_COLUMN_CONF_PREFIX + sc)) {
           spec.columnModes.put(sc, sortedColDefaultMode);

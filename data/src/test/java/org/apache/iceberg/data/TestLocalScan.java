@@ -145,9 +145,9 @@ public class TestLocalScan {
   );
 
   private void overwriteExistingData() throws IOException {
-    DataFile file12 = writeFile(sharedTableLocation, format.addExtension("file-12"), file1SecondSnapshotRecords);
-    DataFile file22 = writeFile(sharedTableLocation, format.addExtension("file-22"), file2SecondSnapshotRecords);
-    DataFile file32 = writeFile(sharedTableLocation, format.addExtension("file-32"), file3SecondSnapshotRecords);
+    DataFile file12 = writeFile(sharedTable, format.addExtension("file-12"), file1SecondSnapshotRecords);
+    DataFile file22 = writeFile(sharedTable, format.addExtension("file-22"), file2SecondSnapshotRecords);
+    DataFile file32 = writeFile(sharedTable, format.addExtension("file-32"), file3SecondSnapshotRecords);
 
     sharedTable.newOverwrite()
         .overwriteByRowFilter(Expressions.alwaysTrue())
@@ -156,9 +156,9 @@ public class TestLocalScan {
         .addFile(file32)
         .commit();
 
-    DataFile file13 = writeFile(sharedTableLocation, format.addExtension("file-13"), file1ThirdSnapshotRecords);
-    DataFile file23 = writeFile(sharedTableLocation, format.addExtension("file-23"), file2ThirdSnapshotRecords);
-    DataFile file33 = writeFile(sharedTableLocation, format.addExtension("file-33"), file3ThirdSnapshotRecords);
+    DataFile file13 = writeFile(sharedTable, format.addExtension("file-13"), file1ThirdSnapshotRecords);
+    DataFile file23 = writeFile(sharedTable, format.addExtension("file-23"), file2ThirdSnapshotRecords);
+    DataFile file33 = writeFile(sharedTable, format.addExtension("file-33"), file3ThirdSnapshotRecords);
 
     sharedTable.newOverwrite()
         .overwriteByRowFilter(Expressions.alwaysTrue())
@@ -169,9 +169,9 @@ public class TestLocalScan {
   }
 
   private void appendData() throws IOException {
-    DataFile file12 = writeFile(sharedTableLocation, format.addExtension("file-12"), file1SecondSnapshotRecords);
-    DataFile file22 = writeFile(sharedTableLocation, format.addExtension("file-22"), file2SecondSnapshotRecords);
-    DataFile file32 = writeFile(sharedTableLocation, format.addExtension("file-32"), file3SecondSnapshotRecords);
+    DataFile file12 = writeFile(sharedTable, format.addExtension("file-12"), file1SecondSnapshotRecords);
+    DataFile file22 = writeFile(sharedTable, format.addExtension("file-22"), file2SecondSnapshotRecords);
+    DataFile file32 = writeFile(sharedTable, format.addExtension("file-32"), file3SecondSnapshotRecords);
 
     sharedTable.newFastAppend()
         .appendFile(file12)
@@ -179,9 +179,9 @@ public class TestLocalScan {
         .appendFile(file32)
         .commit();
 
-    DataFile file13 = writeFile(sharedTableLocation, format.addExtension("file-13"), file1ThirdSnapshotRecords);
-    DataFile file23 = writeFile(sharedTableLocation, format.addExtension("file-23"), file2ThirdSnapshotRecords);
-    DataFile file33 = writeFile(sharedTableLocation, format.addExtension("file-33"), file3ThirdSnapshotRecords);
+    DataFile file13 = writeFile(sharedTable, format.addExtension("file-13"), file1ThirdSnapshotRecords);
+    DataFile file23 = writeFile(sharedTable, format.addExtension("file-23"), file2ThirdSnapshotRecords);
+    DataFile file33 = writeFile(sharedTable, format.addExtension("file-33"), file3ThirdSnapshotRecords);
 
     sharedTable.newFastAppend()
         .appendFile(file13)
@@ -202,14 +202,14 @@ public class TestLocalScan {
 
     Record record = GenericRecord.create(SCHEMA);
 
-    DataFile file1 = writeFile(sharedTableLocation, format.addExtension("file-1"), file1FirstSnapshotRecords);
+    DataFile file1 = writeFile(sharedTable, format.addExtension("file-1"), file1FirstSnapshotRecords);
 
     Record nullData = record.copy();
     nullData.setField("id", 11L);
     nullData.setField("data", null);
 
-    DataFile file2 = writeFile(sharedTableLocation, format.addExtension("file-2"), file2FirstSnapshotRecords);
-    DataFile file3 = writeFile(sharedTableLocation, format.addExtension("file-3"), file3FirstSnapshotRecords);
+    DataFile file2 = writeFile(sharedTable, format.addExtension("file-2"), file2FirstSnapshotRecords);
+    DataFile file3 = writeFile(sharedTable, format.addExtension("file-3"), file3FirstSnapshotRecords);
 
     // commit the test data
     sharedTable.newAppend()
@@ -243,7 +243,7 @@ public class TestLocalScan {
         records.add(iter.next());
       }
 
-      writeFile(location.toString(), format.addExtension("file-" + fileNum), records);
+      writeFile(table, format.addExtension("file-" + fileNum), records);
       DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
           .withRecordCount(numRecords)
           .withInputFile(HadoopInputFile.fromPath(path, CONF))
@@ -440,16 +440,12 @@ public class TestLocalScan {
         () -> scanBuilder.asOfTime(/* older than first snapshot */ sharedTable.history().get(0).timestampMillis() - 1));
   }
 
-  private DataFile writeFile(String location, String filename, List<Record> records) throws IOException {
-    return writeFile(location, filename, SCHEMA, records);
-  }
-
-  private DataFile writeFile(String location, String filename, Schema schema, List<Record> records) throws IOException {
-    Path path = new Path(location, filename);
+  private DataFile writeFile(Table table, String filename, List<Record> records) throws IOException {
+    Path path = new Path(table.location(), filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
 
-    FileAppender<Record> fileAppender = new GenericAppenderFactory(schema).newAppender(
+    FileAppender<Record> fileAppender = new GenericAppenderFactory(table).newAppender(
         fromPath(path, CONF), fileFormat);
     try (FileAppender<Record> appender = fileAppender) {
       appender.addAll(records);
@@ -481,7 +477,7 @@ public class TestLocalScan {
         tableLocation.getAbsolutePath());
 
     List<Record> expected = RandomGenericData.generate(schema, 100, 435691832918L);
-    DataFile file = writeFile(tableLocation.toString(), format.addExtension("record-file"), schema, expected);
+    DataFile file = writeFile(table, format.addExtension("record-file"), expected);
     table.newFastAppend().appendFile(file).commit();
 
     for (Record r : expected) {

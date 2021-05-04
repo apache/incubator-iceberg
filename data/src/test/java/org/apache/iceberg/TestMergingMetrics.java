@@ -112,11 +112,12 @@ public abstract class TestMergingMetrics<T> {
     this.fileFormat = fileFormat;
   }
 
-  protected abstract FileAppender<T> writeAndGetAppender(List<Record> records) throws Exception;
+  protected FileAppender<T> writeAndGetAppender(List<Record> records) throws Exception {
+    return writeAndGetAppender(records, TestMetricUtil.createTestTable(null, null, SCHEMA));
+  }
 
   protected abstract FileAppender<T> writeAndGetAppender(List<Record> records,
-                                                         Map<String, String> properties,
-                                                         SortOrder sortOrder) throws Exception;
+                                                         Table table) throws Exception;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -290,9 +291,10 @@ public abstract class TestMergingMetrics<T> {
     nestedStruct.setField("timestamp", null);
     record.setField("structField", nestedStruct);
 
+    Map<String, String> properties = ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
     SortOrder sortOrder = SortOrder.builderFor(SCHEMA).asc("id").asc("structField.date").build();
-    Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
-    FileAppender<T> appender = writeAndGetAppender(ImmutableList.of(record), props, sortOrder);
+    FileAppender<T> appender = writeAndGetAppender(ImmutableList.of(record),
+        TestMetricUtil.createTestTable(properties, sortOrder, SCHEMA));
 
     // Only two sorted fields (id, structField.date) will have metrics
     Map<Integer, ByteBuffer> lowerBounds = appender.metrics().lowerBounds();

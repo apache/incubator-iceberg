@@ -808,8 +808,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
         table.schema().findField("id").fieldId(),
         table.schema().findField("data").fieldId()
     };
-    return new FlinkAppenderFactory(table.schema(),
-        FlinkSchemaUtil.convert(table.schema()), table.properties(), table.spec(), table.sortOrder(), equalityFieldIds,
+    return new FlinkAppenderFactory(table,
+        FlinkSchemaUtil.convert(table.schema()), table.properties(), equalityFieldIds,
         table.schema(), null);
   }
 
@@ -828,8 +828,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   }
 
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
-    return SimpleDataUtil.writeFile(table.schema(),
-        table.spec(), table.sortOrder(), CONF, tablePath, format.addExtension(filename), rows);
+    return SimpleDataUtil.writeFile(table, CONF, tablePath, format.addExtension(filename), rows);
   }
 
   private void assertMaxCommittedCheckpointId(JobID jobID, long expectedId) {

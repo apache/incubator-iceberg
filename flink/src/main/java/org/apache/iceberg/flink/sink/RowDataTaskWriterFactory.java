@@ -27,7 +27,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.io.FileAppenderFactory;
@@ -41,10 +41,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ArrayUtil;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
-  private final Schema schema;
+  private final Table table;
   private final RowType flinkSchema;
-  private final PartitionSpec spec;
-  private final SortOrder sortOrder;
   private final LocationProvider locations;
   private final FileIO io;
   private final EncryptionManager encryptionManager;
@@ -55,10 +53,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   private transient OutputFileFactory outputFileFactory;
 
-  public RowDataTaskWriterFactory(Schema schema,
+  public RowDataTaskWriterFactory(Table table,
                                   RowType flinkSchema,
-                                  PartitionSpec spec,
-                                  SortOrder sortOrder,
                                   LocationProvider locations,
                                   FileIO io,
                                   EncryptionManager encryptionManager,
@@ -66,10 +62,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
                                   FileFormat format,
                                   Map<String, String> tableProperties,
                                   List<Integer> equalityFieldIds) {
-    this.schema = schema;
+    this.table = table;
     this.flinkSchema = flinkSchema;
-    this.spec = spec;
-    this.sortOrder = sortOrder;
     this.locations = locations;
     this.io = io;
     this.encryptionManager = encryptionManager;
@@ -78,17 +72,18 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.equalityFieldIds = equalityFieldIds;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, tableProperties, spec, sortOrder);
+      this.appenderFactory = new FlinkAppenderFactory(table, flinkSchema, tableProperties);
     } else {
       // TODO provide the ability to customize the equality-delete row schema.
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, tableProperties, spec, sortOrder,
-          ArrayUtil.toIntArray(equalityFieldIds), schema, null);
+      this.appenderFactory = new FlinkAppenderFactory(table, flinkSchema, tableProperties,
+          ArrayUtil.toIntArray(equalityFieldIds), table.schema(), null);
     }
   }
 
   @Override
   public void initialize(int taskId, int attemptId) {
-    this.outputFileFactory = new OutputFileFactory(spec, format, locations, io, encryptionManager, taskId, attemptId);
+    this.outputFileFactory = new OutputFileFactory(table.spec(), format, locations, io, encryptionManager,
+        taskId, attemptId);
   }
 
   @Override
@@ -98,20 +93,21 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       // Initialize a task writer to write INSERT only.
-      if (spec.isUnpartitioned()) {
-        return new UnpartitionedWriter<>(spec, format, appenderFactory, outputFileFactory, io, targetFileSizeBytes);
+      if (table.spec().isUnpartitioned()) {
+        return new UnpartitionedWriter<>(table.spec(), format, appenderFactory, outputFileFactory, io,
+            targetFileSizeBytes);
       } else {
-        return new RowDataPartitionedFanoutWriter(spec, format, appenderFactory, outputFileFactory,
-            io, targetFileSizeBytes, schema, flinkSchema);
+        return new RowDataPartitionedFanoutWriter(table.spec(), format, appenderFactory, outputFileFactory,
+            io, targetFileSizeBytes, table.schema(), flinkSchema);
       }
     } else {
       // Initialize a task writer to write both INSERT and equality DELETE.
-      if (spec.isUnpartitioned()) {
-        return new UnpartitionedDeltaWriter(spec, format, appenderFactory, outputFileFactory, io,
-            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds);
+      if (table.spec().isUnpartitioned()) {
+        return new UnpartitionedDeltaWriter(table.spec(), format, appenderFactory, outputFileFactory, io,
+            targetFileSizeBytes, table.schema(), flinkSchema, equalityFieldIds);
       } else {
-        return new PartitionedDeltaWriter(spec, format, appenderFactory, outputFileFactory, io,
-            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds);
+        return new PartitionedDeltaWriter(table.spec(), format, appenderFactory, outputFileFactory, io,
+            targetFileSizeBytes, table.schema(), flinkSchema, equalityFieldIds);
       }
     }
   }

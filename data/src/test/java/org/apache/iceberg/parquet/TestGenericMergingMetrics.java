@@ -21,15 +21,12 @@ package org.apache.iceberg.parquet;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TestMergingMetrics;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class TestGenericMergingMetrics extends TestMergingMetrics<Record> {
 
@@ -38,17 +35,10 @@ public class TestGenericMergingMetrics extends TestMergingMetrics<Record> {
   }
 
   @Override
-  protected FileAppender<Record> writeAndGetAppender(List<Record> records) throws IOException {
-    return writeAndGetAppender(records, ImmutableMap.of(), SortOrder.unsorted());
-  }
-
-  @Override
-  protected FileAppender<Record> writeAndGetAppender(List<Record> records,
-                                                     Map<String, String> properties,
-                                                     SortOrder sortOrder) throws IOException {
+  protected FileAppender<Record> writeAndGetAppender(List<Record> records, Table table) throws IOException {
     GenericAppenderFactory appenderFactory = new GenericAppenderFactory(
-        SCHEMA, PartitionSpec.unpartitioned(), sortOrder);
-    properties.forEach(appenderFactory::set);
+        table);
+    table.properties().forEach(appenderFactory::set);
 
     FileAppender<Record> appender = appenderFactory.newAppender(
         org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);

@@ -35,12 +35,8 @@ import org.apache.hadoop.util.Progressable;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-<<<<<<< HEAD
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-=======
-import org.apache.iceberg.SortOrder;
->>>>>>> Address review comments
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -88,8 +84,7 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
         new OutputFileFactory(spec, fileFormat, location, io, encryption, taskAttemptID.getTaskID().getId(),
             taskAttemptID.getId(), jc.get(HiveConf.ConfVars.HIVEQUERYID.varname) + "-" + taskAttemptID.getJobID());
     String tableName = jc.get(Catalogs.NAME);
-
     return new HiveIcebergRecordWriter(schema, spec, fileFormat,
-        new GenericAppenderFactory(schema, spec), outputFileFactory, io, targetFileSize, taskAttemptID, tableName);
+        new GenericAppenderFactory(table), outputFileFactory, io, targetFileSize, taskAttemptID, tableName);
   }
 }

@@ -24,10 +24,9 @@ import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
@@ -48,31 +47,31 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  */
 public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
-  private final Schema schema;
-  private final PartitionSpec spec;
-  private final SortOrder sortOrder;
+  private final Table table;
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
   private final Map<String, String> config = Maps.newHashMap();
 
-  public GenericAppenderFactory(Schema schema) {
-    this(schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, null, null);
+  public GenericAppenderFactory(Table table) {
+    this(table, null, null, null);
   }
 
-  public GenericAppenderFactory(Schema schema, PartitionSpec spec, SortOrder sortOrder) {
-    this(schema, spec, sortOrder, null, null, null);
-  }
-
-  public GenericAppenderFactory(Schema schema,
-                                PartitionSpec spec,
-                                SortOrder sortOrder,
+  public GenericAppenderFactory(Table table,
                                 int[] equalityFieldIds,
                                 Schema eqDeleteRowSchema,
                                 Schema posDeleteRowSchema) {
-    this.schema = schema;
-    this.spec = spec;
-    this.sortOrder = sortOrder;
+    Preconditions.checkNotNull(table, "Table must not be null");
+    if (equalityFieldIds != null) {
+      Preconditions.checkNotNull(eqDeleteRowSchema, "Equality Field Ids and Equality Delete Row Schema" +
+          " must be set together");
+    }
+    if (eqDeleteRowSchema != null) {
+      Preconditions.checkNotNull(equalityFieldIds, "Equality Field Ids and Equality Delete Row Schema" +
+          " must be set together");
+    }
+
+    this.table = table;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
@@ -90,12 +89,12 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
   @Override
   public FileAppender<Record> newAppender(OutputFile outputFile, FileFormat fileFormat) {
-    MetricsConfig metricsConfig = MetricsConfig.fromSortOrder(config, sortOrder);
+    MetricsConfig metricsConfig = MetricsConfig.fromTable(table);
     try {
       switch (fileFormat) {
         case AVRO:
           return Avro.write(outputFile)
-              .schema(schema)
+              .schema(table.schema())
               .createWriterFunc(DataWriter::create)
               .metricsConfig(metricsConfig)
               .setAll(config)
@@ -104,7 +103,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
         case PARQUET:
           return Parquet.write(outputFile)
-              .schema(schema)
+              .schema(table.schema())
               .createWriterFunc(GenericParquetWriter::buildWriter)
               .setAll(config)
               .metricsConfig(metricsConfig)
@@ -113,7 +112,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
         case ORC:
           return ORC.write(outputFile)
-              .schema(schema)
+              .schema(table.schema())
               .createWriterFunc(GenericOrcWriter::buildWriter)
               .setAll(config)
               .metricsConfig(metricsConfig)
@@ -133,7 +132,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
                                                                 StructLike partition) {
     return new org.apache.iceberg.io.DataWriter<>(
         newAppender(file.encryptingOutputFile(), format), format,
-        file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
+        file.encryptingOutputFile().location(), table.spec(), partition, file.keyMetadata());
   }
 
   @Override
@@ -154,7 +153,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .overwrite()
               .setAll(config)
               .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
+              .withSpec(table.spec())
               .withKeyMetadata(file.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
@@ -167,7 +166,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .setAll(config)
               .metricsConfig(metricsConfig)
               .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
+              .withSpec(table.spec())
               .withKeyMetadata(file.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
@@ -194,7 +193,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .overwrite()
               .setAll(config)
               .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
+              .withSpec(table.spec())
               .withKeyMetadata(file.keyMetadata())
               .buildPositionWriter();
 
@@ -206,7 +205,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .setAll(config)
               .metricsConfig(metricsConfig)
               .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
+              .withSpec(table.spec())
               .withKeyMetadata(file.keyMetadata())
               .buildPositionWriter();
 
