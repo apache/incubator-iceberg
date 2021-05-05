@@ -68,6 +68,7 @@ public class BaseExpireSnapshotsSparkAction
   private static final Logger LOG = LoggerFactory.getLogger(BaseExpireSnapshotsSparkAction.class);
 
   private static final String DATA_FILE = "Data File";
+  private static final String DELETE_FILE = "Delete File";
   private static final String MANIFEST = "Manifest";
   private static final String MANIFEST_LIST = "Manifest List";
 
@@ -201,8 +202,9 @@ public class BaseExpireSnapshotsSparkAction
   private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, this.table.io());
     return appendTypeString(buildValidDataFileDF(staticTable), DATA_FILE)
+        .union(appendTypeString(buildValidDeleteFileDF(staticTable), DELETE_FILE)
         .union(appendTypeString(buildManifestFileDF(staticTable), MANIFEST))
-        .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST));
+        .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST)));
   }
 
   /**
@@ -213,6 +215,7 @@ public class BaseExpireSnapshotsSparkAction
    */
   private BaseExpireSnapshotsActionResult deleteFiles(Iterator<Row> expired) {
     AtomicLong dataFileCount = new AtomicLong(0L);
+    AtomicLong deleteFileCount = new AtomicLong(0L);
     AtomicLong manifestCount = new AtomicLong(0L);
     AtomicLong manifestListCount = new AtomicLong(0L);
 
@@ -231,7 +234,11 @@ public class BaseExpireSnapshotsSparkAction
           switch (type) {
             case DATA_FILE:
               dataFileCount.incrementAndGet();
-              LOG.trace("Deleted Data File: {}", file);
+              LOG.info("Deleted Data File: {}", file);
+              break;
+            case DELETE_FILE:
+              deleteFileCount.incrementAndGet();
+              LOG.info("Deleted Delete File:{}", file);
               break;
             case MANIFEST:
               manifestCount.incrementAndGet();
@@ -244,7 +251,9 @@ public class BaseExpireSnapshotsSparkAction
           }
         });
 
-    LOG.info("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
-    return new BaseExpireSnapshotsActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get());
+    LOG.info("Deleted {} total files", dataFileCount.get() + deleteFileCount.get() +
+        manifestCount.get() + manifestListCount.get());
+    return new BaseExpireSnapshotsActionResult(dataFileCount.get(), deleteFileCount.get(),
+      manifestCount.get(), manifestListCount.get());
   }
 }

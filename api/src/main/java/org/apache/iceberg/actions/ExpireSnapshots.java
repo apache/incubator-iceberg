@@ -102,6 +102,11 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
     long deletedDataFilesCount();
 
     /**
+     * Return the number that deleted delete files.
+     */
+    long deletedDeleteFilesCount();
+
+    /**
      * Returns the number of deleted manifests.
      */
     long deletedManifestsCount();

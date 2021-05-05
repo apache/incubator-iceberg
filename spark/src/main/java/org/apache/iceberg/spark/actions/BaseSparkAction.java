@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
@@ -45,6 +46,7 @@ import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.FilterFunction;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.DataFrameReader;
@@ -152,14 +154,17 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
   protected Dataset<Row> buildValidDataFileDF(Table table) {
     JavaSparkContext context = new JavaSparkContext(spark.sparkContext());
     Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table));
+    return loadAllManifestFileBean(table).filter((FilterFunction<ManifestFileBean>) manifest ->
+        manifest.content() == ManifestContent.DATA)
+        .flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF("file_path");
+  }
 
-    Dataset<ManifestFileBean> allManifests = loadMetadataTable(table, ALL_MANIFESTS)
-        .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "added_snapshot_id as addedSnapshotId")
-        .dropDuplicates("path")
-        .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
-        .as(Encoders.bean(ManifestFileBean.class));
-
-    return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF("file_path");
+  protected Dataset<Row> buildValidDeleteFileDF(Table table) {
+    JavaSparkContext context = new JavaSparkContext(spark.sparkContext());
+    Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table));
+    return loadAllManifestFileBean(table).filter((FilterFunction<ManifestFileBean>) manifest ->
+        manifest.content() == ManifestContent.DELETES)
+      .flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF("file_path");
   }
 
   protected Dataset<Row> buildManifestFileDF(Table table) {
@@ -189,6 +194,15 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
       .hiddenImpl("org.apache.iceberg.spark.Spark3Util", SparkSession.class, String.class, MetadataTableType.class)
       .orNoop()
       .build();
+
+  private Dataset<ManifestFileBean> loadAllManifestFileBean(Table table) {
+    return loadMetadataTable(table, ALL_MANIFESTS)
+        .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "content",
+          "added_snapshot_id as addedSnapshotId")
+        .dropDuplicates("path")
+        .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
+        .as(Encoders.bean(ManifestFileBean.class));
+  }
 
   private Dataset<Row> loadCatalogMetadataTable(String tableName, MetadataTableType type) {
     Preconditions.checkArgument(!LOAD_CATALOG.isNoop(), "Cannot find Spark3Util class but Spark3 is in use");
@@ -235,7 +249,13 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
     @Override
     public Iterator<String> call(ManifestFileBean manifest) {
-      return new ClosingIterator<>(ManifestFiles.readPaths(manifest, io.getValue()).iterator());
+      switch (manifest.content()) {
+        case DATA:
+          return new ClosingIterator<>(ManifestFiles.readPaths(manifest, io.getValue()).iterator());
+        case DELETES:
+          return new ClosingIterator<>(ManifestFiles.readDeleteFiles(manifest, io.getValue()).iterator());
+      }
+      throw new UnsupportedOperationException("Cannot read unknown manifest type: " + manifest.content());
     }
   }
 }

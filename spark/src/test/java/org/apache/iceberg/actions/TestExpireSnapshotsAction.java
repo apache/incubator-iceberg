@@ -122,11 +122,13 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     return end;
   }
 
-  private void checkExpirationResults(long expectedDatafiles, long expectedManifestsDeleted,
+  private void checkExpirationResults(long expectedDatafiles, long expectedDeletefiles, long expectedManifestsDeleted,
       long expectedManifestListsDeleted, ExpireSnapshotsActionResult results) {
 
     Assert.assertEquals("Incorrect number of manifest files deleted",
         (Long) expectedManifestsDeleted, results.manifestFilesDeleted());
+    Assert.assertEquals("Incorrect number of deletefiles deleted",
+        (Long) expectedDeletefiles, results.deleteFiledDeleted());
     Assert.assertEquals("Incorrect number of datafiles deleted",
         (Long) expectedDatafiles, results.dataFilesDeleted());
     Assert.assertEquals("Incorrect number of manifest lists deleted",
@@ -154,7 +156,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
 
     Assert.assertEquals("Table does not have 1 snapshot after expiration", 1, Iterables.size(table.snapshots()));
 
-    checkExpirationResults(1L, 1L, 2L, results);
+    checkExpirationResults(1L, 0L, 1L, 2L, results);
   }
 
   @Test
@@ -203,7 +205,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
     Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));
 
-    checkExpirationResults(2L, 3L, 3L, result);
+    checkExpirationResults(2L, 0L, 3L, 3L, result);
   }
 
   @Test
@@ -213,7 +215,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .commit();
 
     ExpireSnapshotsActionResult results = Actions.forTable(table).expireSnapshots().execute();
-    checkExpirationResults(0L, 0L, 0L, results);
+    checkExpirationResults(0L, 0L, 0L, 0L, results);
   }
 
   @Test
@@ -236,7 +238,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
 
     long end = rightAfterSnapshot();
     ExpireSnapshotsActionResult results = Actions.forTable(table).expireSnapshots().expireOlderThan(end).execute();
-    checkExpirationResults(1L, 39L, 20L, results);
+    checkExpirationResults(1L, 0L, 39L, 20L, results);
   }
 
   @Test
@@ -297,7 +299,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertEquals("First snapshot should not present.", null, table.snapshot(firstSnapshotId));
     Assert.assertEquals("Second snapshot should not be present.", null, table.snapshot(secondSnapshotID));
 
-    checkExpirationResults(0L, 0L, 2L, result);
+    checkExpirationResults(0L, 0L, 0L, 2L, result);
   }
 
   @Test
@@ -323,7 +325,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
 
     Assert.assertEquals("Should have two snapshots.", 2, Lists.newArrayList(table.snapshots()).size());
     Assert.assertEquals("First snapshot should not present.", null, table.snapshot(firstSnapshotId));
-    checkExpirationResults(0L, 0L, 1L, result);
+    checkExpirationResults(0L, 0L, 0L, 1L, result);
   }
 
   @Test
@@ -349,7 +351,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertEquals("Should have two snapshots", 2, Lists.newArrayList(table.snapshots()).size());
     Assert.assertEquals("First snapshot should still present",
         firstSnapshotId, table.snapshot(firstSnapshotId).snapshotId());
-    checkExpirationResults(0L, 0L, 0L, result);
+    checkExpirationResults(0L, 0L, 0L, 0L, result);
   }
 
   @Test
@@ -380,7 +382,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
 
     Assert.assertEquals("Should have three snapshots.", 3, Lists.newArrayList(table.snapshots()).size());
     Assert.assertNotNull("Second snapshot should present.", table.snapshot(secondSnapshot.snapshotId()));
-    checkExpirationResults(0L, 0L, 1L, result);
+    checkExpirationResults(0L,  0L, 0L, 1L, result);
   }
 
   @Test
@@ -425,7 +427,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
 
     Assert.assertEquals("Should have one snapshots.", 1, Lists.newArrayList(table.snapshots()).size());
     Assert.assertNull("Second snapshot should not present.", table.snapshot(secondSnapshot.snapshotId()));
-    checkExpirationResults(0L, 0L, 2L, result);
+    checkExpirationResults(0L,  0L, 0L, 2L, result);
   }
 
   @Test
@@ -455,7 +457,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
 
     Assert.assertEquals("Should have one snapshots.", 1, Lists.newArrayList(table.snapshots()).size());
     Assert.assertNull("Second snapshot should not present.", table.snapshot(secondSnapshot.snapshotId()));
-    checkExpirationResults(0L, 0L, 2L, result);
+    checkExpirationResults(0L,  0L, 0L, 2L, result);
   }
 
   @Test
@@ -493,7 +495,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .execute();
 
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
-    checkExpirationResults(1L, 1L, 2L, result);
+    checkExpirationResults(1L, 0L, 1L, 2L, result);
   }
 
   @Test
@@ -527,7 +529,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .execute();
 
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
-    checkExpirationResults(1L, 1L, 2L, result);
+    checkExpirationResults(1L, 0L, 1L, 2L, result);
   }
 
   /**
@@ -565,7 +567,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .expireOlderThan(snapshotB.timestampMillis() + 1)
         .execute();
 
-    checkExpirationResults(1L, 1L, 2L, result);
+    checkExpirationResults(1L, 0L, 1L, 2L, result);
 
     Set<String> expectedDeletes = new HashSet<>();
     expectedDeletes.add(snapshotA.manifestListLocation());
@@ -651,7 +653,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
       });
     });
 
-    checkExpirationResults(1L, 2L, 2L, result);
+    checkExpirationResults(1L, 0L, 2L, 2L, result);
   }
 
   /**
@@ -705,7 +707,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
-    checkExpirationResults(0L, 1L, 1L, firstResult);
+    checkExpirationResults(0L, 0L, 1L, 1L, firstResult);
 
     // Expire all snapshots including cherry-pick
     ExpireSnapshotsActionResult secondResult = Actions.forTable(table).expireSnapshots()
@@ -719,7 +721,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
-    checkExpirationResults(0L, 0L, 2L, secondResult);
+    checkExpirationResults(0L, 0L, 0L, 2L, secondResult);
   }
 
   @Test
@@ -752,7 +754,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertEquals("Should remove only the expired manifest list location",
         Sets.newHashSet(firstSnapshot.manifestListLocation()), deletedFiles);
 
-    checkExpirationResults(0, 0, 1, result);
+    checkExpirationResults(0, 0L, 0, 1, result);
   }
 
   @Test
@@ -805,7 +807,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
             FILE_A.path()), // deleted
         deletedFiles);
 
-    checkExpirationResults(1, 2, 2, result);
+    checkExpirationResults(1, 0L, 2, 2, result);
   }
 
   @Test
@@ -863,7 +865,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
             FILE_A.path()), // deleted
         deletedFiles);
 
-    checkExpirationResults(1, 1, 2, result);
+    checkExpirationResults(1, 0L, 1, 2, result);
   }
 
   @Test
@@ -918,7 +920,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
             Iterables.getOnlyElement(secondSnapshotManifests).path()), // manifest is no longer referenced
         deletedFiles);
 
-    checkExpirationResults(0, 1, 1, result);
+    checkExpirationResults(0, 0L, 1, 1, result);
   }
 
   @Test
@@ -968,7 +970,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
             FILE_B.path()), // added, but rolled back
         deletedFiles);
 
-    checkExpirationResults(1, 1, 1, result);
+    checkExpirationResults(1, 0L, 1, 1, result);
   }
 
   @Test
@@ -981,7 +983,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .deleteWith(deletedFiles::add)
         .execute();
 
-    checkExpirationResults(0, 0, 0, result);
+    checkExpirationResults(0, 0L, 0, 0, result);
   }
 
   @Test
@@ -1053,7 +1055,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
     int totalJobsRun = jobsAfter - jobsBefore;
 
-    checkExpirationResults(1L, 1L, 2L, results);
+    checkExpirationResults(1L, 0L, 1L, 2L, results);
 
     Assert.assertTrue(
         String.format("Expected more than %d jobs when using local iterator, ran %d", SHUFFLE_PARTITIONS, totalJobsRun),

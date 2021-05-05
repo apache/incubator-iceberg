@@ -146,8 +146,9 @@ public class BaseRemoveOrphanFilesSparkAction
 
   private RemoveOrphanFiles.Result doExecute() {
     Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
+    Dataset<Row> validDeleteFileDF = buildValidDeleteFileDF(table);
     Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table, ops);
-    Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
+    Dataset<Row> validFileDF = validDataFileDF.union(validDeleteFileDF).union(validMetadataFileDF);
     Dataset<Row> actualFileDF = buildActualFileDF();
 
     Column actualFileName = filenameUDF.apply(actualFileDF.col("file_path"));

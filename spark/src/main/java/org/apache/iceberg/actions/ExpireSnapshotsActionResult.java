@@ -23,24 +23,32 @@ package org.apache.iceberg.actions;
 public class ExpireSnapshotsActionResult {
 
   private final Long dataFilesDeleted;
+  private final Long deleteFilesDeleted;
   private final Long manifestFilesDeleted;
   private final Long manifestListsDeleted;
 
   static ExpireSnapshotsActionResult wrap(ExpireSnapshots.Result result) {
     return new ExpireSnapshotsActionResult(
         result.deletedDataFilesCount(),
+        result.deletedDeleteFilesCount(),
         result.deletedManifestsCount(),
         result.deletedManifestListsCount());
   }
 
-  public ExpireSnapshotsActionResult(Long dataFilesDeleted, Long manifestFilesDeleted, Long manifestListsDeleted) {
+  public ExpireSnapshotsActionResult(Long dataFilesDeleted, Long deleteFilesDeleted,
+                                     Long manifestFilesDeleted, Long manifestListsDeleted) {
     this.dataFilesDeleted = dataFilesDeleted;
+    this.deleteFilesDeleted = deleteFilesDeleted;
     this.manifestFilesDeleted = manifestFilesDeleted;
     this.manifestListsDeleted = manifestListsDeleted;
   }
 
   public Long dataFilesDeleted() {
     return dataFilesDeleted;
+  }
+
+  public Long deleteFiledDeleted() {
+    return  deleteFilesDeleted;
   }
 
   public Long manifestFilesDeleted() {

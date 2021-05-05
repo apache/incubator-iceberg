@@ -100,6 +100,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   private InternalRow[] toOutputRows(ExpireSnapshots.Result result) {
     InternalRow row = newInternalRow(
         result.deletedDataFilesCount(),
+        result.deletedDeleteFilesCount(),
         result.deletedManifestsCount(),
         result.deletedManifestListsCount()
     );

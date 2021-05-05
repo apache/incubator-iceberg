@@ -56,6 +56,12 @@ public class ManifestFiles {
         entry -> entry.file().path().toString());
   }
 
+  public static CloseableIterable<String> readDeleteFiles(ManifestFile manifestFile, FileIO io) {
+    return CloseableIterable.transform(
+        readDeleteManifest(manifestFile, io, null).select(ImmutableList.of("file_path")).liveEntries(),
+        entry -> entry.file().path().toString());
+  }
+
   /**
    * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
    * <p>

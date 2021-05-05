@@ -22,13 +22,16 @@ package org.apache.iceberg.actions;
 public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result {
 
   private final long deletedDataFilesCount;
+  private final long deletedDeleteFilesCount;
   private final long deletedManifestsCount;
   private final long deletedManifestListsCount;
 
   public BaseExpireSnapshotsActionResult(long deletedDataFilesCount,
+                                         long deletedDeleteFilesCount,
                                          long deletedManifestsCount,
                                          long deletedManifestListsCount) {
     this.deletedDataFilesCount = deletedDataFilesCount;
+    this.deletedDeleteFilesCount = deletedDeleteFilesCount;
     this.deletedManifestsCount = deletedManifestsCount;
     this.deletedManifestListsCount = deletedManifestListsCount;
   }
@@ -36,6 +39,11 @@ public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result {
   @Override
   public long deletedDataFilesCount() {
     return deletedDataFilesCount;
+  }
+
+  @Override
+  public long deletedDeleteFilesCount() {
+    return deletedDeleteFilesCount;
   }
 
   @Override
