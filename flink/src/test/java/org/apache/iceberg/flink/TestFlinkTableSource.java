@@ -21,6 +21,7 @@ package org.apache.iceberg.flink;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.SqlParserException;
@@ -612,5 +613,47 @@ public class TestFlinkTableSource extends FlinkTestBase {
     String sqlParseErrorLTE = String.format("SELECT * FROM %s WHERE d <= CAST('NaN' AS DOUBLE) ", TABLE_NAME);
     AssertHelpers.assertThrows("The NaN is not supported by flink now. ",
         NumberFormatException.class, () -> sql(sqlParseErrorLTE));
+  }
+
+  @Test
+  public void testComputedColumnsWithConstant() {
+    sql("CREATE TABLE test_computed_columns ( " +
+        "     a INT," +
+        "     b AS 'iceberg'" +
+        " ) ");
+    sql("INSERT INTO test_computed_columns SELECT 1");
+    List<Object[]> result = sql("SELECT * FROM test_computed_columns ");
+    Object[] expectRecord = new Object[] {1, "iceberg"};
+    Assert.assertEquals("Should have 1 record", 1, result.size());
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, result.get(0));
+    sql("DROP TABLE test_computed_columns");
+  }
+
+  @Test
+  public void testComputedColumnsWithFunction() {
+    sql("CREATE TABLE test_computed_columns ( \n" +
+        "     a INT," +
+        "     c AS TO_TIMESTAMP('2021-01-01 12:13:14')" +
+        " ) ");
+    sql("INSERT INTO test_computed_columns SELECT 1");
+    List<Object[]> result = sql("SELECT * FROM test_computed_columns ");
+    Object[] expectRecord = new Object[] {1, LocalDateTime.parse("2021-01-01T12:13:14")};
+    Assert.assertEquals("Should have 1 record", 1, result.size());
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, result.get(0));
+    sql("DROP TABLE test_computed_columns");
+  }
+
+  @Test
+  public void testComputedColumnsWithExistColumn() {
+    sql("CREATE TABLE test_computed_columns ( \n" +
+        "     a INT," +
+        "     d AS a + 10" +
+        " ) ");
+    sql("INSERT INTO test_computed_columns SELECT 1");
+    List<Object[]> result = sql("SELECT * FROM test_computed_columns ");
+    Object[] expectRecord = new Object[] {1, 11};
+    Assert.assertEquals("Should have 1 record", 1, result.size());
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, result.get(0));
+    sql("DROP TABLE test_computed_columns");
   }
 }

@@ -54,7 +54,7 @@ public class TestFlinkInputFormatReaderDeletes extends TestFlinkReaderDeletesBas
     CatalogLoader hiveCatalogLoader = CatalogLoader.hive(catalog.name(), hiveConf, properties);
     FlinkInputFormat inputFormat = FlinkSource.forRowData()
         .tableLoader(TableLoader.fromCatalog(hiveCatalogLoader, TableIdentifier.of("default", tableName)))
-        .project(FlinkSchemaUtil.toSchema(rowType)).buildFormat();
+        .project(FlinkSchemaUtil.toSchema(rowType, projected.asStruct())).buildFormat();
 
     StructLikeSet set = StructLikeSet.create(projected.asStruct());
     TestHelpers.readRowData(inputFormat, rowType).forEach(rowData -> {
@@ -64,5 +64,4 @@ public class TestFlinkInputFormatReaderDeletes extends TestFlinkReaderDeletesBas
 
     return set;
   }
-
 }

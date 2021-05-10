@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink;
 
+import java.util.stream.Collectors;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
@@ -59,7 +60,7 @@ public class FlinkSchemaUtil {
     Preconditions.checkArgument(schemaType instanceof RowType, "Schema logical type should be RowType.");
 
     RowType root = (RowType) schemaType;
-    Type converted = root.accept(new FlinkTypeToType(root));
+    Type converted = root.accept(new FlinkTypeToType(root, schema));
 
     return new Schema(converted.asStructType().fields());
   }
@@ -114,11 +115,33 @@ public class FlinkSchemaUtil {
    * @param rowType a RowType
    * @return Flink TableSchema
    */
-  public static TableSchema toSchema(RowType rowType) {
+  public static TableSchema toSchema(RowType rowType, Types.StructType structType) {
     TableSchema.Builder builder = TableSchema.builder();
     for (RowType.RowField field : rowType.getFields()) {
-      builder.field(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
+      String fieldName = field.getName();
+
+      if (structType == null) {
+        builder.field(fieldName, TypeConversions.fromLogicalToDataType(field.getType()));
+      } else {
+        String expr = structType.field(fieldName).expr();
+        if (expr != null) {
+          builder.field(fieldName, TypeConversions.fromLogicalToDataType(field.getType()), expr);
+        } else {
+          builder.field(fieldName, TypeConversions.fromLogicalToDataType(field.getType()));
+        }
+      }
     }
+
     return builder.build();
+  }
+
+  /**
+   * Remove virtual column from the schema
+   *
+   * @param schema original schema
+   * @return the schema that only contains physical column
+   */
+  public static Schema toPhysicalSchema(Schema schema) {
+    return new Schema(schema.columns().stream().filter(f -> f.expr() == null).collect(Collectors.toList()));
   }
 }

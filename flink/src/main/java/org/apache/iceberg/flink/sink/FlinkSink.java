@@ -232,7 +232,7 @@ public class FlinkSink {
       }
 
       // Convert the requested flink table schema to flink row type.
-      RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
+      RowType flinkRowType = toFlinkRowType(FlinkSchemaUtil.toPhysicalSchema(table.schema()), tableSchema);
 
       // Distribute the records from input data stream based on the write.distribution-mode.
       rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
@@ -317,9 +317,10 @@ public class FlinkSink {
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
 
-    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkRowType,
-        table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props,
-        equalityFieldIds);
+    TaskWriterFactory<RowData> taskWriterFactory =
+        new RowDataTaskWriterFactory(FlinkSchemaUtil.toPhysicalSchema(table.schema()), flinkRowType,
+            table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props,
+            equalityFieldIds);
 
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }

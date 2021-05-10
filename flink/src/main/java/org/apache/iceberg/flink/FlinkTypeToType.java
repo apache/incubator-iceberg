@@ -20,7 +20,10 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.flink.table.api.TableColumn;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.BigIntType;
 import org.apache.flink.table.types.logical.BinaryType;
@@ -49,11 +52,13 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
 
   private final RowType root;
   private int nextId;
+  private final TableSchema schema;
 
-  FlinkTypeToType(RowType root) {
+  FlinkTypeToType(RowType root, TableSchema schema) {
     this.root = root;
     // the root struct's fields use the first ids
     this.nextId = root.getFieldCount();
+    this.schema = schema;
   }
 
   private int getNextId() {
@@ -186,10 +191,17 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
       String name = field.getName();
       String comment = field.getDescription().orElse(null);
 
+      String expr = null;
+      Optional<TableColumn> tableColumn = schema.getTableColumn(name);
+      if (tableColumn.isPresent() && tableColumn.get() instanceof TableColumn.ComputedColumn) {
+        TableColumn.ComputedColumn computedColumn = (TableColumn.ComputedColumn) tableColumn.get();
+        expr = computedColumn.getExpression();
+      }
+
       if (field.getType().isNullable()) {
-        newFields.add(Types.NestedField.optional(id, name, types.get(i), comment));
+        newFields.add(Types.NestedField.optional(id, name, types.get(i), comment, expr));
       } else {
-        newFields.add(Types.NestedField.required(id, name, types.get(i), comment));
+        newFields.add(Types.NestedField.required(id, name, types.get(i), comment, expr));
       }
     }
 

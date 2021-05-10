@@ -237,7 +237,9 @@ public class TestFlinkSchemaUtil {
     // The conversion is not a 1:1 mapping, so we just check iceberg types.
     Assert.assertEquals(
         icebergSchema.asStruct(),
-        FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergSchema))).asStruct());
+        FlinkSchemaUtil
+            .convert(FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergSchema), icebergSchema.asStruct()))
+            .asStruct());
   }
 
   @Test
@@ -268,6 +270,6 @@ public class TestFlinkSchemaUtil {
     Assert.assertEquals(flinkExpectedType, FlinkSchemaUtil.convert(icebergType));
     Assert.assertEquals(
         Types.StructType.of(Types.NestedField.optional(0, "f0", icebergExpectedType)),
-        FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(RowType.of(flinkType))).asStruct());
+        FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(RowType.of(flinkType), null)).asStruct());
   }
 }
