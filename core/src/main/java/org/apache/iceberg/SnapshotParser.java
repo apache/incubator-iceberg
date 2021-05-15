@@ -26,6 +26,8 @@ import java.io.StringWriter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionManagers;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -104,7 +106,7 @@ public class SnapshotParser {
     }
   }
 
-  static Snapshot fromJson(FileIO io, JsonNode node) {
+  static Snapshot fromJson(FileIO io, EncryptionManager encryption, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse table version from a non-object: %s", node);
 
@@ -142,20 +144,29 @@ public class SnapshotParser {
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
-      return new BaseSnapshot(io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, manifestList);
+      return new BaseSnapshot(io, encryption, sequenceNumber, snapshotId, parentId, timestamp,
+          operation, summary, manifestList);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
           location -> new GenericManifestFile(io.newInputFile(location), 0));
-      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, manifests);
+      return new BaseSnapshot(io, encryption, snapshotId, parentId, timestamp, operation, summary, manifests);
     }
   }
 
+  /**
+   * @deprecated please use {@link #fromJson(FileIO, EncryptionManager, JsonNode)}
+   */
+  @Deprecated
   public static Snapshot fromJson(FileIO io, String json) {
+    return fromJson(io, EncryptionManagers.plainText(), json);
+  }
+
+  public static Snapshot fromJson(FileIO io, EncryptionManager encryption, String json) {
     try {
-      return fromJson(io, JsonUtil.mapper().readValue(json, JsonNode.class));
+      return fromJson(io, encryption, JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read version from json: %s", json);
     }

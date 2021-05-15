@@ -24,6 +24,12 @@ import java.util.Map;
 import org.apache.iceberg.ManifestReader.FileType;
 import org.apache.iceberg.avro.AvroEncoderUtil;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptedInputFile;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionManagers;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -44,16 +50,33 @@ public class ManifestFiles {
       ));
 
   /**
+   * @deprecated please use {@link #readPaths(ManifestFile, FileIO, EncryptionManager)}
+   */
+  @Deprecated
+  public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
+    return readPaths(manifest, io, EncryptionManagers.plainText());
+  }
+
+  /**
    * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
    *
-   * @param manifest a ManifestFile
+   * @param manifest an encrypted ManifestFile
    * @param io a FileIO
+   * @param encryption an EncryptionManager
    * @return a manifest reader
    */
-  public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
+  public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io, EncryptionManager encryption) {
     return CloseableIterable.transform(
-        read(manifest, io, null).select(ImmutableList.of("file_path")).liveEntries(),
+        read(manifest, io, encryption, null).select(ImmutableList.of("file_path")).liveEntries(),
         entry -> entry.file().path().toString());
+  }
+
+  /**
+   * @deprecated please use {@link #read(ManifestFile, FileIO, EncryptionManager)}
+   */
+  @Deprecated
+  public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io) {
+    return read(manifest, io, EncryptionManagers.plainText());
   }
 
   /**
@@ -67,24 +90,45 @@ public class ManifestFiles {
    * @param io a FileIO
    * @return a manifest reader
    */
-  public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io) {
-    return read(manifest, io, null);
+  public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io, EncryptionManager encryption) {
+    return read(manifest, io, encryption, null);
+  }
+
+  /**
+   * @deprecated please use {@link #read(ManifestFile, FileIO, EncryptionManager, Map)}
+   */
+  @Deprecated
+  public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return read(manifest, io, EncryptionManagers.plainText(), specsById);
   }
 
   /**
    * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
    *
-   * @param manifest a {@link ManifestFile}
+   * @param manifest an encrypted {@link ManifestFile}
    * @param io a {@link FileIO}
+   * @param encryption a {@link EncryptionManager}
    * @param specsById a Map from spec ID to partition spec
    * @return a {@link ManifestReader}
    */
-  public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+  public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io, EncryptionManager encryption,
+                                              Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(manifest.content() == ManifestContent.DATA,
         "Cannot read a delete manifest with a ManifestReader: %s", manifest);
-    InputFile file = io.newInputFile(manifest.path());
+
+    EncryptedInputFile encryptedFile = EncryptedFiles.encryptedInput(
+            io.newInputFile(manifest.path()), manifest.keyMetadata());
+    InputFile file = encryption.decrypt(encryptedFile);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DATA_FILES);
+  }
+
+  /**
+   * @deprecated please use {@link #write(PartitionSpec, EncryptedOutputFile)}
+   */
+  @Deprecated
+  public static ManifestWriter<DataFile> write(PartitionSpec spec, OutputFile outputFile) {
+    return write(spec, EncryptedFiles.encryptedOutput(outputFile, EncryptionKeyMetadata.EMPTY));
   }
 
   /**
@@ -97,20 +141,30 @@ public class ManifestFiles {
    * @param outputFile the destination file location
    * @return a manifest writer
    */
-  public static ManifestWriter<DataFile> write(PartitionSpec spec, OutputFile outputFile) {
+  public static ManifestWriter<DataFile> write(PartitionSpec spec, EncryptedOutputFile outputFile) {
     return write(1, spec, outputFile, null);
   }
 
   /**
-   * Create a new {@link ManifestWriter} for the given format version.
+   * @deprecated please use {@link #write(int, PartitionSpec, EncryptedOutputFile, Long)}
+   */
+  @Deprecated
+  public static ManifestWriter<DataFile> write(int formatVersion, PartitionSpec spec, OutputFile outputFile,
+                                               Long snapshotId) {
+    return write(formatVersion, spec, EncryptedFiles.encryptedOutput(outputFile,
+            EncryptionKeyMetadata.EMPTY), snapshotId);
+  }
+
+  /**
+   * Create a new encrypted {@link ManifestWriter} for the given format version.
    *
    * @param formatVersion a target format version
    * @param spec a {@link PartitionSpec}
-   * @param outputFile an {@link OutputFile} where the manifest will be written
+   * @param outputFile an {@link EncryptedOutputFile} where the manifest will be written
    * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
    * @return a manifest writer
    */
-  public static ManifestWriter<DataFile> write(int formatVersion, PartitionSpec spec, OutputFile outputFile,
+  public static ManifestWriter<DataFile> write(int formatVersion, PartitionSpec spec, EncryptedOutputFile outputFile,
                                                Long snapshotId) {
     switch (formatVersion) {
       case 1:
@@ -122,20 +176,42 @@ public class ManifestFiles {
   }
 
   /**
+   * @deprecated please use {@link #readDeleteManifest(ManifestFile, FileIO, EncryptionManager, Map)}
+   */
+  @Deprecated
+  public static ManifestReader<DeleteFile> readDeleteManifest(ManifestFile manifest, FileIO io,
+                                                              Map<Integer, PartitionSpec> specsById) {
+    return readDeleteManifest(manifest, io, EncryptionManagers.plainText(), specsById);
+  }
+
+  /**
    * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
    *
    * @param manifest a {@link ManifestFile}
    * @param io a {@link FileIO}
+   * @param encryption a {@link EncryptionManager}
    * @param specsById a Map from spec ID to partition spec
    * @return a {@link ManifestReader}
    */
   public static ManifestReader<DeleteFile> readDeleteManifest(ManifestFile manifest, FileIO io,
+                                                              EncryptionManager encryption,
                                                               Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(manifest.content() == ManifestContent.DELETES,
         "Cannot read a data manifest with a DeleteManifestReader: %s", manifest);
-    InputFile file = io.newInputFile(manifest.path());
+    InputFile file = encryption.decrypt(EncryptedFiles.encryptedInput(
+        io.newInputFile(manifest.path()), manifest.keyMetadata()));
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DELETE_FILES);
+  }
+
+  /**
+   * @deprecated please use {@link #writeDeleteManifest(int, PartitionSpec, EncryptedOutputFile, Long)}
+   */
+  @Deprecated
+  public static ManifestWriter<DeleteFile> writeDeleteManifest(int formatVersion, PartitionSpec spec,
+                                                               OutputFile outputFile, Long snapshotId) {
+    return writeDeleteManifest(formatVersion, spec,
+            EncryptedFiles.encryptedOutput(outputFile, EncryptionKeyMetadata.EMPTY), snapshotId);
   }
 
   /**
@@ -143,12 +219,12 @@ public class ManifestFiles {
    *
    * @param formatVersion a target format version
    * @param spec a {@link PartitionSpec}
-   * @param outputFile an {@link OutputFile} where the manifest will be written
+   * @param outputFile an {@link EncryptedOutputFile} where the manifest will be written
    * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
    * @return a manifest writer
    */
   public static ManifestWriter<DeleteFile> writeDeleteManifest(int formatVersion, PartitionSpec spec,
-                                                               OutputFile outputFile, Long snapshotId) {
+                                                               EncryptedOutputFile outputFile, Long snapshotId) {
     switch (formatVersion) {
       case 1:
         throw new IllegalArgumentException("Cannot write delete files in a v1 table");
@@ -181,24 +257,24 @@ public class ManifestFiles {
     return AvroEncoderUtil.decode(manifestData);
   }
 
-  static ManifestReader<?> open(ManifestFile manifest, FileIO io) {
-    return open(manifest, io, null);
+  static ManifestReader<?> open(ManifestFile manifest, FileIO io, EncryptionManager encryption) {
+    return open(manifest, io, encryption, null);
   }
 
-  static ManifestReader<?> open(ManifestFile manifest, FileIO io,
+  static ManifestReader<?> open(ManifestFile manifest, FileIO io, EncryptionManager encryption,
                                 Map<Integer, PartitionSpec> specsById) {
     switch (manifest.content()) {
       case DATA:
-        return ManifestFiles.read(manifest, io, specsById);
+        return ManifestFiles.read(manifest, io, encryption, specsById);
       case DELETES:
-        return ManifestFiles.readDeleteManifest(manifest, io, specsById);
+        return ManifestFiles.readDeleteManifest(manifest, io, encryption, specsById);
     }
     throw new UnsupportedOperationException("Cannot read unknown manifest type: " + manifest.content());
   }
 
   static ManifestFile copyAppendManifest(int formatVersion,
                                          InputFile toCopy, Map<Integer, PartitionSpec> specsById,
-                                         OutputFile outputFile, long snapshotId,
+                                         EncryptedOutputFile outputFile, long snapshotId,
                                          SnapshotSummary.Builder summaryBuilder) {
     // use metadata that will add the current snapshot's ID for the rewrite
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.forCopy(snapshotId);
@@ -213,7 +289,7 @@ public class ManifestFiles {
 
   static ManifestFile copyRewriteManifest(int formatVersion,
                                           InputFile toCopy, Map<Integer, PartitionSpec> specsById,
-                                          OutputFile outputFile, long snapshotId,
+                                          EncryptedOutputFile outputFile, long snapshotId,
                                           SnapshotSummary.Builder summaryBuilder) {
     // for a rewritten manifest all snapshot ids should be set. use empty metadata to throw an exception if it is not
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.empty();
@@ -227,7 +303,7 @@ public class ManifestFiles {
   }
 
   private static ManifestFile copyManifestInternal(int formatVersion, ManifestReader<DataFile> reader,
-                                                   OutputFile outputFile, long snapshotId,
+                                                   EncryptedOutputFile outputFile, long snapshotId,
                                                    SnapshotSummary.Builder summaryBuilder,
                                                    ManifestEntry.Status allowedEntryStatus) {
     ManifestWriter<DataFile> writer = write(formatVersion, reader.spec(), outputFile, snapshotId);

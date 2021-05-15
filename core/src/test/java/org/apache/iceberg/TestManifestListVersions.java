@@ -56,16 +56,17 @@ public class TestManifestListVersions {
   private static final int DELETED_FILES = 1;
   private static final long DELETED_ROWS = 22910L;
   private static final List<ManifestFile.PartitionFieldSummary> PARTITION_SUMMARIES = ImmutableList.of();
+  private static final ByteBuffer KEY_METADATA = null;
 
   private static final ManifestFile TEST_MANIFEST = new GenericManifestFile(
       PATH, LENGTH, SPEC_ID, ManifestContent.DATA, SEQ_NUM, MIN_SEQ_NUM, SNAPSHOT_ID,
       ADDED_FILES, ADDED_ROWS, EXISTING_FILES, EXISTING_ROWS, DELETED_FILES, DELETED_ROWS,
-      PARTITION_SUMMARIES);
+      PARTITION_SUMMARIES, KEY_METADATA);
 
   private static final ManifestFile TEST_DELETE_MANIFEST = new GenericManifestFile(
       PATH, LENGTH, SPEC_ID, ManifestContent.DELETES, SEQ_NUM, MIN_SEQ_NUM, SNAPSHOT_ID,
       ADDED_FILES, ADDED_ROWS, EXISTING_FILES, EXISTING_ROWS, DELETED_FILES, DELETED_ROWS,
-      PARTITION_SUMMARIES);
+      PARTITION_SUMMARIES, KEY_METADATA);
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -223,7 +224,7 @@ public class TestManifestListVersions {
     ManifestFile manifest = new GenericManifestFile(
         PATH, LENGTH, SPEC_ID, ManifestContent.DATA, SEQ_NUM, MIN_SEQ_NUM, SNAPSHOT_ID,
         ADDED_FILES, ADDED_ROWS, EXISTING_FILES, EXISTING_ROWS, DELETED_FILES, DELETED_ROWS,
-        partitionFieldSummaries);
+        partitionFieldSummaries, KEY_METADATA);
 
     InputFile manifestList = writeManifestList(manifest, 2);
 

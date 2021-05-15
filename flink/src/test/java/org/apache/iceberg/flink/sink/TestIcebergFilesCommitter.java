@@ -603,7 +603,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
           String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, 1), manifestPath.getFileName().toString());
 
       // 2. Read the data files from manifests and assert.
-      List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
+      List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath),
+          table.io(), table.encryption());
       Assert.assertEquals(1, dataFiles.size());
       TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
@@ -644,7 +645,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
           String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, 1), manifestPath.getFileName().toString());
 
       // 2. Read the data files from manifests and assert.
-      List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
+      List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath),
+          table.io(), table.encryption());
       Assert.assertEquals(1, dataFiles.size());
       TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
@@ -815,7 +817,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   private ManifestFile createTestingManifestFile(Path manifestPath) {
     return new GenericManifestFile(manifestPath.toAbsolutePath().toString(), manifestPath.toFile().length(), 0,
-        ManifestContent.DATA, 0, 0, 0L, 0, 0, 0, 0, 0, 0, null);
+        ManifestContent.DATA, 0, 0, 0L, 0, 0, 0, 0, 0, 0, null, null);
   }
 
   private List<Path> assertFlinkManifests(int expectedCount) throws IOException {

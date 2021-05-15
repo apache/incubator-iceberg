@@ -35,6 +35,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.Action;
 import org.apache.iceberg.actions.ManifestFileBean;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -143,15 +144,16 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return otherMetadataFiles;
   }
 
-  protected Table newStaticTable(TableMetadata metadata, FileIO io) {
+  protected Table newStaticTable(TableMetadata metadata, FileIO io, EncryptionManager encryption) {
     String metadataFileLocation = metadata.metadataFileLocation();
-    StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, io);
+    StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, io, encryption);
     return new BaseTable(ops, metadataFileLocation);
   }
 
   protected Dataset<Row> buildValidDataFileDF(Table table) {
     JavaSparkContext context = new JavaSparkContext(spark.sparkContext());
     Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table));
+    Broadcast<EncryptionManager> encryptionBroadcast = context.broadcast(table.encryption());
 
     Dataset<ManifestFileBean> allManifests = loadMetadataTable(table, ALL_MANIFESTS)
         .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "added_snapshot_id as addedSnapshotId")
@@ -159,7 +161,8 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
         .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
         .as(Encoders.bean(ManifestFileBean.class));
 
-    return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF("file_path");
+    return allManifests.flatMap(new ReadManifest(ioBroadcast, encryptionBroadcast),
+        Encoders.STRING()).toDF("file_path");
   }
 
   protected Dataset<Row> buildManifestFileDF(Table table) {
@@ -228,14 +231,16 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   private static class ReadManifest implements FlatMapFunction<ManifestFileBean, String> {
     private final Broadcast<FileIO> io;
+    private final Broadcast<EncryptionManager> encryption;
 
-    ReadManifest(Broadcast<FileIO> io) {
+    ReadManifest(Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption) {
       this.io = io;
+      this.encryption = encryption;
     }
 
     @Override
     public Iterator<String> call(ManifestFileBean manifest) {
-      return new ClosingIterator<>(ManifestFiles.readPaths(manifest, io.getValue()).iterator());
+      return new ClosingIterator<>(ManifestFiles.readPaths(manifest, io.getValue(), encryption.getValue()).iterator());
     }
   }
 }

@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -31,7 +32,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -228,7 +228,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private ManifestFile copyManifest(ManifestFile manifest) {
     TableMetadata current = ops.current();
     InputFile toCopy = ops.io().newInputFile(manifest.path());
-    OutputFile newManifestPath = newManifestOutput();
+    EncryptedOutputFile newManifestPath = newManifestOutput();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(), toCopy, current.specsById(), newManifestPath, snapshotId(), appendedManifestsSummary);
   }
@@ -271,7 +271,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       currentSnapshotId = currentSnapshot.parentId();
     }
 
-    ManifestGroup conflictGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
+    ManifestGroup conflictGroup = new ManifestGroup(ops.io(), ops.encryption(), manifests, ImmutableList.of())
         .caseSensitive(caseSensitive)
         .filterManifestEntries(entry -> newSnapshots.contains(entry.snapshotId()))
         .filterData(conflictDetectionFilter)
@@ -326,7 +326,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       currentSnapshotId = currentSnapshot.parentId();
     }
 
-    ManifestGroup matchingDeletesGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
+    ManifestGroup matchingDeletesGroup = new ManifestGroup(ops.io(), ops.encryption(), manifests, ImmutableList.of())
         .filterManifestEntries(entry -> entry.status() != ManifestEntry.Status.ADDED &&
             newSnapshots.contains(entry.snapshotId()) && requiredDataFiles.contains(entry.file().path()))
         .specsById(base.specsById())

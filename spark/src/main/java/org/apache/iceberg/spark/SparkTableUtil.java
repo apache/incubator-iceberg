@@ -41,11 +41,12 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.TableMigrationUtil;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionManagers;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -327,7 +328,7 @@ public class SparkTableUtil {
       String suffix = String.format("stage-%d-task-%d-manifest", ctx.stageId(), ctx.taskAttemptId());
       Path location = new Path(basePath, suffix);
       String outputPath = FileFormat.AVRO.addExtension(location.toString());
-      OutputFile outputFile = io.newOutputFile(outputPath);
+      EncryptedOutputFile outputFile = EncryptionManagers.plainText().encrypt(io.newOutputFile(outputPath));
       ManifestWriter<DataFile> writer = ManifestFiles.write(spec, outputFile);
 
       try (ManifestWriter<DataFile> writerRef = writer) {

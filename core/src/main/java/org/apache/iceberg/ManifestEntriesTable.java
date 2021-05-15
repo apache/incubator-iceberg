@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.Map;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -103,7 +104,7 @@ public class ManifestEntriesTable extends BaseMetadataTable {
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
       return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals,
+          new ManifestReadTask(ops.io(), ops.encryption(), manifest, fileSchema, schemaString, specString, residuals,
               ops.current().specsById()));
     }
   }
@@ -111,14 +112,17 @@ public class ManifestEntriesTable extends BaseMetadataTable {
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
     private final Schema fileSchema;
     private final FileIO io;
+    private final EncryptionManager encryption;
     private final ManifestFile manifest;
     private final Map<Integer, PartitionSpec> specsById;
 
-    ManifestReadTask(FileIO io, ManifestFile manifest, Schema fileSchema, String schemaString,
-                     String specString, ResidualEvaluator residuals, Map<Integer, PartitionSpec> specsById) {
+    ManifestReadTask(FileIO io, EncryptionManager encryption, ManifestFile manifest, Schema fileSchema,
+                     String schemaString, String specString, ResidualEvaluator residuals,
+                     Map<Integer, PartitionSpec> specsById) {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
       this.fileSchema = fileSchema;
       this.io = io;
+      this.encryption = encryption;
       this.manifest = manifest;
       this.specsById = specsById;
     }
@@ -126,10 +130,10 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     @Override
     public CloseableIterable<StructLike> rows() {
       if (manifest.content() == ManifestContent.DATA) {
-        return CloseableIterable.transform(ManifestFiles.read(manifest, io).project(fileSchema).entries(),
+        return CloseableIterable.transform(ManifestFiles.read(manifest, io, encryption).project(fileSchema).entries(),
             file -> (GenericManifestEntry<DataFile>) file);
       } else {
-        return CloseableIterable.transform(ManifestFiles.readDeleteManifest(manifest, io, specsById)
+        return CloseableIterable.transform(ManifestFiles.readDeleteManifest(manifest, io, encryption, specsById)
                 .project(fileSchema).entries(),
             file -> (GenericManifestEntry<DeleteFile>) file);
       }

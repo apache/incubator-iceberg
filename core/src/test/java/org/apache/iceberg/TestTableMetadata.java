@@ -89,12 +89,12 @@ public class TestTableMetadata {
   public void testJsonConversion() throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), ops.encryption(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+        ops.io(), ops.encryption(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null,
+        ImmutableList.of(new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
 
     List<HistoryEntry> snapshotLog = ImmutableList.<HistoryEntry>builder()
         .add(new SnapshotLogEntry(previousSnapshot.timestampMillis(), previousSnapshot.snapshotId()))
@@ -113,7 +113,7 @@ public class TestTableMetadata {
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
-    TableMetadata metadata = TableMetadataParser.fromJson(ops.io(), null,
+    TableMetadata metadata = TableMetadataParser.fromJson(ops.io(), ops.encryption(), null,
         JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
     Assert.assertEquals("Format version should match",
@@ -168,12 +168,12 @@ public class TestTableMetadata {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), ops.encryption(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
+        ops.io(), ops.encryption(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null,
+        ImmutableList.of(new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     TableMetadata expected = new TableMetadata(null, 1, null, TEST_LOCATION,
         0, System.currentTimeMillis(), 3, TableMetadata.INITIAL_SCHEMA_ID,
@@ -183,7 +183,7 @@ public class TestTableMetadata {
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
     TableMetadata metadata = TableMetadataParser
-        .fromJson(ops.io(), null, JsonUtil.mapper().readValue(asJson, JsonNode.class));
+        .fromJson(ops.io(), ops.encryption(), null, JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
     Assert.assertEquals("Format version should match",
         expected.formatVersion(), metadata.formatVersion());
@@ -280,12 +280,12 @@ public class TestTableMetadata {
   public void testJsonWithPreviousMetadataLog() throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), ops.encryption(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+        ops.io(), ops.encryption(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null,
+        ImmutableList.of(new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
@@ -301,7 +301,7 @@ public class TestTableMetadata {
         ImmutableList.copyOf(previousMetadataLog));
 
     String asJson = TableMetadataParser.toJson(base);
-    TableMetadata metadataFromJson = TableMetadataParser.fromJson(ops.io(), null,
+    TableMetadata metadataFromJson = TableMetadataParser.fromJson(ops.io(), ops.encryption(), null,
         JsonUtil.mapper().readValue(asJson, JsonNode.class));
 
     Assert.assertEquals("Metadata logs should match", previousMetadataLog, metadataFromJson.previousFiles());
@@ -311,12 +311,12 @@ public class TestTableMetadata {
   public void testAddPreviousMetadataRemoveNone() {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), ops.encryption(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+        ops.io(), ops.encryption(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null,
+        ImmutableList.of(new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
@@ -351,12 +351,12 @@ public class TestTableMetadata {
   public void testAddPreviousMetadataRemoveOne() {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), ops.encryption(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+        ops.io(), ops.encryption(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null,
+        ImmutableList.of(new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
@@ -403,12 +403,12 @@ public class TestTableMetadata {
   public void testAddPreviousMetadataRemoveMultiple() {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), ops.encryption(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
+        ops.io(), ops.encryption(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null,
+        ImmutableList.of(new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
@@ -480,19 +480,19 @@ public class TestTableMetadata {
   public void testParserVersionValidation() throws Exception {
     String supportedVersion1 = readTableMetadataInputFile("TableMetadataV1Valid.json");
     TableMetadata parsed1 = TableMetadataParser.fromJson(
-        ops.io(), null, JsonUtil.mapper().readValue(supportedVersion1, JsonNode.class));
+        ops.io(), ops.encryption(), null, JsonUtil.mapper().readValue(supportedVersion1, JsonNode.class));
     Assert.assertNotNull("Should successfully read supported metadata version", parsed1);
 
     String supportedVersion2 = readTableMetadataInputFile("TableMetadataV2Valid.json");
     TableMetadata parsed2 = TableMetadataParser.fromJson(
-        ops.io(), null, JsonUtil.mapper().readValue(supportedVersion2, JsonNode.class));
+        ops.io(), ops.encryption(), null, JsonUtil.mapper().readValue(supportedVersion2, JsonNode.class));
     Assert.assertNotNull("Should successfully read supported metadata version", parsed2);
 
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataUnsupportedVersion.json");
     AssertHelpers.assertThrows("Should not read unsupported metadata",
         IllegalArgumentException.class, "Cannot read unsupported version",
         () -> TableMetadataParser.fromJson(
-            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
+            ops.io(), ops.encryption(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
     );
   }
 
@@ -503,7 +503,7 @@ public class TestTableMetadata {
     AssertHelpers.assertThrows("Should reject v2 metadata without partition specs",
         IllegalArgumentException.class, "partition-specs must exist in format v2",
         () -> TableMetadataParser.fromJson(
-            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
+            ops.io(), ops.encryption(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
     );
   }
 
@@ -513,7 +513,7 @@ public class TestTableMetadata {
     AssertHelpers.assertThrows("Should reject v2 metadata without last assigned partition field id",
         IllegalArgumentException.class, "last-partition-id must exist in format v2",
         () -> TableMetadataParser.fromJson(
-            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
+            ops.io(), ops.encryption(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
     );
   }
 
@@ -523,7 +523,7 @@ public class TestTableMetadata {
     AssertHelpers.assertThrows("Should reject v2 metadata without sort order",
         IllegalArgumentException.class, "sort-orders must exist in format v2",
         () -> TableMetadataParser.fromJson(
-            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
+            ops.io(), ops.encryption(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
     );
   }
 
@@ -533,7 +533,7 @@ public class TestTableMetadata {
     AssertHelpers.assertThrows("Should reject v2 metadata without valid schema id",
         IllegalArgumentException.class, "Cannot find schema with current-schema-id=2 from schemas",
         () -> TableMetadataParser.fromJson(
-            ops.io(), null, JsonUtil.mapper().readValue(unsupported, JsonNode.class))
+            ops.io(), ops.encryption(), null, JsonUtil.mapper().readValue(unsupported, JsonNode.class))
     );
   }
 
@@ -543,7 +543,7 @@ public class TestTableMetadata {
     AssertHelpers.assertThrows("Should reject v2 metadata without schemas",
         IllegalArgumentException.class, "schemas must exist in format v2",
         () -> TableMetadataParser.fromJson(
-            ops.io(), null, JsonUtil.mapper().readValue(unsupported, JsonNode.class))
+            ops.io(), ops.encryption(), null, JsonUtil.mapper().readValue(unsupported, JsonNode.class))
     );
   }
 
@@ -650,7 +650,7 @@ public class TestTableMetadata {
   public void testParseSchemaIdentifierFields() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
     TableMetadata parsed = TableMetadataParser.fromJson(
-        ops.io(), null, JsonUtil.mapper().readValue(data, JsonNode.class));
+        ops.io(), ops.encryption(), null, JsonUtil.mapper().readValue(data, JsonNode.class));
     Assert.assertEquals(Sets.newHashSet(), parsed.schemasById().get(0).identifierFieldIds());
     Assert.assertEquals(Sets.newHashSet(1, 2), parsed.schemasById().get(1).identifierFieldIds());
   }

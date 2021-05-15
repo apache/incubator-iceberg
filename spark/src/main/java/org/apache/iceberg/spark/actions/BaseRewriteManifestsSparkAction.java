@@ -40,9 +40,10 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.BaseRewriteManifestsActionResult;
 import org.apache.iceberg.actions.RewriteManifests;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -90,6 +91,7 @@ public class BaseRewriteManifestsSparkAction
   private final Table table;
   private final int formatVersion;
   private final FileIO fileIO;
+  private final EncryptionManager encryptionManager;
   private final long targetManifestSizeBytes;
 
   private PartitionSpec spec = null;
@@ -106,6 +108,7 @@ public class BaseRewriteManifestsSparkAction
         TableProperties.MANIFEST_TARGET_SIZE_BYTES,
         TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
     this.fileIO = SparkUtil.serializableFileIO(table);
+    this.encryptionManager = table.encryption();
 
     // default the staging location to the metadata location
     TableOperations ops = ((HasTableOperations) table).operations();
@@ -197,6 +200,8 @@ public class BaseRewriteManifestsSparkAction
 
   private List<ManifestFile> writeManifestsForUnpartitionedTable(Dataset<Row> manifestEntryDF, int numManifests) {
     Broadcast<FileIO> io = sparkContext().broadcast(fileIO);
+    Broadcast<EncryptionManager> encryption = sparkContext().broadcast(encryptionManager);
+
     StructType sparkType = (StructType) manifestEntryDF.schema().apply("data_file").dataType();
 
     // we rely only on the target number of manifests for unpartitioned tables
@@ -206,7 +211,7 @@ public class BaseRewriteManifestsSparkAction
     return manifestEntryDF
         .repartition(numManifests)
         .mapPartitions(
-            toManifests(io, maxNumManifestEntries, stagingLocation, formatVersion, spec, sparkType),
+            toManifests(io, encryption, maxNumManifestEntries, stagingLocation, formatVersion, spec, sparkType),
             manifestEncoder
         )
         .collectAsList();
@@ -217,6 +222,7 @@ public class BaseRewriteManifestsSparkAction
       int targetNumManifestEntries) {
 
     Broadcast<FileIO> io = sparkContext().broadcast(fileIO);
+    Broadcast<EncryptionManager> encryption = sparkContext().broadcast(encryptionManager);
     StructType sparkType = (StructType) manifestEntryDF.schema().apply("data_file").dataType();
 
     // we allow the actual size of manifests to be 10% higher if the estimation is not precise enough
@@ -227,7 +233,7 @@ public class BaseRewriteManifestsSparkAction
       return df.repartitionByRange(numManifests, partitionColumn)
           .sortWithinPartitions(partitionColumn)
           .mapPartitions(
-              toManifests(io, maxNumManifestEntries, stagingLocation, formatVersion, spec, sparkType),
+              toManifests(io, encryption, maxNumManifestEntries, stagingLocation, formatVersion, spec, sparkType),
               manifestEncoder
           )
           .collectAsList();
@@ -311,12 +317,13 @@ public class BaseRewriteManifestsSparkAction
   }
 
   private static ManifestFile writeManifest(
-      List<Row> rows, int startIndex, int endIndex, Broadcast<FileIO> io,
+      List<Row> rows, int startIndex, int endIndex, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption,
       String location, int format, PartitionSpec spec, StructType sparkType) throws IOException {
 
     String manifestName = "optimized-m-" + UUID.randomUUID();
     Path manifestPath = new Path(location, manifestName);
-    OutputFile outputFile = io.value().newOutputFile(FileFormat.AVRO.addExtension(manifestPath.toString()));
+    EncryptedOutputFile outputFile = encryption.value().encrypt(
+        io.value().newOutputFile(FileFormat.AVRO.addExtension(manifestPath.toString())));
 
     Types.StructType dataFileType = DataFile.getType(spec.partitionType());
     SparkDataFile wrapper = new SparkDataFile(dataFileType, sparkType);
@@ -339,7 +346,7 @@ public class BaseRewriteManifestsSparkAction
   }
 
   private static MapPartitionsFunction<Row, ManifestFile> toManifests(
-      Broadcast<FileIO> io, long maxNumManifestEntries, String location,
+      Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption, long maxNumManifestEntries, String location,
       int format, PartitionSpec spec, StructType sparkType) {
 
     return rows -> {
@@ -351,11 +358,14 @@ public class BaseRewriteManifestsSparkAction
 
       List<ManifestFile> manifests = Lists.newArrayList();
       if (rowsAsList.size() <= maxNumManifestEntries) {
-        manifests.add(writeManifest(rowsAsList, 0, rowsAsList.size(), io, location, format, spec, sparkType));
+        manifests.add(writeManifest(rowsAsList, 0, rowsAsList.size(),
+            io, encryption, location, format, spec, sparkType));
       } else {
         int midIndex = rowsAsList.size() / 2;
-        manifests.add(writeManifest(rowsAsList, 0, midIndex, io, location, format, spec, sparkType));
-        manifests.add(writeManifest(rowsAsList,  midIndex, rowsAsList.size(), io, location, format, spec, sparkType));
+        manifests.add(writeManifest(rowsAsList, 0, midIndex,
+            io, encryption, location, format, spec, sparkType));
+        manifests.add(writeManifest(rowsAsList,  midIndex, rowsAsList.size(),
+            io, encryption, location, format, spec, sparkType));
       }
 
       return manifests.iterator();

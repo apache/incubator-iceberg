@@ -36,6 +36,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.hive.HiveTableOperations;
@@ -66,6 +67,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   private Properties catalogProperties;
   private boolean deleteIcebergTable;
   private FileIO deleteIo;
+  private EncryptionManager deleteEncryption;
   private TableMetadata deleteMetadata;
 
   public HiveIcebergMetaHook(Configuration conf) {
@@ -159,8 +161,10 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     if (deleteIcebergTable && Catalogs.hiveCatalog(conf, catalogProperties)) {
       // Store the metadata and the id for deleting the actual table data
       String metadataLocation = hmsTable.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
-      this.deleteIo = Catalogs.loadTable(conf, catalogProperties).io();
-      this.deleteMetadata = TableMetadataParser.read(deleteIo, metadataLocation);
+      Table table = Catalogs.loadTable(conf, catalogProperties);
+      this.deleteIo = table.io();
+      this.deleteEncryption = table.encryption();
+      this.deleteMetadata = TableMetadataParser.read(deleteIo, deleteEncryption, metadataLocation);
     }
   }
 
@@ -179,7 +183,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
         } else {
           // do nothing if metadata folder has been deleted already (Hive 4 behaviour for purge=TRUE)
           if (deleteIo.newInputFile(deleteMetadata.location()).exists()) {
-            CatalogUtil.dropTableData(deleteIo, deleteMetadata);
+            CatalogUtil.dropTableData(deleteIo, deleteEncryption, deleteMetadata);
           }
         }
       } catch (Exception e) {

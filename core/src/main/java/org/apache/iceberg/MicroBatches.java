@@ -24,6 +24,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionManagers;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -81,8 +83,16 @@ public class MicroBatches {
     }
   }
 
+  /**
+   * @deprecated please use {@link #from(Snapshot, FileIO, EncryptionManager)}
+   */
+  @Deprecated
   public static MicroBatchBuilder from(Snapshot snapshot, FileIO io) {
-    return new MicroBatchBuilder(snapshot, io);
+    return from(snapshot, io, EncryptionManagers.plainText());
+  }
+
+  public static MicroBatchBuilder from(Snapshot snapshot, FileIO io, EncryptionManager encryption) {
+    return new MicroBatchBuilder(snapshot, io, encryption);
   }
 
   public static class MicroBatchBuilder {
@@ -90,12 +100,14 @@ public class MicroBatches {
 
     private final Snapshot snapshot;
     private final FileIO io;
+    private final EncryptionManager encryption;
     private boolean caseSensitive;
     private Map<Integer, PartitionSpec> specsById;
 
-    private MicroBatchBuilder(Snapshot snapshot, FileIO io) {
+    private MicroBatchBuilder(Snapshot snapshot, FileIO io, EncryptionManager encryption) {
       this.snapshot = snapshot;
       this.io = io;
+      this.encryption = encryption;
       this.caseSensitive = true;
     }
 
@@ -239,7 +251,7 @@ public class MicroBatches {
     }
 
     private CloseableIterable<FileScanTask> open(ManifestFile manifestFile, boolean isStarting) {
-      ManifestGroup manifestGroup = new ManifestGroup(io, ImmutableList.of(manifestFile))
+      ManifestGroup manifestGroup = new ManifestGroup(io, encryption, ImmutableList.of(manifestFile))
           .specsById(specsById)
           .caseSensitive(caseSensitive);
       if (isStarting) {

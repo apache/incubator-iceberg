@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -102,19 +103,21 @@ public class DataFilesTable extends BaseMetadataTable {
       // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
       // all cases.
       return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals));
+          new ManifestReadTask(ops.io(), ops.encryption(), manifest, fileSchema, schemaString, specString, residuals));
     }
   }
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
     private final FileIO io;
+    private final EncryptionManager encryption;
     private final ManifestFile manifest;
     private final Schema schema;
 
-    ManifestReadTask(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
+    ManifestReadTask(FileIO io, EncryptionManager encryption, ManifestFile manifest, Schema schema, String schemaString,
                      String specString, ResidualEvaluator residuals) {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
       this.io = io;
+      this.encryption = encryption;
       this.manifest = manifest;
       this.schema = schema;
     }
@@ -122,7 +125,7 @@ public class DataFilesTable extends BaseMetadataTable {
     @Override
     public CloseableIterable<StructLike> rows() {
       return CloseableIterable.transform(
-          ManifestFiles.read(manifest, io).project(schema),
+          ManifestFiles.read(manifest, io, encryption).project(schema),
           file -> (GenericDataFile) file);
     }
 

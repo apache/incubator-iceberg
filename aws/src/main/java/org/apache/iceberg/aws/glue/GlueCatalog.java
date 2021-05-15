@@ -205,7 +205,7 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
           .build());
       LOG.info("Successfully dropped table {} from Glue", identifier);
       if (purge && lastMetadata != null) {
-        CatalogUtil.dropTableData(ops.io(), lastMetadata);
+        CatalogUtil.dropTableData(ops.io(), ops.encryption(), lastMetadata);
         LOG.info("Glue table {} data purged", identifier);
       }
       LOG.info("Dropped table: {}", identifier);

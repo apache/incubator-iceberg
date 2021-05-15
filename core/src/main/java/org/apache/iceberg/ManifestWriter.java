@@ -21,9 +21,9 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -36,7 +36,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   // this is replaced when writing a manifest list by the ManifestFile wrapper
   static final long UNASSIGNED_SEQ = -1L;
 
-  private final OutputFile file;
+  private final EncryptedOutputFile file;
   private final int specId;
   private final FileAppender<ManifestEntry<F>> writer;
   private final Long snapshotId;
@@ -52,7 +52,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private long deletedRows = 0L;
   private Long minSequenceNumber = null;
 
-  private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
+  private ManifestWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
     this.file = file;
     this.specId = spec.specId();
     this.writer = newAppender(spec, file);
@@ -63,7 +63,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
 
-  protected abstract FileAppender<ManifestEntry<F>> newAppender(PartitionSpec spec, OutputFile outputFile);
+  protected abstract FileAppender<ManifestEntry<F>> newAppender(PartitionSpec spec, EncryptedOutputFile outputFile);
 
   protected ManifestContent content() {
     return ManifestContent.DATA;
@@ -154,9 +154,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     // if the minSequenceNumber is null, then no manifests with a sequence number have been written, so the min
     // sequence number is the one that will be assigned when this is committed. pass UNASSIGNED_SEQ to inherit it.
     long minSeqNumber = minSequenceNumber != null ? minSequenceNumber : UNASSIGNED_SEQ;
-    return new GenericManifestFile(file.location(), writer.length(), specId, content(),
-        UNASSIGNED_SEQ, minSeqNumber, snapshotId,
-        addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
+    return new GenericManifestFile(file.encryptingOutputFile().location(), writer.length(), specId, content(),
+        UNASSIGNED_SEQ, minSeqNumber, snapshotId, addedFiles, addedRows, existingFiles, existingRows, deletedFiles,
+        deletedRows, stats.summaries(), file.keyMetadata().buffer());
   }
 
   @Override
@@ -168,7 +168,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V2Writer extends ManifestWriter<DataFile> {
     private final V2Metadata.IndexedManifestEntry<DataFile> entryWrapper;
 
-    V2Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
+    V2Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
@@ -179,10 +179,10 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     }
 
     @Override
-    protected FileAppender<ManifestEntry<DataFile>> newAppender(PartitionSpec spec, OutputFile file) {
+    protected FileAppender<ManifestEntry<DataFile>> newAppender(PartitionSpec spec, EncryptedOutputFile file) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
-        return Avro.write(file)
+        return Avro.write(file.encryptingOutputFile())
             .schema(manifestSchema)
             .named("manifest_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))
@@ -201,7 +201,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V2DeleteWriter extends ManifestWriter<DeleteFile> {
     private final V2Metadata.IndexedManifestEntry<DeleteFile> entryWrapper;
 
-    V2DeleteWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
+    V2DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
@@ -212,10 +212,10 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     }
 
     @Override
-    protected FileAppender<ManifestEntry<DeleteFile>> newAppender(PartitionSpec spec, OutputFile file) {
+    protected FileAppender<ManifestEntry<DeleteFile>> newAppender(PartitionSpec spec, EncryptedOutputFile file) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
-        return Avro.write(file)
+        return Avro.write(file.encryptingOutputFile())
             .schema(manifestSchema)
             .named("manifest_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))
@@ -239,7 +239,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V1Writer extends ManifestWriter<DataFile> {
     private final V1Metadata.IndexedManifestEntry entryWrapper;
 
-    V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
+    V1Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
       this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
     }
@@ -250,10 +250,10 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     }
 
     @Override
-    protected FileAppender<ManifestEntry<DataFile>> newAppender(PartitionSpec spec, OutputFile file) {
+    protected FileAppender<ManifestEntry<DataFile>> newAppender(PartitionSpec spec, EncryptedOutputFile file) {
       Schema manifestSchema = V1Metadata.entrySchema(spec.partitionType());
       try {
-        return Avro.write(file)
+        return Avro.write(file.encryptingOutputFile())
             .schema(manifestSchema)
             .named("manifest_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))

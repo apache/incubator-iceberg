@@ -62,14 +62,16 @@ public interface ManifestFile {
   Types.NestedField PARTITION_SUMMARIES = optional(507, "partitions",
       Types.ListType.ofRequired(508, PARTITION_SUMMARY_TYPE),
       "Summary for each partition");
-  // next ID to assign: 519
+  Types.NestedField KEY_METADATA = optional(519, "key_metadata", Types.BinaryType.get(),
+          "Encryption key metadata blob");
+  // next ID to assign: 520
 
   Schema SCHEMA = new Schema(
       PATH, LENGTH, SPEC_ID, MANIFEST_CONTENT,
       SEQUENCE_NUMBER, MIN_SEQUENCE_NUMBER, SNAPSHOT_ID,
       ADDED_FILES_COUNT, EXISTING_FILES_COUNT, DELETED_FILES_COUNT,
       ADDED_ROWS_COUNT, EXISTING_ROWS_COUNT, DELETED_ROWS_COUNT,
-      PARTITION_SUMMARIES);
+      PARTITION_SUMMARIES, KEY_METADATA);
 
   static Schema schema() {
     return SCHEMA;
@@ -178,6 +180,13 @@ public interface ManifestFile {
    * @return a list of partition field summaries, one for each field in the manifest's spec
    */
   List<PartitionFieldSummary> partitions();
+
+  /**
+   * Returns metadata about how this manifest file is encrypted, or null if the file is stored in plain text.
+   */
+  default ByteBuffer keyMetadata() {
+    return null;
+  }
 
   /**
    * Copies this {@link ManifestFile manifest file}. Readers can reuse manifest file instances; use

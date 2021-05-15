@@ -30,6 +30,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -186,12 +187,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         throw new RuntimeIOException(e, "Failed to write manifest list file");
       }
 
-      return new BaseSnapshot(ops.io(),
+      return new BaseSnapshot(ops.io(), ops.encryption(),
           sequenceNumber, snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
           manifestList.location());
 
     } else {
-      return new BaseSnapshot(ops.io(),
+      return new BaseSnapshot(ops.io(), ops.encryption(),
           snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
           manifests);
     }
@@ -361,9 +362,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         String.format("snap-%d-%d-%s", snapshotId(), attempt.incrementAndGet(), commitUUID))));
   }
 
-  protected OutputFile newManifestOutput() {
-    return ops.io().newOutputFile(
-        ops.metadataFileLocation(FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement())));
+  protected EncryptedOutputFile newManifestOutput() {
+    return ops.encryption().encrypt(ops.io().newOutputFile(
+        ops.metadataFileLocation(FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()))));
   }
 
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
@@ -375,11 +376,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
-    return ManifestFiles.read(manifest, ops.io(), ops.current().specsById());
+    return ManifestFiles.read(manifest, ops.io(), ops.encryption(), ops.current().specsById());
   }
 
   protected ManifestReader<DeleteFile> newDeleteManifestReader(ManifestFile manifest) {
-    return ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById());
+    return ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.encryption(), ops.current().specsById());
   }
 
   protected long snapshotId() {
@@ -394,7 +395,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, ops.io(), ops.encryption(),
+        ops.current().specsById())) {
       PartitionSummary stats = new PartitionSummary(ops.current().spec(manifest.partitionSpecId()));
       int addedFiles = 0;
       long addedRows = 0L;
@@ -441,7 +443,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       return new GenericManifestFile(manifest.path(), manifest.length(), manifest.partitionSpecId(),
           ManifestContent.DATA, manifest.sequenceNumber(), manifest.minSequenceNumber(), snapshotId,
-          addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
+          addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries(),
+          manifest.keyMetadata());
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());

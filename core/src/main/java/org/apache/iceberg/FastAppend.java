@@ -23,11 +23,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -117,7 +117,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private ManifestFile copyManifest(ManifestFile manifest) {
     TableMetadata current = ops.current();
     InputFile toCopy = ops.io().newInputFile(manifest.path());
-    OutputFile newManifestPath = newManifestOutput();
+    EncryptedOutputFile newManifestPath = newManifestOutput();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(), toCopy, current.specsById(), newManifestPath, snapshotId(), summaryBuilder);
   }

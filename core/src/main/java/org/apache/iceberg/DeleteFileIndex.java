@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -305,12 +306,13 @@ class DeleteFileIndex {
     return Arrays.stream(files, start, files.length);
   }
 
-  static Builder builderFor(FileIO io, Iterable<ManifestFile> deleteManifests) {
-    return new Builder(io, Sets.newHashSet(deleteManifests));
+  static Builder builderFor(FileIO io, EncryptionManager encryption, Iterable<ManifestFile> deleteManifests) {
+    return new Builder(io, encryption, Sets.newHashSet(deleteManifests));
   }
 
   static class Builder {
     private final FileIO io;
+    private final EncryptionManager encryption;
     private final Set<ManifestFile> deleteManifests;
     private Map<Integer, PartitionSpec> specsById = null;
     private Expression dataFilter = Expressions.alwaysTrue();
@@ -318,8 +320,9 @@ class DeleteFileIndex {
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
 
-    Builder(FileIO io, Set<ManifestFile> deleteManifests) {
+    Builder(FileIO io, EncryptionManager encryption, Set<ManifestFile> deleteManifests) {
       this.io = io;
+      this.encryption = encryption;
       this.deleteManifests = Sets.newHashSet(deleteManifests);
     }
 
@@ -445,7 +448,7 @@ class DeleteFileIndex {
       return Iterables.transform(
           matchingManifests,
           manifest ->
-              ManifestFiles.readDeleteManifest(manifest, io, specsById)
+              ManifestFiles.readDeleteManifest(manifest, io, encryption, specsById)
                   .filterRows(dataFilter)
                   .filterPartitions(partitionFilter)
                   .caseSensitive(caseSensitive)

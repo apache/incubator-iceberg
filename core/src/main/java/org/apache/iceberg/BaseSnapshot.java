@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -36,6 +37,7 @@ class BaseSnapshot implements Snapshot {
   private static final long INITIAL_SEQUENCE_NUMBER = 0;
 
   private final FileIO io;
+  private final EncryptionManager encryption;
   private final long snapshotId;
   private final Long parentId;
   private final long sequenceNumber;
@@ -55,14 +57,16 @@ class BaseSnapshot implements Snapshot {
    * For testing only.
    */
   BaseSnapshot(FileIO io,
+               EncryptionManager encryption,
                long snapshotId,
                String... manifestFiles) {
-    this(io, snapshotId, null, System.currentTimeMillis(), null, null,
+    this(io, encryption, snapshotId, null, System.currentTimeMillis(), null, null,
         Lists.transform(Arrays.asList(manifestFiles),
             path -> new GenericManifestFile(io.newInputFile(path), 0)));
   }
 
   BaseSnapshot(FileIO io,
+               EncryptionManager encryption,
                long sequenceNumber,
                long snapshotId,
                Long parentId,
@@ -71,6 +75,7 @@ class BaseSnapshot implements Snapshot {
                Map<String, String> summary,
                String manifestList) {
     this.io = io;
+    this.encryption = encryption;
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
@@ -81,13 +86,14 @@ class BaseSnapshot implements Snapshot {
   }
 
   BaseSnapshot(FileIO io,
+               EncryptionManager encryption,
                long snapshotId,
                Long parentId,
                long timestampMillis,
                String operation,
                Map<String, String> summary,
                List<ManifestFile> dataManifests) {
-    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null);
+    this(io, encryption, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null);
     this.allManifests = dataManifests;
   }
 
@@ -187,7 +193,7 @@ class BaseSnapshot implements Snapshot {
     // read only manifests that were created by this snapshot
     Iterable<ManifestFile> changedManifests = Iterables.filter(dataManifests(),
         manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
-    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(io, changedManifests)
+    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(io, encryption, changedManifests)
         .ignoreExisting()
         .entries()) {
       for (ManifestEntry<DataFile> entry : entries) {

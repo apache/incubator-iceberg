@@ -31,9 +31,10 @@ import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -44,7 +45,7 @@ class FlinkManifestUtil {
   private FlinkManifestUtil() {
   }
 
-  static ManifestFile writeDataFiles(OutputFile outputFile, PartitionSpec spec, List<DataFile> dataFiles)
+  static ManifestFile writeDataFiles(EncryptedOutputFile outputFile, PartitionSpec spec, List<DataFile> dataFiles)
       throws IOException {
     ManifestWriter<DataFile> writer = ManifestFiles.write(FORMAT_V2, spec, outputFile, DUMMY_SNAPSHOT_ID);
 
@@ -55,8 +56,9 @@ class FlinkManifestUtil {
     return writer.toManifestFile();
   }
 
-  static List<DataFile> readDataFiles(ManifestFile manifestFile, FileIO io) throws IOException {
-    try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io)) {
+  static List<DataFile> readDataFiles(ManifestFile manifestFile, FileIO io, EncryptionManager encryption)
+      throws IOException {
+    try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io, encryption)) {
       return Lists.newArrayList(dataFiles);
     }
   }
@@ -64,11 +66,12 @@ class FlinkManifestUtil {
   static ManifestOutputFileFactory createOutputFileFactory(Table table, String flinkJobId, int subTaskId,
                                                            long attemptNumber) {
     TableOperations ops = ((HasTableOperations) table).operations();
-    return new ManifestOutputFileFactory(ops, table.io(), table.properties(), flinkJobId, subTaskId, attemptNumber);
+    return new ManifestOutputFileFactory(ops, table.io(), table.encryption(), table.properties(),
+        flinkJobId, subTaskId, attemptNumber);
   }
 
   static DeltaManifests writeCompletedFiles(WriteResult result,
-                                            Supplier<OutputFile> outputFileSupplier,
+                                            Supplier<EncryptedOutputFile> outputFileSupplier,
                                             PartitionSpec spec) throws IOException {
 
     ManifestFile dataManifest = null;
@@ -81,7 +84,7 @@ class FlinkManifestUtil {
 
     // Write the completed delete files into a newly created delete manifest file.
     if (result.deleteFiles() != null && result.deleteFiles().length > 0) {
-      OutputFile deleteManifestFile = outputFileSupplier.get();
+      EncryptedOutputFile deleteManifestFile = outputFileSupplier.get();
 
       ManifestWriter<DeleteFile> deleteManifestWriter = ManifestFiles.writeDeleteManifest(FORMAT_V2, spec,
           deleteManifestFile, DUMMY_SNAPSHOT_ID);
@@ -97,18 +100,19 @@ class FlinkManifestUtil {
     return new DeltaManifests(dataManifest, deleteManifest, result.referencedDataFiles());
   }
 
-  static WriteResult readCompletedFiles(DeltaManifests deltaManifests, FileIO io) throws IOException {
+  static WriteResult readCompletedFiles(DeltaManifests deltaManifests, FileIO io, EncryptionManager encryption)
+      throws IOException {
     WriteResult.Builder builder = WriteResult.builder();
 
     // Read the completed data files from persisted data manifest file.
     if (deltaManifests.dataManifest() != null) {
-      builder.addDataFiles(readDataFiles(deltaManifests.dataManifest(), io));
+      builder.addDataFiles(readDataFiles(deltaManifests.dataManifest(), io, encryption));
     }
 
     // Read the completed delete files from persisted delete manifests file.
     if (deltaManifests.deleteManifest() != null) {
       try (CloseableIterable<DeleteFile> deleteFiles = ManifestFiles
-          .readDeleteManifest(deltaManifests.deleteManifest(), io, null)) {
+          .readDeleteManifest(deltaManifests.deleteManifest(), io, encryption, null)) {
         builder.addDeleteFiles(deleteFiles);
       }
     }

@@ -23,8 +23,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
 class ManifestOutputFileFactory {
@@ -33,16 +34,18 @@ class ManifestOutputFileFactory {
 
   private final TableOperations ops;
   private final FileIO io;
+  private final EncryptionManager encryption;
   private final Map<String, String> props;
   private final String flinkJobId;
   private final int subTaskId;
   private final long attemptNumber;
   private final AtomicInteger fileCount = new AtomicInteger(0);
 
-  ManifestOutputFileFactory(TableOperations ops, FileIO io, Map<String, String> props,
+  ManifestOutputFileFactory(TableOperations ops, FileIO io, EncryptionManager encryption, Map<String, String> props,
                             String flinkJobId, int subTaskId, long attemptNumber) {
     this.ops = ops;
     this.io = io;
+    this.encryption = encryption;
     this.props = props;
     this.flinkJobId = flinkJobId;
     this.subTaskId = subTaskId;
@@ -54,7 +57,7 @@ class ManifestOutputFileFactory {
         attemptNumber, checkpointId, fileCount.incrementAndGet()));
   }
 
-  OutputFile create(long checkpointId) {
+  EncryptedOutputFile create(long checkpointId) {
     String flinkManifestDir = props.get(FLINK_MANIFEST_LOCATION);
 
     String newManifestFullPath;
@@ -65,7 +68,7 @@ class ManifestOutputFileFactory {
       newManifestFullPath = String.format("%s/%s", stripTrailingSlash(flinkManifestDir), generatePath(checkpointId));
     }
 
-    return io.newOutputFile(newManifestFullPath);
+    return encryption.encrypt(io.newOutputFile(newManifestFullPath));
   }
 
   private static String stripTrailingSlash(String path) {

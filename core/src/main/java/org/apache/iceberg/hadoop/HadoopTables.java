@@ -40,6 +40,7 @@ import org.apache.iceberg.Tables;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.encryption.EncryptionManagers;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -179,7 +180,7 @@ public class HadoopTables implements Tables, Configurable {
       if (purge && lastMetadata != null) {
         // Since the data files and the metadata files may store in different locations,
         // so it has to call dropTableData to force delete the data file.
-        CatalogUtil.dropTableData(ops.io(), lastMetadata);
+        CatalogUtil.dropTableData(ops.io(), ops.encryption(), lastMetadata);
       }
       Path tablePath = new Path(location);
       Util.getFs(tablePath, conf).delete(tablePath, true /* recursive */);
@@ -192,7 +193,7 @@ public class HadoopTables implements Tables, Configurable {
   @VisibleForTesting
   TableOperations newTableOps(String location) {
     if (location.contains(METADATA_JSON)) {
-      return new StaticTableOperations(location, new HadoopFileIO(conf));
+      return new StaticTableOperations(location, new HadoopFileIO(conf), EncryptionManagers.plainText());
     } else {
       return new HadoopTableOperations(new Path(location), new HadoopFileIO(conf), conf);
     }

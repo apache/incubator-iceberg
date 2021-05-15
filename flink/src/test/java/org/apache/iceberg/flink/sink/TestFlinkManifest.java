@@ -103,7 +103,7 @@ public class TestFlinkManifest {
               .build(),
           () -> factory.create(curCkpId), table.spec());
 
-      WriteResult result = FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io());
+      WriteResult result = FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.encryption());
       Assert.assertEquals("Size of data file list are not equal.", 10, result.deleteFiles().length);
       for (int i = 0; i < dataFiles.size(); i++) {
         TestHelpers.assertEquals(dataFiles.get(i), result.dataFiles()[i]);
@@ -125,7 +125,7 @@ public class TestFlinkManifest {
     File userProvidedFolder = tempFolder.newFolder();
     Map<String, String> props = ImmutableMap.of(FLINK_MANIFEST_LOCATION, userProvidedFolder.getAbsolutePath() + "///");
     ManifestOutputFileFactory factory = new ManifestOutputFileFactory(
-        ((HasTableOperations) table).operations(), table.io(), props,
+        ((HasTableOperations) table).operations(), table.io(), table.encryption(), props,
         flinkJobId, 1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(5);
@@ -141,7 +141,7 @@ public class TestFlinkManifest {
     Assert.assertEquals("The newly created manifest file should be located under the user provided directory",
         userProvidedFolder.toPath(), Paths.get(deltaManifests.dataManifest().path()).getParent());
 
-    WriteResult result = FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io());
+    WriteResult result = FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.encryption());
 
     Assert.assertEquals(0, result.deleteFiles().length);
     Assert.assertEquals(5, result.dataFiles().length);
@@ -198,7 +198,7 @@ public class TestFlinkManifest {
     Assert.assertNotNull("Serialization v1 should not have null data manifest.", delta.dataManifest());
     TestHelpers.assertEquals(manifest, delta.dataManifest());
 
-    List<DataFile> actualFiles = FlinkManifestUtil.readDataFiles(delta.dataManifest(), table.io());
+    List<DataFile> actualFiles = FlinkManifestUtil.readDataFiles(delta.dataManifest(), table.io(), table.encryption());
     Assert.assertEquals(10, actualFiles.size());
     for (int i = 0; i < 10; i++) {
       TestHelpers.assertEquals(dataFiles.get(i), actualFiles.get(i));

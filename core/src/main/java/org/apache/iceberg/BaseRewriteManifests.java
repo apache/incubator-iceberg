@@ -30,10 +30,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -156,7 +156,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   private ManifestFile copyManifest(ManifestFile manifest) {
     TableMetadata current = ops.current();
     InputFile toCopy = ops.io().newInputFile(manifest.path());
-    OutputFile newFile = newManifestOutput();
+    EncryptedOutputFile newFile = newManifestOutput();
     return ManifestFiles.copyRewriteManifest(
         current.formatVersion(), toCopy, specsById, newFile, snapshotId(), summaryBuilder);
   }
@@ -236,8 +236,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
               keptManifests.add(manifest);
             } else {
               rewrittenManifests.add(manifest);
-              try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())
-                  .select(Arrays.asList("*"))) {
+              try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, ops.io(), ops.encryption(),
+                  ops.current().specsById()).select(Arrays.asList("*"))) {
                 reader.liveEntries().forEach(
                     entry -> appendEntry(entry, clusterByFunc.apply(entry.file()), manifest.partitionSpecId())
                 );

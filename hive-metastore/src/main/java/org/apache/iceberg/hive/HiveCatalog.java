@@ -169,7 +169,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       });
 
       if (purge && lastMetadata != null) {
-        CatalogUtil.dropTableData(ops.io(), lastMetadata);
+        CatalogUtil.dropTableData(ops.io(), ops.encryption(), lastMetadata);
       }
 
       LOG.info("Dropped table: {}", identifier);

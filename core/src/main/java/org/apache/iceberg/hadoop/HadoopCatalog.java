@@ -263,7 +263,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
       if (purge && lastMetadata != null) {
         // Since the data files and the metadata files may store in different locations,
         // so it has to call dropTableData to force delete the data file.
-        CatalogUtil.dropTableData(ops.io(), lastMetadata);
+        CatalogUtil.dropTableData(ops.io(), ops.encryption(), lastMetadata);
       }
       fs.delete(tablePath, true /* recursive */);
       return true;

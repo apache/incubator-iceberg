@@ -35,6 +35,8 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionManagers;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -248,21 +250,37 @@ public class TableMetadataParser {
     return read(ops.io(), file);
   }
 
+  /**
+   * @deprecated please use {@link #read(FileIO, EncryptionManager, String)}
+   */
+  @Deprecated
   public static TableMetadata read(FileIO io, String path) {
-    return read(io, io.newInputFile(path));
+    return read(io, EncryptionManagers.plainText(), path);
   }
 
+  public static TableMetadata read(FileIO io, EncryptionManager encryption, String path) {
+    return read(io, encryption, io.newInputFile(path));
+  }
+
+  /**
+   * @deprecated please use {@link #read(FileIO, EncryptionManager, InputFile)}
+   */
+  @Deprecated
   public static TableMetadata read(FileIO io, InputFile file) {
+    return read(io, EncryptionManagers.plainText(), file);
+  }
+
+  public static TableMetadata read(FileIO io, EncryptionManager encryption, InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
-      return fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      return fromJson(io, encryption, file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  static TableMetadata fromJson(FileIO io, InputFile file, JsonNode node) {
+  static TableMetadata fromJson(FileIO io, EncryptionManager encryption, InputFile file, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse metadata from a non-object: %s", node);
 
@@ -380,7 +398,7 @@ public class TableMetadataParser {
     List<Snapshot> snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
     Iterator<JsonNode> iterator = snapshotArray.elements();
     while (iterator.hasNext()) {
-      snapshots.add(SnapshotParser.fromJson(io, iterator.next()));
+      snapshots.add(SnapshotParser.fromJson(io, encryption, iterator.next()));
     }
 
     ImmutableList.Builder<HistoryEntry> entries = ImmutableList.builder();

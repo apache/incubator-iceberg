@@ -205,7 +205,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
       DeltaManifests deltaManifests = SimpleVersionedSerialization
           .readVersionAndDeSerialize(DeltaManifestsSerializer.INSTANCE, e.getValue());
-      pendingResults.put(e.getKey(), FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io()));
+      pendingResults.put(e.getKey(), FlinkManifestUtil.readCompletedFiles(
+          deltaManifests, table.io(), table.encryption()));
       manifests.addAll(deltaManifests.manifests());
     }
 

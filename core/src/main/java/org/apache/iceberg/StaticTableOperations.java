@@ -20,6 +20,8 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionManagers;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 
@@ -32,17 +34,28 @@ public class StaticTableOperations implements TableOperations {
   private TableMetadata staticMetadata;
   private final String metadataFileLocation;
   private final FileIO io;
+  private final EncryptionManager encryption;
   private final LocationProvider locationProvider;
+
+  /**
+   * @deprecated please use {@link #StaticTableOperations(String, FileIO, EncryptionManager)}
+   */
+  @Deprecated
+  public StaticTableOperations(String metadataFileLocation, FileIO io) {
+    this(metadataFileLocation, io, EncryptionManagers.plainText());
+  }
 
   /**
    * Creates a StaticTableOperations tied to a specific static version of the TableMetadata
    */
-  public StaticTableOperations(String metadataFileLocation, FileIO io) {
-    this(metadataFileLocation, io, null);
+  public StaticTableOperations(String metadataFileLocation, FileIO io, EncryptionManager encryption) {
+    this(metadataFileLocation, io, encryption, null);
   }
 
-  public StaticTableOperations(String metadataFileLocation, FileIO io, LocationProvider locationProvider) {
+  public StaticTableOperations(String metadataFileLocation, FileIO io, EncryptionManager encryption,
+                               LocationProvider locationProvider) {
     this.io = io;
+    this.encryption = encryption;
     this.metadataFileLocation = metadataFileLocation;
     this.locationProvider = locationProvider;
   }
@@ -50,7 +63,7 @@ public class StaticTableOperations implements TableOperations {
   @Override
   public TableMetadata current() {
     if (staticMetadata == null) {
-      staticMetadata = TableMetadataParser.read(io, metadataFileLocation);
+      staticMetadata = TableMetadataParser.read(io, encryption, metadataFileLocation);
     }
     return staticMetadata;
   }
