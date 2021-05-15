@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 
@@ -212,6 +213,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   @Override
   public EncryptionManager encryption() {
     return operations().encryption();
+  }
+
+  @Override
+  public TableMetadataEncryptionManager metadataEncryption() {
+    return operations().metadataEncryption();
   }
 
   @Override

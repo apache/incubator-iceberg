@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 
@@ -274,6 +275,11 @@ public interface Table {
    * Returns an {@link org.apache.iceberg.encryption.EncryptionManager} to encrypt and decrypt data files.
    */
   EncryptionManager encryption();
+
+  /**
+   * Returns an {@link TableMetadataEncryptionManager} to encrypt and decrypt table metadata files.
+   */
+  TableMetadataEncryptionManager metadataEncryption();
 
   /**
    * Returns a {@link LocationProvider} to provide locations for new data files.

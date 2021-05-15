@@ -90,7 +90,8 @@ public class HadoopTableOperations implements TableOperations {
     // update if the current version is out of date
     if (version == null || version != newVersion) {
       this.version = newVersion;
-      this.currentMetadata = checkUUID(currentMetadata, TableMetadataParser.read(io(), metadataFile));
+      this.currentMetadata = checkUUID(currentMetadata,
+          TableMetadataParser.read(io(), metadataEncryption(), metadataFile));
     }
   }
 

@@ -20,6 +20,8 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.encryption.TableMetadataEncryptionManager;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManagers;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 
@@ -32,17 +34,31 @@ public class StaticTableOperations implements TableOperations {
   private TableMetadata staticMetadata;
   private final String metadataFileLocation;
   private final FileIO io;
+  private final TableMetadataEncryptionManager metadataEncryption;
   private final LocationProvider locationProvider;
+
+  /**
+   * @deprecated please use {@link #StaticTableOperations(String, FileIO, TableMetadataEncryptionManager)}
+   */
+  @Deprecated
+  public StaticTableOperations(String metadataFileLocation, FileIO io) {
+    this(metadataFileLocation, io, TableMetadataEncryptionManagers.plainText());
+  }
 
   /**
    * Creates a StaticTableOperations tied to a specific static version of the TableMetadata
    */
-  public StaticTableOperations(String metadataFileLocation, FileIO io) {
-    this(metadataFileLocation, io, null);
+  public StaticTableOperations(String metadataFileLocation, FileIO io,
+                               TableMetadataEncryptionManager metadataEncryption) {
+    this(metadataFileLocation, io, metadataEncryption, null);
   }
 
-  public StaticTableOperations(String metadataFileLocation, FileIO io, LocationProvider locationProvider) {
+
+  public StaticTableOperations(String metadataFileLocation, FileIO io,
+                               TableMetadataEncryptionManager metadataEncryption,
+                               LocationProvider locationProvider) {
     this.io = io;
+    this.metadataEncryption = metadataEncryption;
     this.metadataFileLocation = metadataFileLocation;
     this.locationProvider = locationProvider;
   }
@@ -50,7 +66,7 @@ public class StaticTableOperations implements TableOperations {
   @Override
   public TableMetadata current() {
     if (staticMetadata == null) {
-      staticMetadata = TableMetadataParser.read(io, metadataFileLocation);
+      staticMetadata = TableMetadataParser.read(io, metadataEncryption, metadataFileLocation);
     }
     return staticMetadata;
   }

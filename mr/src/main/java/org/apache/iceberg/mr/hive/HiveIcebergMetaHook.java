@@ -36,6 +36,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManager;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.hive.HiveTableOperations;
@@ -66,6 +67,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   private Properties catalogProperties;
   private boolean deleteIcebergTable;
   private FileIO deleteIo;
+  private TableMetadataEncryptionManager deleteMetadataEncryption;
   private TableMetadata deleteMetadata;
 
   public HiveIcebergMetaHook(Configuration conf) {
@@ -159,8 +161,10 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     if (deleteIcebergTable && Catalogs.hiveCatalog(conf, catalogProperties)) {
       // Store the metadata and the id for deleting the actual table data
       String metadataLocation = hmsTable.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
-      this.deleteIo = Catalogs.loadTable(conf, catalogProperties).io();
-      this.deleteMetadata = TableMetadataParser.read(deleteIo, metadataLocation);
+      Table table = Catalogs.loadTable(conf, catalogProperties);
+      this.deleteIo = table.io();
+      this.deleteMetadataEncryption = table.metadataEncryption();
+      this.deleteMetadata = TableMetadataParser.read(deleteIo, deleteMetadataEncryption, metadataLocation);
     }
   }
 

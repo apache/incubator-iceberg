@@ -40,6 +40,7 @@ import org.apache.iceberg.Tables;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManagers;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -192,7 +193,7 @@ public class HadoopTables implements Tables, Configurable {
   @VisibleForTesting
   TableOperations newTableOps(String location) {
     if (location.contains(METADATA_JSON)) {
-      return new StaticTableOperations(location, new HadoopFileIO(conf));
+      return new StaticTableOperations(location, new HadoopFileIO(conf), TableMetadataEncryptionManagers.plainText());
     } else {
       return new HadoopTableOperations(new Path(location), new HadoopFileIO(conf), conf);
     }

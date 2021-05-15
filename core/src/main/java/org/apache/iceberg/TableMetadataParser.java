@@ -35,6 +35,8 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManager;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManagers;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -248,12 +250,21 @@ public class TableMetadataParser {
     return read(ops.io(), file);
   }
 
+  /**
+   * @deprecated please use {@link #read(FileIO, TableMetadataEncryptionManager, String)}
+   */
+  @Deprecated
   public static TableMetadata read(FileIO io, String path) {
-    return read(io, io.newInputFile(path));
+    return read(io, TableMetadataEncryptionManagers.plainText(), path);
+  }
+
+  public static TableMetadata read(FileIO io, TableMetadataEncryptionManager metadataEncryption, String path) {
+    return read(io, metadataEncryption.decrypt(io.newInputFile(path)));
   }
 
   public static TableMetadata read(FileIO io, InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
+    // TODO: compression should happen before encryption
     try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
       return fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {

@@ -22,6 +22,8 @@ package org.apache.iceberg;
 import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManager;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManagers;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 
@@ -75,6 +77,14 @@ public interface TableOperations {
    */
   default EncryptionManager encryption() {
     return new PlaintextEncryptionManager();
+  }
+
+  /**
+   * Returns a {@link org.apache.iceberg.encryption.TableMetadataEncryptionManager}
+   * to encrypt and decrypt table metadata files.
+   */
+  default TableMetadataEncryptionManager metadataEncryption() {
+    return TableMetadataEncryptionManagers.plainText();
   }
 
   /**

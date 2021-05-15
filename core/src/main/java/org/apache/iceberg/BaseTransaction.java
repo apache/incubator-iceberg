@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
@@ -669,6 +670,11 @@ class BaseTransaction implements Transaction {
     @Override
     public EncryptionManager encryption() {
       return transactionOps.encryption();
+    }
+
+    @Override
+    public TableMetadataEncryptionManager metadataEncryption() {
+      return transactionOps.metadataEncryption();
     }
 
     @Override

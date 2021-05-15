@@ -55,4 +55,6 @@ public class CatalogProperties {
 
   public static final String LOCK_TABLE = "lock.table";
 
+  public static final String ENCRYPTION_TABLE_METADATA_MANAGER_IMPL = "encryption.table-metadata.manager-impl";
+
 }

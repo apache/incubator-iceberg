@@ -24,6 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
@@ -140,7 +141,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   protected String writeNewMetadata(TableMetadata metadata, int newVersion) {
     String newTableMetadataFilePath = newTableMetadataFilePath(metadata, newVersion);
-    OutputFile newMetadataLocation = io().newOutputFile(newTableMetadataFilePath);
+    OutputFile newMetadataLocation = metadataEncryption().encrypt(io().newOutputFile(newTableMetadataFilePath));
 
     // write the new metadata
     // use overwrite to avoid negative caching in S3. this is safe because the metadata location is
@@ -170,7 +171,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
           .throwFailureWhenFinished()
           .shouldRetryTest(shouldRetry)
           .run(metadataLocation -> newMetadata.set(
-              TableMetadataParser.read(io(), metadataLocation)));
+              TableMetadataParser.read(io(), metadataEncryption(), metadataLocation)));
 
       String newUUID = newMetadata.get().uuid();
       if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
@@ -242,6 +243,11 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       @Override
       public EncryptionManager encryption() {
         return BaseMetastoreTableOperations.this.encryption();
+      }
+
+      @Override
+      public TableMetadataEncryptionManager metadataEncryption() {
+        return BaseMetastoreTableOperations.this.metadataEncryption();
       }
 
       @Override

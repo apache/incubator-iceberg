@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManager;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -58,6 +59,7 @@ public class SerializableTable implements Table, Serializable {
   private final String sortOrderAsJson;
   private final FileIO io;
   private final EncryptionManager encryption;
+  private final TableMetadataEncryptionManager metadataEncryption;
   private final LocationProvider locationProvider;
 
   private transient volatile Table lazyTable = null;
@@ -75,6 +77,7 @@ public class SerializableTable implements Table, Serializable {
     this.sortOrderAsJson = SortOrderParser.toJson(table.sortOrder());
     this.io = fileIO(table);
     this.encryption = table.encryption();
+    this.metadataEncryption = table.metadataEncryption();
     this.locationProvider = table.locationProvider();
   }
 
@@ -119,7 +122,8 @@ public class SerializableTable implements Table, Serializable {
             throw new UnsupportedOperationException("Cannot load metadata: metadata file location is null");
           }
 
-          TableOperations ops = new StaticTableOperations(metadataFileLocation, io, locationProvider);
+          TableOperations ops = new StaticTableOperations(metadataFileLocation, io,
+              metadataEncryption, locationProvider);
           this.lazyTable = newTable(ops, name);
         }
       }
@@ -213,6 +217,11 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public EncryptionManager encryption() {
     return encryption;
+  }
+
+  @Override
+  public TableMetadataEncryptionManager metadataEncryption() {
+    return metadataEncryption;
   }
 
   @Override

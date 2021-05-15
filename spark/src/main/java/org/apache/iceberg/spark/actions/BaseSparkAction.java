@@ -35,6 +35,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.Action;
 import org.apache.iceberg.actions.ManifestFileBean;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.encryption.TableMetadataEncryptionManager;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -143,9 +144,10 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return otherMetadataFiles;
   }
 
-  protected Table newStaticTable(TableMetadata metadata, FileIO io) {
+  protected Table newStaticTable(TableMetadata metadata, FileIO io,
+                                 TableMetadataEncryptionManager metadataEncryption) {
     String metadataFileLocation = metadata.metadataFileLocation();
-    StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, io);
+    StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, io, metadataEncryption);
     return new BaseTable(ops, metadataFileLocation);
   }
 
