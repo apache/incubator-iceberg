@@ -43,6 +43,7 @@ class BaseSnapshot implements Snapshot {
   private final String manifestListLocation;
   private final String operation;
   private final Map<String, String> summary;
+  private final String partitionStatsLocation;
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
@@ -69,7 +70,7 @@ class BaseSnapshot implements Snapshot {
                long timestampMillis,
                String operation,
                Map<String, String> summary,
-               String manifestList) {
+               String manifestList, String partitionStatsLocation) {
     this.io = io;
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
@@ -78,6 +79,7 @@ class BaseSnapshot implements Snapshot {
     this.operation = operation;
     this.summary = summary;
     this.manifestListLocation = manifestList;
+    this.partitionStatsLocation = partitionStatsLocation;
   }
 
   BaseSnapshot(FileIO io,
@@ -87,7 +89,7 @@ class BaseSnapshot implements Snapshot {
                String operation,
                Map<String, String> summary,
                List<ManifestFile> dataManifests) {
-    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null);
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null, null);
     this.allManifests = dataManifests;
   }
 
@@ -180,6 +182,11 @@ class BaseSnapshot implements Snapshot {
     return manifestListLocation;
   }
 
+  @Override
+  public String partitionStatsLocation() {
+    return partitionStatsLocation;
+  }
+
   private void cacheChanges() {
     ImmutableList.Builder<DataFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
@@ -246,6 +253,7 @@ class BaseSnapshot implements Snapshot {
         .add("operation", operation)
         .add("summary", summary)
         .add("manifest-list", manifestListLocation)
+        .add("partition-stats", partitionStatsLocation)
         .toString();
   }
 }

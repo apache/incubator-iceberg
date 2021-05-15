@@ -102,7 +102,7 @@ public class TestSnapshotJson {
     }
 
     Snapshot expected = new BaseSnapshot(
-        ops.io(), id, 34, parentId, System.currentTimeMillis(), null, null, localInput(manifestList).location());
+        ops.io(), id, 34, parentId, System.currentTimeMillis(), null, null, localInput(manifestList).location(), null);
     Snapshot inMemory = new BaseSnapshot(
         ops.io(), id, parentId, expected.timestampMillis(), null, null, manifests);
 

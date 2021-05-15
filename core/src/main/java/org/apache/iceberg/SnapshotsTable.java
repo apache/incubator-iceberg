@@ -35,7 +35,8 @@ public class SnapshotsTable extends BaseMetadataTable {
       Types.NestedField.optional(4, "operation", Types.StringType.get()),
       Types.NestedField.optional(5, "manifest_list", Types.StringType.get()),
       Types.NestedField.optional(6, "summary",
-          Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get()))
+          Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get())),
+      Types.NestedField.optional(9, "partition_stats", Types.StringType.get())
   );
 
   SnapshotsTable(TableOperations ops, Table table) {
@@ -88,7 +89,8 @@ public class SnapshotsTable extends BaseMetadataTable {
         snap.parentId(),
         snap.operation(),
         snap.manifestListLocation(),
-        snap.summary()
+        snap.summary(),
+        snap.partitionStatsLocation()
     );
   }
 }

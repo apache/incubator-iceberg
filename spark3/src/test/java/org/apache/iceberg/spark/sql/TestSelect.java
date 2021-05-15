@@ -117,7 +117,7 @@ public class TestSelect extends SparkCatalogTestBase {
         "spark_catalog".equals(catalogName));
 
     assertEquals("Snapshot metadata table",
-        ImmutableList.of(row(ANY, ANY, null, "append", ANY, ANY)),
+        ImmutableList.of(row(ANY, ANY, null, "append", ANY, ANY, ANY)),
         sql("SELECT * FROM %s.snapshots", tableName));
   }
 }

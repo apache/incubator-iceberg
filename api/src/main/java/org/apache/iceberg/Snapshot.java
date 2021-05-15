@@ -126,4 +126,11 @@ public interface Snapshot extends Serializable {
    * @return the location of the manifest list for this Snapshot
    */
   String manifestListLocation();
+
+  /**
+   * Return the location of partition stats file, or null if doesn't exist.
+   *
+   * @return the location of Partition stats file for this Snapshot
+   */
+  String partitionStatsLocation();
 }
