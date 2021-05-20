@@ -26,8 +26,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.ql.io.IOConstants;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
@@ -99,6 +102,21 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     // it is necessary to ensure projectedSchema equals to tableSchema,
     // or we cannot find selectOperator's column from inspector
     if (projectedSchema.columns().size() != distinctSelectedColumns.length) {
+      projectedSchema = tableSchema;
+    }
+
+    String schemaColumnsStr = serDeProperties.getProperty(serdeConstants.LIST_COLUMNS, "");
+    String[] schemaColumns = schemaColumnsStr.split(String.valueOf(SerDeUtils.COMMA));
+    Set<String> schemaColumnSet = Arrays.stream(schemaColumns).collect(Collectors.toSet());
+
+    String evolutionColumnsStr = configuration.get(IOConstants.SCHEMA_EVOLUTION_COLUMNS, "");
+    String[] evolutionColumns = evolutionColumnsStr.split(String.valueOf(SerDeUtils.COMMA));
+    Set<String> evolutionColumnSet = Arrays.stream(evolutionColumns).collect(Collectors.toSet());
+
+    if (schemaColumnSet.size() == evolutionColumnSet.size()) {
+      schemaColumnSet.removeAll(evolutionColumnSet);
+      projectedSchema = schemaColumnSet.size() == 0 ? projectedSchema : tableSchema;
+    } else {
       projectedSchema = tableSchema;
     }
 
