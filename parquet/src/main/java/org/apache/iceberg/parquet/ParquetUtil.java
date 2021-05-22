@@ -309,6 +309,10 @@ public class ParquetUtil {
     return null;
   }
 
+  public static boolean hasNonBloomFilterPages(ColumnChunkMetaData meta) {
+    return meta.getBloomFilterOffset() == -1;
+  }
+
   public static boolean isIntType(PrimitiveType primitiveType) {
     if (primitiveType.getOriginalType() != null) {
       switch (primitiveType.getOriginalType()) {

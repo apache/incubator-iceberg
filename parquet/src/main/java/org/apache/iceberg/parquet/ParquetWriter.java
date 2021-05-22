@@ -38,16 +38,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
-import org.apache.parquet.column.page.PageWriteStore;
+import org.apache.parquet.column.values.bloomfilter.BloomFilterWriteStore;
 import org.apache.parquet.hadoop.CodecFactory;
+import org.apache.parquet.hadoop.ColumnChunkPageWriteStore;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
 
 class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
-  private static DynConstructors.Ctor<PageWriteStore> pageStoreCtorParquet = DynConstructors
-          .builder(PageWriteStore.class)
+  private static DynConstructors.Ctor<ColumnChunkPageWriteStore> pageStoreCtorParquet = DynConstructors
+          .builder(ColumnChunkPageWriteStore.class)
           .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",
               CodecFactory.BytesCompressor.class,
               MessageType.class,
@@ -195,11 +196,12 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.nextCheckRecordCount = Math.min(Math.max(recordCount / 2, 100), 10000);
     this.recordCount = 0;
 
-    PageWriteStore pageStore = pageStoreCtorParquet.newInstance(
+    ColumnChunkPageWriteStore pageStore = pageStoreCtorParquet.newInstance(
         compressor, parquetSchema, props.getAllocator(), this.columnIndexTruncateLength);
+    BloomFilterWriteStore bloomFilterWriteStore = pageStore;
 
     this.flushPageStoreToWriter = flushToWriter.bind(pageStore);
-    this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore);
+    this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore, bloomFilterWriteStore);
 
     model.setColumnStore(writeStore);
   }

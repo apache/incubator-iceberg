@@ -61,6 +61,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroReadSupport;
@@ -76,6 +77,12 @@ import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
 
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ENABLED_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_EXPECTED_NDV;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_EXPECTED_NDV_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
@@ -216,6 +223,10 @@ public class Parquet {
           PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
       String compressionLevel = config.getOrDefault(
           PARQUET_COMPRESSION_LEVEL, PARQUET_COMPRESSION_LEVEL_DEFAULT);
+      boolean bloomFilterEnabled = PropertyUtil.propertyAsBoolean(config, PARQUET_BLOOM_FILTER_ENABLED,
+          PARQUET_BLOOM_FILTER_ENABLED_DEFAULT);
+      int bloomFilterMaxBytes = PropertyUtil.propertyAsInt(config, PARQUET_BLOOM_FILTER_MAX_BYTES,
+          PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT);
 
       if (compressionLevel != null) {
         switch (codec()) {
@@ -250,17 +261,31 @@ public class Parquet {
           conf.set(entry.getKey(), entry.getValue());
         }
 
-        ParquetProperties parquetProperties = ParquetProperties.builder()
+        ParquetProperties.Builder propsBuilder = ParquetProperties.builder()
             .withWriterVersion(writerVersion)
             .withPageSize(pageSize)
             .withDictionaryPageSize(dictionaryPageSize)
-            .build();
+            .withMaxBloomFilterBytes(bloomFilterMaxBytes)
+            .withBloomFilterEnabled(bloomFilterEnabled);
+
+        new ColumnConfigParser()
+            .withColumnConfig(
+                PARQUET_BLOOM_FILTER_ENABLED,
+                key -> conf.getBoolean(key, PARQUET_BLOOM_FILTER_ENABLED_DEFAULT),
+                propsBuilder::withBloomFilterEnabled)
+            .withColumnConfig(
+                PARQUET_BLOOM_FILTER_EXPECTED_NDV,
+                key -> conf.getLong(key, PARQUET_BLOOM_FILTER_EXPECTED_NDV_DEFAULT),
+                propsBuilder::withBloomFilterNDV)
+            .parseConfig(conf);
+
+        ParquetProperties parquetProperties = propsBuilder.build();
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
             conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec(),
             parquetProperties, metricsConfig, writeMode);
       } else {
-        return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
+        ParquetWriteBuilder<D> parquetWriteBuilder = new ParquetWriteBuilder<D>(ParquetIO.file(file))
             .withWriterVersion(writerVersion)
             .setType(type)
             .setConfig(config)
@@ -271,7 +296,21 @@ public class Parquet {
             .withRowGroupSize(rowGroupSize)
             .withPageSize(pageSize)
             .withDictionaryPageSize(dictionaryPageSize)
-            .build(),
+            .withBloomFilterEnabled(bloomFilterEnabled);
+
+        new ColumnConfigParser()
+            .withColumnConfig(
+                PARQUET_BLOOM_FILTER_ENABLED,
+                key -> PropertyUtil.propertyAsBoolean(config, key, PARQUET_BLOOM_FILTER_ENABLED_DEFAULT),
+                parquetWriteBuilder::withBloomFilterEnabled)
+            .withColumnConfig(
+                PARQUET_BLOOM_FILTER_EXPECTED_NDV,
+                key -> PropertyUtil.propertyAsLong(config, key, PARQUET_BLOOM_FILTER_EXPECTED_NDV_DEFAULT),
+                parquetWriteBuilder::withBloomFilterNDV)
+            .parseConfig(config);
+
+        return new ParquetWriteAdapter<>(
+            parquetWriteBuilder.build(),
             metricsConfig);
       }
     }
@@ -647,12 +686,14 @@ public class Parquet {
         Schema fileSchema = ParquetSchemaUtil.convert(type);
         builder.useStatsFilter()
             .useDictionaryFilter()
+            .useBloomFilter()
             .useRecordFilter(filterRecords)
             .withFilter(ParquetFilters.convert(fileSchema, filter, caseSensitive));
       } else {
         // turn off filtering
         builder.useStatsFilter(false)
             .useDictionaryFilter(false)
+            .useBloomFilter(false)
             .useRecordFilter(false);
       }
 
