@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.nessie;
 
+import java.util.Objects;
 import org.projectnessie.api.TreeApi;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
@@ -31,8 +32,10 @@ class UpdateableReference {
   private final TreeApi client;
 
   UpdateableReference(Reference reference, TreeApi client) {
-    this.reference = reference;
-    this.client = client;
+    this.reference = Objects.requireNonNull(reference, "reference must not be null, " +
+            "make sure the NessieCatalog is properly initialized");
+    this.client = Objects.requireNonNull(client, "client must not be null, " +
+            "make sure the NessieCatalog is properly initialized");
   }
 
   public boolean refresh() throws NessieNotFoundException {

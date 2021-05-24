@@ -20,6 +20,7 @@
 package org.apache.iceberg.nessie;
 
 import java.util.Map;
+import java.util.Objects;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.TableMetadata;
@@ -60,10 +61,14 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       UpdateableReference reference,
       NessieClient client,
       FileIO fileIO) {
-    this.key = key;
-    this.reference = reference;
-    this.client = client;
-    this.fileIO = fileIO;
+    this.key = Objects.requireNonNull(key, "key must not be null, " +
+            "make sure the NessieCatalog is properly initialized");
+    this.reference = Objects.requireNonNull(reference, "reference must not be null, " +
+            "make sure the NessieCatalog is properly initialized");
+    this.client = Objects.requireNonNull(client, "client must not be null, " +
+            "make sure the NessieCatalog is properly initialized");
+    this.fileIO = Objects.requireNonNull(fileIO, "fileIO must not be null, " +
+            "make sure the NessieCatalog is properly initialized");
   }
 
   @Override

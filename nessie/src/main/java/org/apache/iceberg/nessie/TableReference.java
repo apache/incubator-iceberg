@@ -20,6 +20,7 @@
 package org.apache.iceberg.nessie;
 
 import java.time.Instant;
+import java.util.Objects;
 import org.apache.iceberg.catalog.TableIdentifier;
 
 public class TableReference {
@@ -32,7 +33,7 @@ public class TableReference {
    * Container class to specify a TableIdentifier on a specific Reference or at an Instant in time.
    */
   public TableReference(TableIdentifier tableIdentifier, Instant timestamp, String reference) {
-    this.tableIdentifier = tableIdentifier;
+    this.tableIdentifier = Objects.requireNonNull(tableIdentifier, "tableIdentifier must not be null");
     this.timestamp = timestamp;
     this.reference = reference;
   }
