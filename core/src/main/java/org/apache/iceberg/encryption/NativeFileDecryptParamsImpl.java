@@ -24,32 +24,27 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 /**
- * The data keys and other parameters should be generated centrally (e.g., in a driver).
- * Each object (/set of keys) must be created for one data file only, and sent to the worker that writes/encrypts
- * this file in a native format.
- * The central process, that generates the data keys, will wrap them (encrypt with master keys) and store in the
- * manifest key_metadata entry for the data file. Key wrapping can involve interaction with a KMS.
+ * The data keys and other parameters should be retrieved/unwrapped centrally (e.g., in a driver), by parsing the
+ * manifest key_metadata entry for a data file; and then sent to the worker that reads/decrypts this file in a native
+ * format.
+ * Key unwrapping requires authorization checks, and can involve interaction with a KMS. Therefore, unwrap only
+ * projected columns.
  */
-public class NativeFileEncryption {
+public class NativeFileDecryptParamsImpl implements NativeFileDecryptParams {
   private ByteBuffer fileAadPrefix;
   private Map<String, ByteBuffer> fileDataKeys;
-  private String fileDekId;
-  private Map<String, String> columnDekIds;
 
-  private NativeFileEncryption(Map<String, ByteBuffer> fileDataKeys, String fileDekId,
-                              Map<String, String> columnDekIds, ByteBuffer fileAadPrefix) {
-    // TODO check
+  private NativeFileDecryptParamsImpl(Map<String, ByteBuffer> fileDataKeys, ByteBuffer fileAadPrefix) {
     this.fileDataKeys = fileDataKeys;
-    this.fileDekId = fileDekId;
-    this.columnDekIds = columnDekIds;
     this.fileAadPrefix = fileAadPrefix;
   }
 
   /**
    * Data encryption keys for a single file.
+   * NOTE: pass keys only for projected columns.
    * @param dataKeys Map dekId -> dek.
-   *                 dekId is unique only within single file scope, can be a simple counter.
-   *                 dekIds must be stored in manifest key_metadata field, along with the wrapped DEKs.
+   *                 dekId is unique only within single file scope.
+   *                 dekIds are retrieved from manifest key_metadata field, along with the wrapped DEKs.
    */
   public static Builder create(Map<String, ByteBuffer> dataKeys) {
     return new Builder(dataKeys);
@@ -58,21 +53,9 @@ public class NativeFileEncryption {
   public static class Builder {
     private ByteBuffer fileAadPrefix;
     private Map<String, ByteBuffer> fileDataKeys;
-    private String fileDekId;
-    private Map<String, String> columnDekIds;
 
     private Builder(Map<String, ByteBuffer> dataKeys) {
       this.fileDataKeys = dataKeys;
-    }
-
-    public Builder fileKeyId(String keyId) {
-      this.fileDekId = keyId;
-      return this;
-    }
-
-    public Builder columnKeyIds(Map<String, String> columnKeyIds) {
-      this.columnDekIds = columnKeyIds;
-      return this;
     }
 
     public Builder aadPrefix(ByteBuffer aadPrefix) {
@@ -80,24 +63,18 @@ public class NativeFileEncryption {
       return this;
     }
 
-    public NativeFileEncryption build() {
-      return new NativeFileEncryption(fileDataKeys, fileDekId, columnDekIds, fileAadPrefix);
+    public NativeFileDecryptParamsImpl build() {
+      return new NativeFileDecryptParamsImpl(fileDataKeys, fileAadPrefix);
     }
   }
 
+  @Override
   public ByteBuffer aadPrefix() {
     return fileAadPrefix;
   }
 
-  public String fileDekId() {
-    return fileDekId;
-  }
-
+  @Override
   public Map<String, ByteBuffer> fileDataKeys() {
     return fileDataKeys;
-  }
-
-  public Map<String, String> columnDekIds() {
-    return columnDekIds;
   }
 }

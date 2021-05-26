@@ -20,59 +20,29 @@
 
 package org.apache.iceberg.encryption;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
 /**
- * The data keys and other parameters should be retrieved/unwrapped centrally (e.g., in a driver), by parsing the
+ * Per-data-file decryption parameters.
+ * The data keys and AADPrefix should be retrieved/unwrapped centrally (e.g., in a driver), by parsing the
  * manifest key_metadata entry for a data file; and then sent to the worker that reads/decrypts this file in a native
  * format.
  * Key unwrapping requires authorization checks, and can involve interaction with a KMS. Therefore, unwrap only
  * projected columns.
  */
-public class NativeFileDecryption {
-  private ByteBuffer fileAadPrefix;
-  private Map<String, ByteBuffer> fileDataKeys;
-
-  private NativeFileDecryption(Map<String, ByteBuffer> fileDataKeys, ByteBuffer fileAadPrefix) {
-    this.fileDataKeys = fileDataKeys;
-    this.fileAadPrefix = fileAadPrefix;
-  }
+public interface NativeFileDecryptParams extends Serializable  {
 
   /**
    * Data encryption keys for a single file.
    * NOTE: pass keys only for projected columns.
-   * @param dataKeys Map dekId -> dek.
+   * dataKeys Map    dekId -> dek.
    *                 dekId is unique only within single file scope.
    *                 dekIds are retrieved from manifest key_metadata field, along with the wrapped DEKs.
    */
-  public static Builder create(Map<String, ByteBuffer> dataKeys) {
-    return new Builder(dataKeys);
-  }
 
-  public static class Builder {
-    private ByteBuffer fileAadPrefix;
-    private Map<String, ByteBuffer> fileDataKeys;
+  Map<String, ByteBuffer> fileDataKeys();
 
-    private Builder(Map<String, ByteBuffer> dataKeys) {
-      this.fileDataKeys = dataKeys;
-    }
-
-    public Builder aadPrefix(ByteBuffer aadPrefix) {
-      this.fileAadPrefix = aadPrefix;
-      return this;
-    }
-
-    public NativeFileDecryption build() {
-      return new NativeFileDecryption(fileDataKeys, fileAadPrefix);
-    }
-  }
-
-  public ByteBuffer aadPrefix() {
-    return fileAadPrefix;
-  }
-
-  public Map<String, ByteBuffer> fileDataKeys() {
-    return fileDataKeys;
-  }
+  ByteBuffer aadPrefix();
 }

@@ -21,6 +21,7 @@ package org.apache.iceberg.encryption;
 
 import org.apache.iceberg.io.InputFile;
 
+// TODO update class description
 /**
  * Thin wrapper around an {@link InputFile} instance that is encrypted.
  * <p>
@@ -29,6 +30,13 @@ import org.apache.iceberg.io.InputFile;
  * {@link #encryptedInputFile()}.
  */
 public interface EncryptedInputFile {
+
+  /**
+   * Use flat filestream decryption (default) or native format decryption
+   */
+  default boolean useNativeEncryption() {
+    return false;
+  }
 
   /**
    * The {@link InputFile} that is reading raw encrypted bytes from the underlying file system.
@@ -40,4 +48,8 @@ public interface EncryptedInputFile {
    * by {@link #encryptedInputFile()}.
    */
   EncryptionKeyMetadata keyMetadata();
+
+  default NativeFileDecryptParams nativeDecryptionParameters() {
+    return null;
+  }
 }
