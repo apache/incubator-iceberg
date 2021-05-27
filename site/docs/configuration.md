@@ -40,6 +40,9 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.parquet.dict-size-bytes      | 2097152 (2 MB)     | Parquet dictionary page size                       |
 | write.parquet.compression-codec    | gzip               | Parquet compression codec                          |
 | write.parquet.compression-level    | null               | Parquet compression level                          |
+| write.parquet.bloom-filter-enabled | false | Whether to enable writing bloom filter; If it is true, the bloom filter will be enable for all columns; If it is false, it will be disabled for all columns; It is also possible to enable it for some columns by specifying the column name within the property followed by #; For example, setting both `write.parquet.bloom-filter-enabled=true` and `write.parquet.bloom-filter-enabled#some_column=false` will enable bloom filter for all columns except `some_column` |
+| write.parquet.bloom-filter-max-bytes | 1048576 (1 MB) | The maximum number of bytes for a bloom filter bitset |
+| write.parquet.bloom-filter-expected-ndv | (not set) | The expected number of distinct values in a column, it is used to compute the optimal size of the bloom filter; Note that if this property is not set, the bloom filter will use the maximum size; If this property is set for a column, then no need to enable the bloom filter with `write.parquet.bloom-filter-enabled` property; For example, setting `write.parquet.bloom-filter-expected-ndv#some_column=200` will enable bloom filter for `some_column` with expected number of distinct values equals to 200 |
 | write.avro.compression-codec       | gzip               | Avro compression codec                             |
 | write.location-provider.impl       | null               | Optional custom implemention for LocationProvider  |
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |

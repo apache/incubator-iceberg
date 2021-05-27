@@ -78,6 +78,15 @@ public class TableProperties {
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
 
+  public static final String PARQUET_BLOOM_FILTER_ENABLED = "write.parquet.bloom-filter-enabled";
+  public static final boolean PARQUET_BLOOM_FILTER_ENABLED_DEFAULT = false;
+
+  public static final String PARQUET_BLOOM_FILTER_EXPECTED_NDV = "write.parquet.bloom-filter-expected-ndv";
+  public static final long PARQUET_BLOOM_FILTER_EXPECTED_NDV_DEFAULT = -1L;
+
+  public static final String PARQUET_BLOOM_FILTER_MAX_BYTES = "write.parquet.bloom-filter-max-bytes";
+  public static final int PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT = 1024 * 1024;
+
   public static final String SPLIT_SIZE = "read.split.target-size";
   public static final long SPLIT_SIZE_DEFAULT = 134217728; // 128 MB
 
