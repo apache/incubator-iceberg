@@ -65,7 +65,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
-import org.apache.iceberg.mr.hive.HiveIcebergStorageHandler;
+import org.apache.iceberg.mr.hive.IcebergSerializationUtil;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -96,7 +96,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   public List<InputSplit> getSplits(JobContext context) {
     Configuration conf = context.getConfiguration();
     Table table = Optional
-        .ofNullable(HiveIcebergStorageHandler.table(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER)))
+        .ofNullable(IcebergSerializationUtil.table(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER)))
         .orElseGet(() -> Catalogs.loadTable(conf));
 
     TableScan scan = table.newScan()

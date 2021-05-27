@@ -94,7 +94,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
 
     TaskAttemptID attemptID = context.getTaskAttemptID();
     JobConf jobConf = context.getJobConf();
-    Collection<String> outputs = HiveIcebergStorageHandler.outputTables(context.getJobConf());
+    Collection<String> outputs = IcebergSerializationUtil.outputTables(context.getJobConf());
     Map<String, HiveIcebergRecordWriter> writers = Optional.ofNullable(HiveIcebergRecordWriter.getWriters(attemptID))
         .orElseGet(() -> {
           LOG.info("CommitTask found no writers for output tables: {}, attemptID: {}", outputs, attemptID);
@@ -110,7 +110,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .throwFailureWhenFinished()
           .executeWith(tableExecutor)
           .run(output -> {
-            Table table = HiveIcebergStorageHandler.table(context.getJobConf(), output);
+            Table table = IcebergSerializationUtil.table(context.getJobConf(), output);
             if (table != null) {
               HiveIcebergRecordWriter writer = writers.get(output);
               DataFile[] closedFiles;
@@ -174,7 +174,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     long startTime = System.currentTimeMillis();
     LOG.info("Committing job {} has started", jobContext.getJobID());
 
-    Collection<String> outputs = HiveIcebergStorageHandler.outputTables(jobContext.getJobConf());
+    Collection<String> outputs = IcebergSerializationUtil.outputTables(jobContext.getJobConf());
     Collection<String> jobLocations = new ConcurrentLinkedQueue<>();
 
     ExecutorService fileExecutor = fileExecutor(jobConf);
@@ -186,9 +186,9 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .stopOnFailure()
           .executeWith(tableExecutor)
           .run(output -> {
-            Table table = HiveIcebergStorageHandler.table(jobConf, output);
+            Table table = IcebergSerializationUtil.table(jobConf, output);
             if (table != null) {
-              String catalogName = HiveIcebergStorageHandler.catalogName(jobConf, output);
+              String catalogName = IcebergSerializationUtil.catalogName(jobConf, output);
               jobLocations.add(generateJobLocation(table.location(), jobConf, jobContext.getJobID()));
               commitTable(table.io(), fileExecutor, jobContext, output, table.location(), catalogName);
             } else {
@@ -220,7 +220,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     JobConf jobConf = jobContext.getJobConf();
 
     LOG.info("Job {} is aborted. Data file cleaning started", jobContext.getJobID());
-    Collection<String> outputs = HiveIcebergStorageHandler.outputTables(jobContext.getJobConf());
+    Collection<String> outputs = IcebergSerializationUtil.outputTables(jobContext.getJobConf());
     Collection<String> jobLocations = new ConcurrentLinkedQueue<>();
 
     ExecutorService fileExecutor = fileExecutor(jobConf);
@@ -234,7 +234,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .run(output -> {
             LOG.info("Cleaning job for table {}", jobContext.getJobID(), output);
 
-            Table table = HiveIcebergStorageHandler.table(jobConf, output);
+            Table table = IcebergSerializationUtil.table(jobConf, output);
             jobLocations.add(generateJobLocation(table.location(), jobConf, jobContext.getJobID()));
             Collection<DataFile> dataFiles = dataFiles(fileExecutor, table.location(), jobContext, table.io(), false);
 

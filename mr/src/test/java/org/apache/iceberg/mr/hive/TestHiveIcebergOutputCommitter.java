@@ -264,11 +264,11 @@ public class TestHiveIcebergOutputCommitter {
                                     JobConf conf, OutputCommitter committer) throws IOException {
     List<Record> expected = new ArrayList<>(RECORD_NUM * taskNum);
 
-    Table table = HiveIcebergStorageHandler.table(conf, name);
+    Table table = IcebergSerializationUtil.table(conf, name);
     FileIO io = table.io();
     LocationProvider location = table.locationProvider();
     EncryptionManager encryption = table.encryption();
-    Schema schema = HiveIcebergStorageHandler.schema(conf);
+    Schema schema = IcebergSerializationUtil.schema(conf);
     PartitionSpec spec = table.spec();
 
     for (int i = 0; i < taskNum; ++i) {

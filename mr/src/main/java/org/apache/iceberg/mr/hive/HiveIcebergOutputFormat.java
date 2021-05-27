@@ -70,8 +70,8 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
   private static HiveIcebergRecordWriter writer(JobConf jc) {
     TaskAttemptID taskAttemptID = TezUtil.taskAttemptWrapper(jc);
     // It gets the config from the FileSinkOperator which has its own config for every target table
-    Table table = HiveIcebergStorageHandler.table(jc, jc.get(hive_metastoreConstants.META_TABLE_NAME));
-    Schema schema = HiveIcebergStorageHandler.schema(jc);
+    Table table = IcebergSerializationUtil.table(jc, jc.get(hive_metastoreConstants.META_TABLE_NAME));
+    Schema schema = IcebergSerializationUtil.schema(jc);
     PartitionSpec spec = table.spec();
     FileFormat fileFormat = FileFormat.valueOf(PropertyUtil.propertyAsString(table.properties(),
         TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT).toUpperCase(Locale.ENGLISH));
