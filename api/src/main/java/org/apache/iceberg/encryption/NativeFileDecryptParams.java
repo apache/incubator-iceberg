@@ -37,11 +37,10 @@ public interface NativeFileDecryptParams extends Serializable  {
   /**
    * Data encryption keys for a single file.
    * NOTE: pass keys only for projected columns.
-   * dataKeys Map    dekId -> dek.
-   *                 dekId is unique only within single file scope.
-   *                 dekIds are retrieved from manifest key_metadata field, along with the wrapped DEKs.
+   * Passed as a Map (dekId to dek).
+   * dekId is unique only within single file scope.
+   * dekIds are retrieved from manifest key_metadata field, along with the wrapped DEKs.
    */
-
   Map<String, ByteBuffer> fileDataKeys();
 
   ByteBuffer aadPrefix();

@@ -36,9 +36,9 @@ public interface NativeFileEncryptParams extends Serializable {
 
   /**
    * Data encryption keys for a single file.
-   *                 dataKeys Map dekId -> dek.
-   *                 dekId is unique only within single file scope, can be a simple counter.
-   *                 dekIds must be stored in manifest key_metadata field, along with the wrapped DEKs.
+   * Passed as a Map (dekId to dek).
+   * dekId is unique only within single file scope, can be a simple counter.
+   * dekIds must be stored in manifest key_metadata field, along with the wrapped DEKs.
    */
   Map<String, ByteBuffer> fileDataKeys();
 
@@ -47,8 +47,8 @@ public interface NativeFileEncryptParams extends Serializable {
   String fileDekId();
 
   /**
-   * List of encrypted columns, each with its dek id
-   * columnDeks Map columnName -> dekId
+   * List of encrypted columns, each with its dek id.
+   * Passed as a Map (columnName to dekId)
    * For nested columns, the name is a dot-separated string.
    */
   Map<String, String> columnDekIds();

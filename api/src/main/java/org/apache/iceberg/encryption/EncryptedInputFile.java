@@ -34,7 +34,7 @@ public interface EncryptedInputFile {
   /**
    * Use flat filestream decryption (default) or native format decryption
    */
-  default boolean useNativeEncryption() {
+  default boolean useNativeDecryption() {
     return false;
   }
 
