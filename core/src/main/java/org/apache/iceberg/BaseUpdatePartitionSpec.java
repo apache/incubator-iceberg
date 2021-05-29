@@ -290,7 +290,9 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     ImmutableMap.Builder<Pair<Integer, String>, PartitionField> builder = ImmutableMap.builder();
     List<PartitionField> fields = spec.fields();
     for (PartitionField field : fields) {
-      builder.put(Pair.of(field.sourceId(), field.transform().toString()), field);
+      if (!field.transform().equals(Transforms.alwaysNull())) {
+        builder.put(Pair.of(field.sourceId(), field.transform().toString()), field);
+      }
     }
 
     return builder.build();

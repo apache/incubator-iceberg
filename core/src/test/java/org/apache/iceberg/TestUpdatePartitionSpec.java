@@ -425,6 +425,41 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
+  public void testAddDeletedSameSourceMultipleTimes() {
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+        .removeField(bucket("id", 16))
+        .apply();
+
+    updated = new BaseUpdatePartitionSpec(formatVersion, updated, 1002)
+        .addField(bucket("id", 8))
+        .apply();
+    updated = new BaseUpdatePartitionSpec(formatVersion, updated, 1002)
+        .removeField(bucket("id", 8))
+        .apply();
+    updated = new BaseUpdatePartitionSpec(formatVersion, updated, 1003)
+        .addField(bucket("id", 6))
+        .apply();
+
+    PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
+        .identity("category")
+        .day("ts")
+        .alwaysNull("id", "shard")
+        .alwaysNull("id", "id_bucket_8")
+        .bucket("id", 6, "id_bucket_6")
+        .build();
+
+    V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
+        .add(id("category"), 1000, "category", Transforms.identity(Types.StringType.get()))
+        .add(id("ts"), 1001, "ts_day", Transforms.day(Types.TimestampType.withZone()))
+        .add(id("id"), 1004, "id_bucket_6", Transforms.bucket(Types.LongType.get(), 6))
+        .build();
+
+    V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
+  }
+
+  @Test
   public void testRemoveNewlyAddedFieldByName() {
     AssertHelpers.assertThrows("Should fail trying to remove unknown field",
         IllegalArgumentException.class, "Cannot delete newly added field",
