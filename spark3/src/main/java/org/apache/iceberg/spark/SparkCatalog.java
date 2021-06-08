@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -379,7 +380,8 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
-    this.cacheEnabled = Boolean.parseBoolean(options.getOrDefault("cache-enabled", "true"));
+    this.cacheEnabled = Boolean.parseBoolean(options.getOrDefault(CatalogProperties.CATALOG_CACHE_ENABLED,
+        CatalogProperties.CATALOG_CACHE_ENABLED_DEFAULT));
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;

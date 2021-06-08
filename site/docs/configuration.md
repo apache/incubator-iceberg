@@ -84,7 +84,7 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | warehouse                         | null               | the root path of the data warehouse                    |
 | uri                               | null               | a URI string, such as Hive metastore URI               |
 | clients                           | 2                  | client pool size                                       |
-
+| cache-enabled                     | false              | cache catalog, only works for Spark                    | 
 `HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
 Any other custom catalog can access the properties by implementing `Catalog.initialize(catalogName, catalogProperties)`.
 The properties can be manually constructed or passed in from a compute engine like Spark or Flink.

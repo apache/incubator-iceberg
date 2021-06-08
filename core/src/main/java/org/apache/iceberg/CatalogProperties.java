@@ -55,4 +55,7 @@ public class CatalogProperties {
 
   public static final String LOCK_TABLE = "lock.table";
 
+  public static final String CATALOG_CACHE_ENABLED = "cache-enabled";
+  public static final String CATALOG_CACHE_ENABLED_DEFAULT = "false";
+
 }
