@@ -253,8 +253,7 @@ public class TestManifestListVersions {
   private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
     OutputFile manifestList = Files.localOutput(temp.newFile());
     try (FileAppender<ManifestFile> writer = ManifestLists.write(
-        formatVersion, manifestList, SNAPSHOT_ID, SNAPSHOT_ID - 1, formatVersion > 1 ? SEQ_NUM : 0,
-        null, null)) {
+        formatVersion, manifestList, SNAPSHOT_ID, SNAPSHOT_ID - 1, formatVersion > 1 ? SEQ_NUM : 0)) {
       writer.add(manifest);
     }
     return manifestList.toInputFile();

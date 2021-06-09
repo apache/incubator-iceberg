@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class InheritableMetadataFactory {
@@ -34,11 +33,11 @@ class InheritableMetadataFactory {
   }
 
   static InheritableMetadata fromManifest(ManifestFile manifest, String tableLocation,
-      Map<String, String> tableProperties) {
+      boolean shouldUseRelativePaths) {
     Preconditions.checkArgument(manifest.snapshotId() != null,
         "Cannot read from ManifestFile with null (unassigned) snapshot ID");
     return new BaseInheritableMetadata(manifest.partitionSpecId(), manifest.snapshotId(), manifest.sequenceNumber(),
-        tableLocation, tableProperties);
+        tableLocation, shouldUseRelativePaths);
   }
 
   static InheritableMetadata forCopy(long snapshotId) {
@@ -50,15 +49,15 @@ class InheritableMetadataFactory {
     private final long snapshotId;
     private final long sequenceNumber;
     private final String tableLocation;
-    private final Map<String, String> tableProperties;
+    private boolean shouldUseRelativePaths;
 
     private BaseInheritableMetadata(int specId, long snapshotId, long sequenceNumber, String tableLocation,
-        Map<String, String> tableProperties) {
+        boolean shouldUseRelativePaths) {
       this.specId = specId;
       this.snapshotId = snapshotId;
       this.sequenceNumber = sequenceNumber;
       this.tableLocation = tableLocation;
-      this.tableProperties = tableProperties;
+      this.shouldUseRelativePaths = shouldUseRelativePaths;
     }
 
     @Override
@@ -66,10 +65,9 @@ class InheritableMetadataFactory {
       if (manifestEntry.file() instanceof BaseFile) {
         BaseFile<?> file = (BaseFile<?>) manifestEntry.file();
         file.setSpecId(specId);
-        if (MetadataPaths.useRelativePath(tableProperties)) {
-          if (!file.path().toString().startsWith(tableLocation)) {
-            file.setFilePath(MetadataPaths.toAbsolutePath(file.path().toString(), tableLocation, tableProperties));
-          }
+        if (file.path() != null) {
+          file.setFilePath(MetadataPathUtils.toAbsolutePath(file.path().toString(), tableLocation,
+              shouldUseRelativePaths));
         }
       }
       if (manifestEntry.snapshotId() == null) {

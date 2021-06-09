@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.Map;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
@@ -44,7 +43,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private final GenericManifestEntry<F> reused;
   private final PartitionSummary stats;
   private final String tableLocation;
-  private final Map<String, String> properties;
+  private final boolean shouldUseRelativePaths;
   private boolean closed = false;
   private int addedFiles = 0;
   private long addedRows = 0L;
@@ -55,7 +54,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private Long minSequenceNumber = null;
 
   private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId,
-      String tableLocation, Map<String, String> properties) {
+      String tableLocation, boolean shouldUseRelativePaths) {
     this.file = file;
     this.specId = spec.specId();
     this.writer = newAppender(spec, file);
@@ -63,7 +62,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     this.reused = new GenericManifestEntry<>(spec.partitionType());
     this.stats = new PartitionSummary(spec);
     this.tableLocation = tableLocation;
-    this.properties = properties;
+    this.shouldUseRelativePaths = shouldUseRelativePaths;
   }
 
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
@@ -96,8 +95,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     if (entry.file() instanceof BaseFile) {
       BaseFile<?> entryFile = (BaseFile<?>) entry.file();
       // Update path to use relative location if needed.
-      entryFile.setFilePath(MetadataPaths.toRelativePath(entryFile.path().toString(),
-          tableLocation, properties));
+      entryFile.setFilePath(MetadataPathUtils.toRelativePath(entryFile.path().toString(),
+          tableLocation, shouldUseRelativePaths));
     }
     writer.add(prepare(entry));
   }
@@ -180,8 +179,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     private final V2Metadata.IndexedManifestEntry<DataFile> entryWrapper;
 
     V2Writer(PartitionSpec spec, OutputFile file, Long snapshotId,
-        String tableLocation, Map<String, String> properties) {
-      super(spec, file, snapshotId, tableLocation, properties);
+        String tableLocation, boolean shouldUseRelativePaths) {
+      super(spec, file, snapshotId, tableLocation, shouldUseRelativePaths);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
 
@@ -214,8 +213,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     private final V2Metadata.IndexedManifestEntry<DeleteFile> entryWrapper;
 
     V2DeleteWriter(PartitionSpec spec, OutputFile file, Long snapshotId,
-        String tableLocation, Map<String, String> properties) {
-      super(spec, file, snapshotId, tableLocation, properties);
+        String tableLocation, boolean shouldUseRelativePaths) {
+      super(spec, file, snapshotId, tableLocation, shouldUseRelativePaths);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
 
@@ -253,8 +252,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     private final V1Metadata.IndexedManifestEntry entryWrapper;
 
     V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId,
-        String tableLocation, Map<String, String> properties) {
-      super(spec, file, snapshotId, tableLocation, properties);
+        String tableLocation, boolean shouldUseRelativePaths) {
+      super(spec, file, snapshotId, tableLocation, shouldUseRelativePaths);
       this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
     }
 

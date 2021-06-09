@@ -72,7 +72,7 @@ public class DataTableScan extends BaseTableScan {
                                                    Expression rowFilter, boolean ignoreResiduals,
                                                    boolean caseSensitive, boolean colStats) {
     ManifestGroup manifestGroup = new ManifestGroup(ops.io(), snapshot.dataManifests(), snapshot.deleteManifests(),
-        ops.current().location(), ops.current().properties())
+        ops.current().location(), ops.current().shouldUseRelativePaths())
         .caseSensitive(caseSensitive)
         .select(colStats ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(rowFilter)

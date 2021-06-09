@@ -41,8 +41,8 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class RelativePathHiveFunctionalityTest extends HiveMetastoreTest {
-  private static final Logger log = LoggerFactory.getLogger(RelativePathHiveFunctionalityTest.class);
+public class TestRelativePathHiveFunctionality extends HiveMetastoreTest {
+  private static final Logger log = LoggerFactory.getLogger(TestRelativePathHiveFunctionality.class);
 
   private Table table;
   private SparkSession spark = null;
@@ -85,7 +85,6 @@ public class RelativePathHiveFunctionalityTest extends HiveMetastoreTest {
           .save(tableName);
     }
     table.refresh();
-//
     long oldId = table.history().get(0).snapshotId();
 
     table.rollback().toSnapshotId(oldId).commit();

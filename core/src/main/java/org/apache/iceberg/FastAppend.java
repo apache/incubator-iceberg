@@ -120,7 +120,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     OutputFile newManifestPath = newManifestOutput();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(), toCopy, current.specsById(), newManifestPath, snapshotId(),
-            summaryBuilder, current.location(), current.properties());
+            summaryBuilder, current.location(), current.shouldUseRelativePaths());
   }
 
   @Override

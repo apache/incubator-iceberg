@@ -59,19 +59,23 @@ class ManifestGroup {
   private List<String> columns;
   private boolean caseSensitive;
   private String tableLocation;
-  private Map<String, String> tableProperties;
+  private boolean shouldUseRelativePaths;
   private ExecutorService executorService;
 
+  ManifestGroup(FileIO io, Iterable<ManifestFile> manifests) {
+    this(io, manifests, null, false);
+  }
+
   ManifestGroup(FileIO io, Iterable<ManifestFile> manifests, String tableLocation,
-      Map<String, String> tableProperties) {
+      Boolean shouldUseRelativePaths) {
     this(io,
         Iterables.filter(manifests, manifest -> manifest.content() == ManifestContent.DATA),
         Iterables.filter(manifests, manifest -> manifest.content() == ManifestContent.DELETES), tableLocation,
-        tableProperties);
+        shouldUseRelativePaths);
   }
 
   ManifestGroup(FileIO io, Iterable<ManifestFile> dataManifests, Iterable<ManifestFile> deleteManifests,
-      String tableLocation, Map<String, String> properties) {
+      String tableLocation, boolean shouldUseRelativePaths) {
     this.io = io;
     this.dataManifests = Sets.newHashSet(dataManifests);
     this.deleteIndexBuilder = DeleteFileIndex.builderFor(io, deleteManifests);
@@ -86,7 +90,7 @@ class ManifestGroup {
     this.manifestPredicate = m -> true;
     this.manifestEntryPredicate = e -> true;
     this.tableLocation = tableLocation;
-    this.tableProperties = properties;
+    this.shouldUseRelativePaths = shouldUseRelativePaths;
   }
 
   ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {
@@ -182,8 +186,7 @@ class ManifestGroup {
       ResidualEvaluator residuals = residualCache.get(specId);
       if (dropStats) {
         return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
-            e.file().copyWithoutStats(), deleteFiles.forEntry(e), schemaString, specString,
-            residuals));
+            e.file().copyWithoutStats(), deleteFiles.forEntry(e), schemaString, specString, residuals));
       } else {
         return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
             e.file().copy(), deleteFiles.forEntry(e), schemaString, specString, residuals));
@@ -251,7 +254,7 @@ class ManifestGroup {
         matchingManifests,
         manifest -> {
           ManifestReader<DataFile> reader = ManifestFiles.read(manifest, io, specsById, tableLocation,
-              tableProperties)
+              shouldUseRelativePaths)
               .filterRows(dataFilter)
               .filterPartitions(partitionFilter)
               .caseSensitive(caseSensitive)

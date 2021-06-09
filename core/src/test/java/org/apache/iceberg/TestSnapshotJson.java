@@ -21,9 +21,7 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
@@ -42,17 +40,15 @@ public class TestSnapshotJson {
   public String tableLocation = "/tmp";
 
   // To test with relative paths enabled and disabled
-  String[] propertyValues = {"true", "false"};
+  Boolean[] propertyValues = {true, false};
 
   @Test
   public void testJsonConversion() {
-    for (String propertyValue : propertyValues) {
-      Map<String, String> properties = Collections.singletonMap(TableProperties.WRITE_METADATA_USE_RELATIVE_PATH,
-          propertyValue);
-      Snapshot expected = new BaseSnapshot(ops.io(), System.currentTimeMillis(), tableLocation, properties,
+    for (Boolean propertyValue : propertyValues) {
+      Snapshot expected = new BaseSnapshot(ops.io(), System.currentTimeMillis(), tableLocation, propertyValue,
           "file:/tmp/manifest1.avro", "file:/tmp/manifest2.avro");
       String json = SnapshotParser.toJson(expected);
-      Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json, tableLocation, properties);
+      Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json, tableLocation, propertyValue);
 
       Assert.assertEquals("Snapshot ID should match",
           expected.snapshotId(), snapshot.snapshotId());
@@ -71,15 +67,13 @@ public class TestSnapshotJson {
         new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
         new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
 
-    for (String propertyValue : propertyValues) {
-      Map<String, String> properties = Collections.singletonMap(TableProperties.WRITE_METADATA_USE_RELATIVE_PATH,
-          propertyValue);
+    for (Boolean propertyValue : propertyValues) {
       Snapshot expected = new BaseSnapshot(ops.io(), id, parentId, System.currentTimeMillis(),
           DataOperations.REPLACE, ImmutableMap.of("files-added", "4", "files-deleted", "100"),
-          manifests, tableLocation, properties);
+          manifests, tableLocation, propertyValue);
 
       String json = SnapshotParser.toJson(expected);
-      Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json, tableLocation, properties);
+      Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json, tableLocation, propertyValue);
 
       Assert.assertEquals("Sequence number should default to 0 for v1",
           0, snapshot.sequenceNumber());
@@ -112,26 +106,25 @@ public class TestSnapshotJson {
     Assert.assertTrue(manifestList.delete());
     manifestList.deleteOnExit();
 
-    for (String propertyValue : propertyValues) {
-      Map<String, String> properties = Collections.singletonMap(TableProperties.WRITE_METADATA_USE_RELATIVE_PATH,
-          propertyValue);
+    for (Boolean propertyValue : propertyValues) {
+
       try (ManifestListWriter writer = ManifestLists.write(1, Files.localOutput(manifestList), id, parentId, 0,
-          tableLocation, properties)) {
+          tableLocation, propertyValue)) {
         writer.addAll(manifests);
       }
 
       Snapshot expected = new BaseSnapshot(
           ops.io(), id, 34, parentId, System.currentTimeMillis(), null, null, localInput(manifestList).location(),
-          tableLocation, properties);
+          tableLocation, propertyValue);
       Snapshot inMemory = new BaseSnapshot(
           ops.io(), id, parentId, expected.timestampMillis(), null, null, manifests,
-          tableLocation, properties);
+          tableLocation, propertyValue);
 
       Assert.assertEquals("Files should match in memory list",
           inMemory.allManifests(), expected.allManifests());
 
       String json = SnapshotParser.toJson(expected);
-      Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json, tableLocation, properties);
+      Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json, tableLocation, propertyValue);
 
       Assert.assertEquals("Sequence number should default to 0",
           expected.sequenceNumber(), snapshot.sequenceNumber());

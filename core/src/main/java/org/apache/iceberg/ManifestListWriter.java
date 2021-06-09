@@ -32,13 +32,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
   private final String tableLocation;
-  private final Map<String, String> tableProperties;
+  private final boolean shouldUseRelativePaths;
 
   private ManifestListWriter(OutputFile file, Map<String, String> meta, String tableLocation,
-      Map<String, String> tableProperties) {
+      boolean shouldUseRelativePaths) {
     this.writer = newAppender(file, meta);
     this.tableLocation = tableLocation;
-    this.tableProperties = tableProperties;
+    this.shouldUseRelativePaths = shouldUseRelativePaths;
   }
 
   protected abstract ManifestFile prepare(ManifestFile manifest);
@@ -48,8 +48,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   @Override
   public void add(ManifestFile manifest) {
     // Update the manifest file location to relative path if necessary.
-    writer.add(prepare(GenericManifestFile.copyOf(manifest).withManifestPath(MetadataPaths.toRelativePath(
-        manifest.path(), tableLocation, tableProperties)).build()));
+    writer.add(prepare(GenericManifestFile.copyOf(manifest).withManifestPath(MetadataPathUtils.toRelativePath(
+        manifest.path(), tableLocation, shouldUseRelativePaths)).build()));
   }
 
   @Override
@@ -81,12 +81,12 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     private final V2Metadata.IndexedManifestFile wrapper;
 
     V2Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, long sequenceNumber, String tableLocation,
-        Map<String, String> tableProperties) {
+        boolean shouldUseRelativePaths) {
       super(snapshotFile, ImmutableMap.of(
           "snapshot-id", String.valueOf(snapshotId),
           "parent-snapshot-id", String.valueOf(parentSnapshotId),
           "sequence-number", String.valueOf(sequenceNumber),
-          "format-version", "2"), tableLocation, tableProperties);
+          "format-version", "2"), tableLocation, shouldUseRelativePaths);
       this.wrapper = new V2Metadata.IndexedManifestFile(snapshotId, sequenceNumber);
     }
 
@@ -115,11 +115,11 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     private final V1Metadata.IndexedManifestFile wrapper = new V1Metadata.IndexedManifestFile();
 
     V1Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, String tableLocation,
-        Map<String, String> tableProperties) {
+        boolean shouldUseRelativePaths) {
       super(snapshotFile, ImmutableMap.of(
           "snapshot-id", String.valueOf(snapshotId),
           "parent-snapshot-id", String.valueOf(parentSnapshotId),
-          "format-version", "1"), tableLocation, tableProperties);
+          "format-version", "1"), tableLocation, shouldUseRelativePaths);
     }
 
     @Override

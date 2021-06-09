@@ -21,47 +21,50 @@ package org.apache.iceberg;
 
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.PropertyUtil;
+
+import static org.apache.iceberg.TableProperties.WRITE_METADATA_USE_RELATIVE_PATH;
+import static org.apache.iceberg.TableProperties.WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT;
 
 /**
  * Utility class that contains path conversion methods.
  */
-public final class MetadataPaths {
+public final class MetadataPathUtils {
 
-  private MetadataPaths() {
+  private MetadataPathUtils() {
   }
 
   /**
    * Convert a given relative path to absolute path for the table by appending the base table location
    * @param path relative path to be converted
    * @param tableLocation base table location
-   * @param properties table properties
+   * @param shouldUseRelativePaths whether relative paths should be used
    * @return the absolute path
    */
-  public static String toAbsolutePath(String path, String tableLocation, Map<String, String> properties) {
+  public static String toAbsolutePath(String path, String tableLocation, boolean shouldUseRelativePaths) {
     Preconditions.checkArgument(path != null && path.trim().length() > 0);
     // TODO: Fix this after tests are changed to always pass the table location. Table location cannot be null.
     if (tableLocation == null) {
       return path;
     }
     // convert to absolute path by appending the table location
-    return useRelativePath(properties) && !path.startsWith(tableLocation) ? tableLocation + "/" + path : path;
+    return shouldUseRelativePaths && !path.startsWith(tableLocation) ? tableLocation + "/" + path : path;
   }
 
   /**
    * Convert a given absolute path to relative path with respect to base table location
    * @param path the absolute path
    * @param tableLocation the base table location
-   * @param properties table properties
    * @return relative path with respect to the base table location
    */
-  public static String toRelativePath(String path, String tableLocation, Map<String, String> properties) {
+  public static String toRelativePath(String path, String tableLocation, boolean shouldUseRelativePaths) {
     Preconditions.checkArgument(path != null && path.trim().length() > 0);
     // TODO: Fix this after tests are changed to always pass the table location. Table location cannot be null.
     if (tableLocation == null) {
       return path;
     }
     // convert to relative path by removing the table location
-    return useRelativePath(properties) && path.startsWith(tableLocation) ?
+    return shouldUseRelativePaths && path.startsWith(tableLocation) ?
         path.substring(tableLocation.length() + 1) : path;
   }
 
@@ -70,11 +73,8 @@ public final class MetadataPaths {
    * @param properties table properties
    * @return true if "write.metadata.use.relative-path" property is true, false otherwise
    */
-  public static boolean useRelativePath(Map<String, String> properties) {
-    if (properties == null) {
-      return false;
-    }
-    return properties.getOrDefault(TableProperties.WRITE_METADATA_USE_RELATIVE_PATH,
-        TableProperties.WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT).equals("true");
+  public static boolean shouldUseRelativePath(Map<String, String> properties) {
+    return PropertyUtil.propertyAsBoolean(properties, WRITE_METADATA_USE_RELATIVE_PATH,
+        WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT);
   }
 }

@@ -125,8 +125,12 @@ public class TableMetadata implements Serializable {
         ImmutableList.of(), ImmutableList.of());
   }
 
-  public boolean useRelativePaths() {
-    return MetadataPaths.useRelativePath(properties);
+  /**
+   * @return true if relative paths are enabled for this table, false otherwise.
+   */
+  public boolean shouldUseRelativePaths() {
+    return propertyAsBoolean(TableProperties.WRITE_METADATA_USE_RELATIVE_PATH,
+        TableProperties.WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT);
   }
 
   public static class SnapshotLogEntry implements HistoryEntry {
@@ -625,17 +629,18 @@ public class TableMetadata implements Serializable {
         addPreviousFile(file, lastUpdatedMillis));
   }
 
-  /***
+  /**
    * Convert manifest list paths to relative to the base table in all snapshots.
    * @return updated table metadata
    */
-  public TableMetadata updateAbsolutePathsToRelativePaths() {
+  public TableMetadata convertAbsolutePathsToRelativePaths() {
     List<Snapshot> newUpdatedSnapshots = Lists.newArrayListWithCapacity(snapshots.size());
     for (Snapshot snapshot : snapshots) {
-      String manifestListLocation = MetadataPaths.toRelativePath(snapshot.manifestListLocation(), location, properties);
+      String manifestListLocation = MetadataPathUtils.toRelativePath(snapshot.manifestListLocation(), location,
+          shouldUseRelativePaths());
       newUpdatedSnapshots.add(new BaseSnapshot(snapshot.io(), snapshot.sequenceNumber(),
           snapshot.snapshotId(), snapshot.parentId(), snapshot.timestampMillis(), snapshot.operation(),
-          snapshot.summary(), manifestListLocation, location, properties));
+          snapshot.summary(), manifestListLocation, location, shouldUseRelativePaths()));
     }
     return new TableMetadata(file, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
@@ -643,15 +648,18 @@ public class TableMetadata implements Serializable {
         snapshotLog, previousFiles);
   }
 
-
-  public TableMetadata updateRelativePathToAbsolutePaths() {
+  /**
+   * Convert manifest list paths to absolute paths in all snapshots.
+   * @return updated table metadata
+   */
+  public TableMetadata convertRelativePathToAbsolutePaths() {
     List<Snapshot> newUpdatedSnapshots = Lists.newArrayListWithCapacity(snapshots.size());
     for (Snapshot snapshot : snapshots) {
-      String manifestListLocation = MetadataPaths.toAbsolutePath(snapshot.manifestListLocation(),
-          location, properties);
+      String newManifestListLocation = MetadataPathUtils.toAbsolutePath(snapshot.manifestListLocation(),
+          location, shouldUseRelativePaths());
       newUpdatedSnapshots.add(new BaseSnapshot(snapshot.io(), snapshot.sequenceNumber(),
           snapshot.snapshotId(), snapshot.parentId(), snapshot.timestampMillis(), snapshot.operation(),
-          snapshot.summary(), manifestListLocation, location, properties));
+          snapshot.summary(), newManifestListLocation, location, shouldUseRelativePaths()));
     }
 
     return new TableMetadata(file, formatVersion, uuid, location,
@@ -856,7 +864,7 @@ public class TableMetadata implements Serializable {
       newMetadataLog = Lists.newArrayList(previousFiles);
     }
     newMetadataLog.add(new MetadataLogEntry(timestampMillis,
-        MetadataPaths.toRelativePath(previousFile.location(), location, properties)));
+        MetadataPathUtils.toRelativePath(previousFile.location(), location, shouldUseRelativePaths())));
 
     return newMetadataLog;
   }

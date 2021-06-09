@@ -80,7 +80,7 @@ class IncrementalDataTableScan extends DataTableScan {
         .toSet();
 
     ManifestGroup manifestGroup = new ManifestGroup(tableOps().io(), manifests, tableOps().current().location(),
-        tableOps().current().properties())
+        tableOps().current().shouldUseRelativePaths())
         .caseSensitive(isCaseSensitive())
         .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(filter())

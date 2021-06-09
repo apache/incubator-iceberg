@@ -47,9 +47,9 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class RelativePathHadoopFunctionalityTest {
+public class TestRelativePathHadoopFunctionality {
 
-  private static final Logger log = LoggerFactory.getLogger(RelativePathHadoopFunctionalityTest.class);
+  private static final Logger log = LoggerFactory.getLogger(TestRelativePathHadoopFunctionality.class);
 
   private Table table;
   private File tableLocation;
@@ -65,7 +65,7 @@ public class RelativePathHadoopFunctionalityTest {
         optional(2, "data", Types.StringType.get())
     );
 
-    tableLocation = new File("/tmp/hive", "iceberg_test_table");
+    tableLocation = new File("/tmp/hive", "iceberg_test_table");  // Files.createTempDirectory("temp").toFile();
 
     if (tableLocation.exists()) {
       FileUtils.deleteDirectory(tableLocation);

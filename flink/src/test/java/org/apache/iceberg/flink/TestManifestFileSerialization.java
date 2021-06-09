@@ -151,7 +151,7 @@ public class TestManifestFileSerialization {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = FILE_IO.newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter<DataFile> writer = ManifestFiles.write(SPEC, outputFile, null, null);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(SPEC, outputFile);
     try {
       for (DataFile file : files) {
         writer.add(file);

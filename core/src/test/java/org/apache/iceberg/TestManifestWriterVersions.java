@@ -237,8 +237,7 @@ public class TestManifestWriterVersions {
   private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
     OutputFile manifestList = Files.localOutput(temp.newFile());
     try (FileAppender<ManifestFile> writer = ManifestLists.write(
-        formatVersion, manifestList, SNAPSHOT_ID, SNAPSHOT_ID - 1, formatVersion > 1 ? SEQUENCE_NUMBER : 0, null,
-        null)) {
+        formatVersion, manifestList, SNAPSHOT_ID, SNAPSHOT_ID - 1, formatVersion > 1 ? SEQUENCE_NUMBER : 0)) {
       writer.add(manifest);
     }
     return manifestList.toInputFile();
@@ -252,7 +251,7 @@ public class TestManifestWriterVersions {
 
   private ManifestFile rewriteManifest(ManifestFile manifest, int formatVersion) throws IOException {
     OutputFile manifestFile = Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
-    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID, null, null);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
     try {
       writer.existing(readManifest(manifest));
     } finally {
@@ -267,7 +266,7 @@ public class TestManifestWriterVersions {
 
   private ManifestFile writeManifest(DataFile file, int formatVersion) throws IOException {
     OutputFile manifestFile = Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
-    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID, null, null);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
     try {
       writer.add(file);
     } finally {
@@ -277,8 +276,7 @@ public class TestManifestWriterVersions {
   }
 
   private ManifestEntry<DataFile> readManifest(ManifestFile manifest) throws IOException {
-    try (CloseableIterable<ManifestEntry<DataFile>> reader =
-        ManifestFiles.read(manifest, FILE_IO, null, null).entries()) {
+    try (CloseableIterable<ManifestEntry<DataFile>> reader = ManifestFiles.read(manifest, FILE_IO).entries()) {
       List<ManifestEntry<DataFile>> files = Lists.newArrayList(reader);
       Assert.assertEquals("Should contain only one data file", 1, files.size());
       return files.get(0);
@@ -288,7 +286,7 @@ public class TestManifestWriterVersions {
   private ManifestFile writeDeleteManifest(int formatVersion) throws IOException {
     OutputFile manifestFile = Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DeleteFile> writer = ManifestFiles.writeDeleteManifest(
-        formatVersion, SPEC, manifestFile, SNAPSHOT_ID, null, null);
+        formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
     try {
       writer.add(DELETE_FILE);
     } finally {
@@ -299,7 +297,7 @@ public class TestManifestWriterVersions {
 
   private ManifestEntry<DeleteFile> readDeleteManifest(ManifestFile manifest) throws IOException {
     try (CloseableIterable<ManifestEntry<DeleteFile>> reader =
-             ManifestFiles.readDeleteManifest(manifest, FILE_IO, null, null, null).entries()) {
+             ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
       List<ManifestEntry<DeleteFile>> entries = Lists.newArrayList(reader);
       Assert.assertEquals("Should contain only one data file", 1, entries.size());
       return entries.get(0);

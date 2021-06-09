@@ -46,9 +46,7 @@ class FlinkManifestUtil {
 
   static ManifestFile writeDataFiles(OutputFile outputFile, PartitionSpec spec, List<DataFile> dataFiles)
       throws IOException {
-    // TODO fix me later
-    ManifestWriter<DataFile> writer = ManifestFiles.write(FORMAT_V2, spec, outputFile, DUMMY_SNAPSHOT_ID,
-        null, null);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(FORMAT_V2, spec, outputFile, DUMMY_SNAPSHOT_ID);
 
     try (ManifestWriter<DataFile> closeableWriter = writer) {
       closeableWriter.addAll(dataFiles);
@@ -58,7 +56,7 @@ class FlinkManifestUtil {
   }
 
   static List<DataFile> readDataFiles(ManifestFile manifestFile, FileIO io) throws IOException {
-    try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io, null, null)) {
+    try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io)) {
       return Lists.newArrayList(dataFiles);
     }
   }
@@ -85,9 +83,8 @@ class FlinkManifestUtil {
     if (result.deleteFiles() != null && result.deleteFiles().length > 0) {
       OutputFile deleteManifestFile = outputFileSupplier.get();
 
-      // TODO fix me later
       ManifestWriter<DeleteFile> deleteManifestWriter = ManifestFiles.writeDeleteManifest(FORMAT_V2, spec,
-          deleteManifestFile, DUMMY_SNAPSHOT_ID, null, null);
+          deleteManifestFile, DUMMY_SNAPSHOT_ID);
       try (ManifestWriter<DeleteFile> writer = deleteManifestWriter) {
         for (DeleteFile deleteFile : result.deleteFiles()) {
           writer.add(deleteFile);
@@ -111,7 +108,7 @@ class FlinkManifestUtil {
     // Read the completed delete files from persisted delete manifests file.
     if (deltaManifests.deleteManifest() != null) {
       try (CloseableIterable<DeleteFile> deleteFiles = ManifestFiles
-          .readDeleteManifest(deltaManifests.deleteManifest(), io, null, null, null)) {
+          .readDeleteManifest(deltaManifests.deleteManifest(), io, null)) {
         builder.addDeleteFiles(deleteFiles);
       }
     }

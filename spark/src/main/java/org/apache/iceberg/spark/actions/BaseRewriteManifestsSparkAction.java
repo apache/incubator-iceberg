@@ -321,7 +321,7 @@ public class BaseRewriteManifestsSparkAction
     Types.StructType dataFileType = DataFile.getType(spec.partitionType());
     SparkDataFile wrapper = new SparkDataFile(dataFileType, sparkType);
 
-    ManifestWriter<DataFile> writer = ManifestFiles.write(format, spec, outputFile, null, null, null);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(format, spec, outputFile, null);
 
     try {
       for (int index = startIndex; index < endIndex; index++) {
