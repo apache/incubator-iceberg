@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SerializableTable;
@@ -37,6 +38,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -69,6 +71,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final List<Expression> filterExpressions;
   private final int batchSize;
   private final CaseInsensitiveStringMap options;
+  private final Boolean splitByPartition;
 
   // lazy variables
   private StructType readSchema = null;
@@ -83,6 +86,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
     this.batchSize = Spark3Util.batchSize(table.properties(), options);
     this.options = options;
+    this.splitByPartition = Spark3Util.propertyAsBoolean(options, SparkReadOptions.BY_PARTITION, false);
   }
 
   protected Table table() {
@@ -102,6 +106,13 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   }
 
   protected abstract List<CombinedScanTask> tasks();
+
+  protected Collection<PartitionField> preservedPartitions() {
+    if (splitByPartition && !table.spec().isUnpartitioned()) {
+      return table.spec().fields();
+    }
+    return null;
+  }
 
   @Override
   public Batch toBatch() {

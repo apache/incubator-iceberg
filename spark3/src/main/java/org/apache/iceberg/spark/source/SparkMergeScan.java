@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -55,7 +57,6 @@ import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
 
 class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
 
-  private final Table table;
   private final boolean ignoreResiduals;
   private final Schema expectedSchema;
   private final Long snapshotId;
@@ -73,7 +74,6 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
 
     super(spark, table, caseSensitive, expectedSchema, filters, options);
 
-    this.table = table;
     this.ignoreResiduals = ignoreResiduals;
     this.expectedSchema = expectedSchema;
 
@@ -120,7 +120,7 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   // should be accessible to the write
   synchronized List<FileScanTask> files() {
     if (files == null) {
-      TableScan scan = table
+      TableScan scan = table()
           .newScan()
           .caseSensitive(caseSensitive())
           .useSnapshot(snapshotId)
@@ -147,12 +147,18 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   @Override
   protected synchronized List<CombinedScanTask> tasks() {
     if (tasks == null) {
+      Set<Integer> preservedPartitionIndices = null;
+      Collection<PartitionField> selected = preservedPartitions();
+      if (selected != null) {
+        preservedPartitionIndices = selected.stream()
+            .map(PartitionField::fieldId).collect(Collectors.toSet());
+      }
       CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(
           CloseableIterable.withNoopClose(files()),
           splitSize);
       CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
           splitFiles, splitSize,
-          splitLookback, splitOpenFileCost);
+          splitLookback, splitOpenFileCost, table().spec(), preservedPartitionIndices);
       tasks = Lists.newArrayList(scanTasks);
     }
 

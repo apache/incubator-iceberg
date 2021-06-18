@@ -20,9 +20,12 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -113,6 +116,15 @@ class SparkBatchQueryScan extends SparkBatchScan {
 
       if (splitOpenFileCost != null) {
         scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, splitOpenFileCost.toString());
+      }
+
+      Collection<PartitionField> selected = preservedPartitions();
+      if (selected != null) {
+        List<String> selectedColumns =
+            selected.stream()
+                .map(pf -> table().spec().schema().findField(pf.sourceId()).name())
+                .collect(Collectors.toList());
+        scan = scan.preservePartitions(selectedColumns);
       }
 
       for (Expression filter : filterExpressions()) {

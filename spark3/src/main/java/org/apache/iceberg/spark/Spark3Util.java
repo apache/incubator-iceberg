@@ -536,6 +536,19 @@ public class Spark3Util {
             TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
   }
 
+  public static Boolean propertyAsBoolean(CaseInsensitiveStringMap options, String property, Boolean defaultValue) {
+    if (defaultValue != null) {
+      return options.getBoolean(property, defaultValue);
+    }
+
+    String value = options.get(property);
+    if (value != null) {
+      return Boolean.parseBoolean(value);
+    }
+
+    return null;
+  }
+
   public static Long propertyAsLong(CaseInsensitiveStringMap options, String property, Long defaultValue) {
     if (defaultValue != null) {
       return options.getLong(property, defaultValue);

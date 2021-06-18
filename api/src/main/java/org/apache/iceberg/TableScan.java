@@ -182,6 +182,34 @@ public interface TableScan {
   CloseableIterable<CombinedScanTask> planTasks();
 
   /**
+   * Create a new {@link TableScan} which indicate that when plan tasks via the
+   * {@link #planTasks()}, the scan should preserve partition boundary specified by the provided
+   * partition column names. In other words, the scan will not attempt to combine tasks whose input
+   * files have different partition data w.r.t `columns`.
+   *
+   * @param columns the partition column names to preserve boundary when planning tasks
+   * @return a table scan preserving partition boundary when planning tasks
+   * @throws IllegalArgumentException if any of the input columns is not a partition column, or
+   *         if the table is un-partitioned.
+   */
+  TableScan preservePartitions(Collection<String> columns);
+
+  /**
+   * Create a new {@link TableScan} which indicate that when plan tasks via the
+   * {@link #planTasks()}, the scan should preserve partition boundary specified by the provided
+   * partition column names. In other words, the scan will not attempt to combine tasks whose input
+   * files have different partition data w.r.t `columns`.
+   *
+   * @param columns the partition column names to preserve boundary when planning tasks
+   * @return a table scan preserving partition boundary when planning tasks
+   * @throws IllegalArgumentException if any of the input columns is not a partition column, or
+   *         if the table is un-partitioned.
+   */
+  default TableScan preservePartitions(String... columns) {
+    return preservePartitions(Lists.newArrayList(columns));
+  }
+
+  /**
    * Returns this scan's projection {@link Schema}.
    * <p>
    * If the projection schema was set directly using {@link #project(Schema)}, returns that schema.
