@@ -20,10 +20,15 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
@@ -36,6 +41,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -57,6 +63,9 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.LOCALITY_TASK_INITIALIZE_THREADS;
+import static org.apache.iceberg.TableProperties.LOCALITY_TASK_INITIALIZE_THREADS_DEFAULT;
 
 abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkBatchScan.class);
@@ -80,7 +89,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.caseSensitive = caseSensitive;
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
-    this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
+    this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), table.properties(), options);
     this.batchSize = Spark3Util.batchSize(table.properties(), options);
     this.options = options;
   }
@@ -125,10 +134,40 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     List<CombinedScanTask> scanTasks = tasks();
     InputPartition[] readTasks = new InputPartition[scanTasks.size()];
-    for (int i = 0; i < scanTasks.size(); i++) {
-      readTasks[i] = new ReadTask(
-          scanTasks.get(i), tableBroadcast, expectedSchemaString,
-          caseSensitive, localityPreferred);
+
+    int taskInitThreads = Math.max(1, PropertyUtil.propertyAsInt(table.properties(), LOCALITY_TASK_INITIALIZE_THREADS,
+        LOCALITY_TASK_INITIALIZE_THREADS_DEFAULT));
+    if (localityPreferred && taskInitThreads > 1) {
+      List<Future<ReadTask>> futures = new ArrayList<>();
+
+      final ExecutorService pool = Executors.newFixedThreadPool(
+          taskInitThreads,
+          new ThreadFactoryBuilder()
+              .setDaemon(true)
+              .setNameFormat("Init-ReadTask-%d")
+              .build());
+
+      for (int i = 0; i < scanTasks.size(); i++) {
+        final int curIndex = i;
+        futures.add(pool.submit(() -> new ReadTask(scanTasks.get(curIndex), tableBroadcast, expectedSchemaString,
+            caseSensitive, true)));
+      }
+
+      try {
+        for (int i = 0; i < futures.size(); i++) {
+          readTasks[i] = futures.get(i).get();
+        }
+      } catch (InterruptedException | ExecutionException e) {
+        throw new RuntimeException("Exception in multi-thread initializing ReadTask", e);
+      } finally {
+        pool.shutdownNow();
+      }
+    } else {
+      for (int i = 0; i < scanTasks.size(); i++) {
+        readTasks[i] = new ReadTask(
+            scanTasks.get(i), tableBroadcast, expectedSchemaString,
+            caseSensitive, localityPreferred);
+      }
     }
 
     return readTasks;

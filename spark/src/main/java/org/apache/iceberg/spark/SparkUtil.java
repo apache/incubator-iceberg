@@ -20,21 +20,28 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.util.SerializableConfiguration;
 
 public class SparkUtil {
+  private static final Set<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
+
   private SparkUtil() {
   }
 
@@ -99,5 +106,12 @@ public class SparkUtil {
         return Pair.of(catalog, identiferProvider.apply(namespace, name));
       }
     }
+  }
+
+  public static boolean isLocalityEnabledDefault(Map<String, String> tableProperties, String fsScheme) {
+    String tableLocalityProp = PropertyUtil.propertyAsString(tableProperties, TableProperties.LOCALITY_ENABLED,
+        TableProperties.LOCALITY_ENABLED_DEFAULT);
+    return tableLocalityProp == null ? LOCALITY_WHITELIST_FS.contains(fsScheme) :
+        Boolean.parseBoolean(tableLocalityProp);
   }
 }

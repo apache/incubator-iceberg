@@ -104,7 +104,6 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 
 public class Spark3Util {
 
-  private static final Set<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
   private static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
       TableCatalog.PROP_LOCATION, TableCatalog.PROP_PROVIDER);
   private static final Joiner DOT = Joiner.on(".");
@@ -490,11 +489,13 @@ public class Spark3Util {
     return Joiner.on(", ").join(SortOrderVisitor.visit(order, DescribeSortOrderVisitor.INSTANCE));
   }
 
-  public static boolean isLocalityEnabled(FileIO io, String location, CaseInsensitiveStringMap readOptions) {
+  public static boolean isLocalityEnabled(FileIO io, String location, Map<String, String> tableProperties,
+      CaseInsensitiveStringMap readOptions) {
     InputFile in = io.newInputFile(location);
     if (in instanceof HadoopInputFile) {
       String scheme = ((HadoopInputFile) in).getFileSystem().getScheme();
-      return readOptions.getBoolean("locality", LOCALITY_WHITELIST_FS.contains(scheme));
+      return readOptions.getBoolean(
+          SparkReadOptions.LOCALITY_ENABLED, SparkUtil.isLocalityEnabledDefault(tableProperties, scheme));
     }
     return false;
   }

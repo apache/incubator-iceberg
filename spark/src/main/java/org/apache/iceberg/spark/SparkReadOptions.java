@@ -48,6 +48,9 @@ public class SparkReadOptions {
   // Overrides the table's read.parquet.vectorization.batch-size
   public static final String VECTORIZATION_BATCH_SIZE = "batch-size";
 
+  // Overrides the table's read.locality.enabled
+  public static final String LOCALITY_ENABLED = "locality";
+
   // Set ID that is used to fetch file scan tasks
   public static final String FILE_SCAN_TASK_SET_ID = "file-scan-task-set-id";
 }

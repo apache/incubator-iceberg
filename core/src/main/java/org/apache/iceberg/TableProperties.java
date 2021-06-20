@@ -99,6 +99,12 @@ public class TableProperties {
   public static final String ORC_VECTORIZATION_ENABLED = "read.orc.vectorization.enabled";
   public static final boolean ORC_VECTORIZATION_ENABLED_DEFAULT = false;
 
+  public static final String LOCALITY_ENABLED = "read.locality.enabled";
+  public static final String LOCALITY_ENABLED_DEFAULT = null;
+
+  public static final String LOCALITY_TASK_INITIALIZE_THREADS = "read.locality.task.initialize.threads";
+  public static final int LOCALITY_TASK_INITIALIZE_THREADS_DEFAULT = 1;
+
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 

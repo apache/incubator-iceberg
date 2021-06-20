@@ -21,9 +21,15 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.function.Supplier;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -45,11 +51,12 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -72,12 +79,14 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.TableProperties.LOCALITY_TASK_INITIALIZE_THREADS;
+import static org.apache.iceberg.TableProperties.LOCALITY_TASK_INITIALIZE_THREADS_DEFAULT;
+
 class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPushDownFilters,
     SupportsPushDownRequiredColumns, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(Reader.class);
 
   private static final Filter[] NO_FILTERS = new Filter[0];
-  private static final ImmutableSet<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
 
   private final JavaSparkContext sparkContext;
   private final Table table;
@@ -146,8 +155,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
         LOG.warn("Failed to get Hadoop Filesystem", ioe);
       }
       String scheme = fsscheme; // Makes an effectively final version of scheme
-      this.localityPreferred = options.get("locality").map(Boolean::parseBoolean)
-          .orElseGet(() -> LOCALITY_WHITELIST_FS.contains(scheme));
+      this.localityPreferred = options.get(SparkReadOptions.LOCALITY_ENABLED).map(Boolean::parseBoolean)
+          .orElseGet(() -> SparkUtil.isLocalityEnabledDefault(table.properties(), scheme));
     } else {
       this.localityPreferred = false;
     }
@@ -206,11 +215,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
 
     List<InputPartition<ColumnarBatch>> readTasks = Lists.newArrayList();
-    for (CombinedScanTask task : tasks()) {
-      readTasks.add(new ReadTask<>(
-          task, tableBroadcast, expectedSchemaString, caseSensitive,
-          localityPreferred, new BatchReaderFactory(batchSize)));
-    }
+
+    initializeReadTasks(readTasks, tableBroadcast, expectedSchemaString, () -> new BatchReaderFactory(batchSize));
     LOG.info("Batching input partitions with {} tasks.", readTasks.size());
 
     return readTasks;
@@ -227,13 +233,56 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
 
     List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
-    for (CombinedScanTask task : tasks()) {
-      readTasks.add(new ReadTask<>(
-          task, tableBroadcast, expectedSchemaString, caseSensitive,
-          localityPreferred, InternalRowReaderFactory.INSTANCE));
-    }
+
+    initializeReadTasks(readTasks, tableBroadcast, expectedSchemaString, () -> InternalRowReaderFactory.INSTANCE);
 
     return readTasks;
+  }
+
+  /**
+   * Initialize ReadTasks with multi threads as get block locations can be slow
+   *
+   * @param readTasks Result list to return
+   */
+  private <T> void initializeReadTasks(List<InputPartition<T>> readTasks,
+      Broadcast<Table> tableBroadcast, String expectedSchemaString, Supplier<ReaderFactory<T>> supplier) {
+    int taskInitThreads = Math.max(1, PropertyUtil.propertyAsInt(table.properties(), LOCALITY_TASK_INITIALIZE_THREADS,
+        LOCALITY_TASK_INITIALIZE_THREADS_DEFAULT));
+
+    if (!localityPreferred || taskInitThreads == 1) {
+      for (CombinedScanTask task : tasks()) {
+        readTasks.add(new ReadTask<>(
+            task, tableBroadcast, expectedSchemaString, caseSensitive,
+            localityPreferred, supplier.get()));
+      }
+      return;
+    }
+
+    List<Future<ReadTask<T>>> futures = new ArrayList<>();
+
+    final ExecutorService pool = Executors.newFixedThreadPool(
+        taskInitThreads,
+        new ThreadFactoryBuilder()
+            .setDaemon(true)
+            .setNameFormat("Init-ReadTask-%d")
+            .build());
+
+    List<CombinedScanTask> scanTasks = tasks();
+    for (int i = 0; i < scanTasks.size(); i++) {
+      final int curIndex = i;
+      futures.add(pool.submit(() -> new ReadTask<>(scanTasks.get(curIndex), tableBroadcast,
+          expectedSchemaString, caseSensitive, true, supplier.get())));
+    }
+
+    try {
+      for (int i = 0; i < futures.size(); i++) {
+        readTasks.set(i, futures.get(i).get());
+      }
+    } catch (InterruptedException | ExecutionException e) {
+      throw new RuntimeException("Exception caught in multi-thread initializing ReadTask", e);
+    } finally {
+      pool.shutdownNow();
+    }
   }
 
   @Override
