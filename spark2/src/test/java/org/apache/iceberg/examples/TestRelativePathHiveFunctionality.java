@@ -40,8 +40,8 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class RelativePathHiveFunctionalityTest extends HiveMetastoreTest {
-  private static final Logger log = LoggerFactory.getLogger(SnapshotFunctionalityTest.class);
+public class TestRelativePathHiveFunctionality extends HiveMetastoreTest {
+  private static final Logger log = LoggerFactory.getLogger(TestRelativePathHiveFunctionality.class);
 
   private Table table;
   private SparkSession spark = null;

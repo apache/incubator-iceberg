@@ -49,7 +49,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestRelativePathHiveFunctionality {
 
-  private static final Logger log = LoggerFactory.getLogger(RelativePathHadoopFunctionalityTest.class);
+  private static final Logger log = LoggerFactory.getLogger(TestRelativePathHiveFunctionality.class);
 
   private Table table;
   private File tableLocation;
