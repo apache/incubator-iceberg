@@ -40,6 +40,7 @@ import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SchemaParser;
@@ -338,8 +339,10 @@ public class Avro {
    * A {@link DatumWriter} implementation that wraps another to produce position deletes.
    */
   private static class PositionDatumWriter implements MetricsAwareDatumWriter<PositionDelete<?>> {
-    private static final ValueWriter<Object> PATH_WRITER = ValueWriters.strings();
-    private static final ValueWriter<Long> POS_WRITER = ValueWriters.longs();
+    private static final ValueWriter<CharSequence> PATH_WRITER =
+        ValueWriters.strings(MetadataColumns.DELETE_FILE_PATH.fieldId());
+    private static final ValueWriter<Long> POS_WRITER =
+        ValueWriters.longs(MetadataColumns.DELETE_FILE_POS.fieldId());
 
     @Override
     public void setSchema(Schema schema) {
@@ -363,9 +366,10 @@ public class Avro {
    * @param <D> the type of datum written as a deleted row
    */
   private static class PositionAndRowDatumWriter<D> implements MetricsAwareDatumWriter<PositionDelete<D>> {
-    private static final ValueWriter<Object> PATH_WRITER = ValueWriters.strings();
-    private static final ValueWriter<Long> POS_WRITER = ValueWriters.longs();
-
+    private static final ValueWriter<CharSequence> PATH_WRITER =
+        ValueWriters.strings(MetadataColumns.DELETE_FILE_PATH.fieldId());
+    private static final ValueWriter<Long> POS_WRITER =
+        ValueWriters.longs(MetadataColumns.DELETE_FILE_POS.fieldId());
     private final DatumWriter<D> rowWriter;
 
     private PositionAndRowDatumWriter(DatumWriter<D> rowWriter) {

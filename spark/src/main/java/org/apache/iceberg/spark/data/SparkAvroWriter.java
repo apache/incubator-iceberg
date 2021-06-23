@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
+import java.util.Deque;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -29,10 +30,13 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.Encoder;
 import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.avro.AvroWriterBuilderFieldIdUtil;
 import org.apache.iceberg.avro.MetricsAwareDatumWriter;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
@@ -65,6 +69,8 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
   }
 
   private static class WriteBuilder extends AvroWithSparkSchemaVisitor<ValueWriter<?>> {
+    private final Deque<Integer> fieldIds = Lists.newLinkedList();
+
     @Override
     public ValueWriter<?> record(DataType struct, Schema record, List<String> names, List<ValueWriter<?>> fields) {
       return SparkValueWriters.struct(fields, IntStream.range(0, names.size())
@@ -78,9 +84,9 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
       Preconditions.checkArgument(options.size() == 2,
           "Cannot create writer for non-option union: %s", union);
       if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
-        return ValueWriters.option(0, options.get(1));
+        return ValueWriters.option(0, options.get(1), union.getTypes().get(1).getType());
       } else {
-        return ValueWriters.option(1, options.get(0));
+        return ValueWriters.option(1, options.get(0), union.getTypes().get(0).getType());
       }
     }
 
@@ -91,7 +97,9 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
 
     @Override
     public ValueWriter<?> map(DataType sMap, Schema map, ValueWriter<?> valueReader) {
-      return SparkValueWriters.map(SparkValueWriters.strings(), mapKeyType(sMap), valueReader, mapValueType(sMap));
+      return SparkValueWriters.map(
+          SparkValueWriters.strings(AvroSchemaUtil.getKeyId(map)), mapKeyType(sMap),
+          valueReader, mapValueType(sMap));
     }
 
     @Override
@@ -101,23 +109,27 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
 
     @Override
     public ValueWriter<?> primitive(DataType type, Schema primitive) {
+      Preconditions.checkState(!fieldIds.isEmpty() && fieldIds.peek() != null,
+          "[BUG] cannot get field id for logical type %s and schema %s", type, primitive);
+      int fieldId = fieldIds.peek();
+
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
           case "date":
             // Spark uses the same representation
-            return ValueWriters.ints();
+            return ValueWriters.ints(fieldId);
 
           case "timestamp-micros":
             // Spark uses the same representation
-            return ValueWriters.longs();
+            return ValueWriters.longs(fieldId);
 
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return SparkValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
+            return SparkValueWriters.decimal(fieldId, decimal.getPrecision(), decimal.getScale());
 
           case "uuid":
-            return ValueWriters.uuids();
+            return ValueWriters.uuids(fieldId);
 
           default:
             throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
@@ -128,29 +140,49 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
         case NULL:
           return ValueWriters.nulls();
         case BOOLEAN:
-          return ValueWriters.booleans();
+          return ValueWriters.booleans(fieldId);
         case INT:
           if (type instanceof ByteType) {
-            return ValueWriters.tinyints();
+            return ValueWriters.tinyints(fieldId);
           } else if (type instanceof ShortType) {
-            return ValueWriters.shorts();
+            return ValueWriters.shorts(fieldId);
           }
-          return ValueWriters.ints();
+          return ValueWriters.ints(fieldId);
         case LONG:
-          return ValueWriters.longs();
+          return ValueWriters.longs(fieldId);
         case FLOAT:
-          return ValueWriters.floats();
+          return ValueWriters.floats(fieldId);
         case DOUBLE:
-          return ValueWriters.doubles();
+          return ValueWriters.doubles(fieldId);
         case STRING:
-          return SparkValueWriters.strings();
+          return SparkValueWriters.strings(fieldId);
         case FIXED:
-          return ValueWriters.fixed(primitive.getFixedSize());
+          return ValueWriters.fixed(fieldId, primitive.getFixedSize());
         case BYTES:
-          return ValueWriters.bytes();
+          return ValueWriters.bytes(fieldId);
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }
+    }
+
+    public void beforeField(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeField(fieldIds, name, parentSchema);
+    }
+
+    public void afterField(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.afterField(fieldIds);
+    }
+
+    public void beforeListElement(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeListElement(fieldIds, parentSchema);
+    }
+
+    public void beforeMapKey(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeMapKey(fieldIds, name, parentSchema);
+    }
+
+    public void beforeMapValue(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeMapValue(fieldIds, name, parentSchema);
     }
   }
 }

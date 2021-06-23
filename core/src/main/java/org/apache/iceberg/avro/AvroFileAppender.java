@@ -95,10 +95,9 @@ class AvroFileAppender<D> implements FileAppender<D> {
 
   @SuppressWarnings("unchecked")
   private static <D> DataFileWriter<D> newAvroWriter(
-      Schema schema, PositionOutputStream stream, DatumWriter<?> metricsAwareDatumWriter,
+      Schema schema, PositionOutputStream stream, DatumWriter<?> datumWriter,
       CodecFactory codec, Map<String, String> metadata) throws IOException {
-    DataFileWriter<D> writer = new DataFileWriter<>(
-        (DatumWriter<D>) metricsAwareDatumWriter);
+    DataFileWriter<D> writer = new DataFileWriter<>((DatumWriter<D>) datumWriter);
 
     writer.setCodec(codec);
 

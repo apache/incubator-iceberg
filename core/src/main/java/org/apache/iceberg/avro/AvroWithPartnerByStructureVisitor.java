@@ -51,7 +51,12 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
         Preconditions.checkArgument(
             visitor.isStringType(keyType),
             "Invalid map: %s is not a string", keyType);
-        return visitor.map(partner, schema, visit(visitor.mapValueType(partner), schema.getValueType(), visitor));
+
+        visitor.beforeMapValue("value", schema.getValueType(), schema);
+        T result = visit(visitor.mapValueType(partner), schema.getValueType(), visitor);
+        visitor.afterMapValue("value", schema.getValueType(), schema);
+
+        return visitor.map(partner, schema, result);
 
       default:
         return visitor.primitive(partner, schema);
@@ -77,7 +82,10 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
       Schema.Field field = fields.get(i);
       Preconditions.checkArgument(AvroSchemaUtil.makeCompatibleName(fieldName).equals(field.name()),
           "Structs do not match: field %s != %s", fieldName, field.name());
+
+      visitor.beforeField(field.name(), field.schema(), record);
       results.add(visit(nameAndType.second(), field.schema(), visitor));
+      visitor.afterField(field.name(), field.schema(), record);
       names.add(fieldName);
     }
 
@@ -102,18 +110,34 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
   }
 
   private static <P, T> T visitArray(P type, Schema array, AvroWithPartnerByStructureVisitor<P, T> visitor) {
+    T result;
+
     if (array.getLogicalType() instanceof LogicalMap || visitor.isMapType(type)) {
       Preconditions.checkState(
           AvroSchemaUtil.isKeyValueSchema(array.getElementType()),
           "Cannot visit invalid logical map type: %s", array);
       List<Schema.Field> keyValueFields = array.getElementType().getFields();
-      return visitor.map(type, array,
-          visit(visitor.mapKeyType(type), keyValueFields.get(0).schema(), visitor),
-          visit(visitor.mapValueType(type), keyValueFields.get(1).schema(), visitor));
 
+      Schema mapKeySchema = keyValueFields.get(0).schema();
+      visitor.beforeMapKey("key", mapKeySchema, array.getElementType());
+      T key = visit(visitor.mapKeyType(type), keyValueFields.get(0).schema(), visitor);
+      visitor.afterMapKey("key", mapKeySchema, array.getElementType());
+
+      Schema mapValueSchema = keyValueFields.get(1).schema();
+      visitor.beforeMapValue("value", mapValueSchema, array.getElementType());
+      T value = visit(visitor.mapValueType(type), keyValueFields.get(1).schema(), visitor);
+      visitor.afterMapValue("value", mapValueSchema, array.getElementType());
+
+      result = visitor.map(type, array, key, value);
     } else {
-      return visitor.array(type, array, visit(visitor.arrayElementType(type), array.getElementType(), visitor));
+      visitor.beforeListElement("element", array.getElementType(), array);
+      T element = visit(visitor.arrayElementType(type), array.getElementType(), visitor);
+      visitor.afterListElement("element", array.getElementType(), array);
+
+      result = visitor.array(type, array, element);
     }
+
+    return result;
   }
 
   /**
@@ -160,5 +184,37 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
 
   public T primitive(P type, Schema primitive) {
     return null;
+  }
+
+  // ---------------------------------- Before/After type methods --------------------------------------
+
+  public void beforeField(String name, Schema type, Schema parentSchema) {
+  }
+
+  public void afterField(String name, Schema type, Schema parentSchema) {
+  }
+
+  public void beforeListElement(String name, Schema type, Schema parentSchema) {
+    beforeField(name, type, parentSchema);
+  }
+
+  public void afterListElement(String name, Schema type, Schema parentSchema) {
+    afterField(name, type, parentSchema);
+  }
+
+  public void beforeMapKey(String name, Schema type, Schema parentSchema) {
+    beforeField(name, type, parentSchema);
+  }
+
+  public void afterMapKey(String name, Schema type, Schema parentSchema) {
+    afterField(name, type, parentSchema);
+  }
+
+  public void beforeMapValue(String name, Schema type, Schema parentSchema) {
+    beforeField(name, type, parentSchema);
+  }
+
+  public void afterMapValue(String name, Schema type, Schema parentSchema) {
+    afterField(name, type, parentSchema);
   }
 }

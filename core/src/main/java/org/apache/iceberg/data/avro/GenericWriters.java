@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.data.avro;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,7 +27,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import org.apache.avro.io.Encoder;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.data.Record;
@@ -37,20 +35,20 @@ class GenericWriters {
   private GenericWriters() {
   }
 
-  static ValueWriter<LocalDate> dates() {
-    return DateWriter.INSTANCE;
+  static ValueWriter<LocalDate> dates(int id) {
+    return new DateWriter(id);
   }
 
-  static ValueWriter<LocalTime> times() {
-    return TimeWriter.INSTANCE;
+  static ValueWriter<LocalTime> times(int id) {
+    return new TimeWriter(id);
   }
 
-  static ValueWriter<LocalDateTime> timestamps() {
-    return TimestampWriter.INSTANCE;
+  static ValueWriter<LocalDateTime> timestamps(int id) {
+    return new TimestampWriter(id);
   }
 
-  static ValueWriter<OffsetDateTime> timestamptz() {
-    return TimestamptzWriter.INSTANCE;
+  static ValueWriter<OffsetDateTime> timestamptz(int id) {
+    return new TimestamptzWriter(id);
   }
 
   static ValueWriter<Record> struct(List<ValueWriter<?>> writers) {
@@ -60,51 +58,47 @@ class GenericWriters {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-  private static class DateWriter implements ValueWriter<LocalDate> {
-    private static final DateWriter INSTANCE = new DateWriter();
-
-    private DateWriter() {
+  private static class DateWriter extends ValueWriters.StoredAsIntWriter<LocalDate> {
+    private DateWriter(int id) {
+      super(id);
     }
 
     @Override
-    public void write(LocalDate date, Encoder encoder) throws IOException {
-      encoder.writeInt((int) ChronoUnit.DAYS.between(EPOCH_DAY, date));
+    protected int convert(LocalDate from) {
+      return (int) ChronoUnit.DAYS.between(EPOCH_DAY, from);
     }
   }
 
-  private static class TimeWriter implements ValueWriter<LocalTime> {
-    private static final TimeWriter INSTANCE = new TimeWriter();
-
-    private TimeWriter() {
+  private static class TimeWriter extends ValueWriters.StoredAsLongWriter<LocalTime> {
+    private TimeWriter(int id) {
+      super(id);
     }
 
     @Override
-    public void write(LocalTime time, Encoder encoder) throws IOException {
-      encoder.writeLong(time.toNanoOfDay() / 1000);
+    protected long convert(LocalTime from) {
+      return from.toNanoOfDay() / 1000;
     }
   }
 
-  private static class TimestampWriter implements ValueWriter<LocalDateTime> {
-    private static final TimestampWriter INSTANCE = new TimestampWriter();
-
-    private TimestampWriter() {
+  private static class TimestampWriter extends ValueWriters.StoredAsLongWriter<LocalDateTime> {
+    private TimestampWriter(int id) {
+      super(id);
     }
 
     @Override
-    public void write(LocalDateTime timestamp, Encoder encoder) throws IOException {
-      encoder.writeLong(ChronoUnit.MICROS.between(EPOCH, timestamp.atOffset(ZoneOffset.UTC)));
+    protected long convert(LocalDateTime from) {
+      return ChronoUnit.MICROS.between(EPOCH, from.atOffset(ZoneOffset.UTC));
     }
   }
 
-  private static class TimestamptzWriter implements ValueWriter<OffsetDateTime> {
-    private static final TimestamptzWriter INSTANCE = new TimestamptzWriter();
-
-    private TimestamptzWriter() {
+  private static class TimestamptzWriter extends ValueWriters.StoredAsLongWriter<OffsetDateTime> {
+    private TimestamptzWriter(int id) {
+      super(id);
     }
 
     @Override
-    public void write(OffsetDateTime timestamptz, Encoder encoder) throws IOException {
-      encoder.writeLong(ChronoUnit.MICROS.between(EPOCH, timestamptz));
+    protected long convert(OffsetDateTime from) {
+      return ChronoUnit.MICROS.between(EPOCH, from);
     }
   }
 

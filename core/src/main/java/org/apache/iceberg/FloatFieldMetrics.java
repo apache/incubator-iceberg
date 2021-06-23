@@ -19,8 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.nio.ByteBuffer;
-
 /**
  * Iceberg internally tracked field level metrics, used by Parquet and ORC writers only.
  * <p>
@@ -28,7 +26,7 @@ import java.nio.ByteBuffer;
  * This wrapper ensures that metrics not being updated by those writers will not be incorrectly used, by throwing
  * exceptions when they are accessed.
  */
-public class FloatFieldMetrics extends FieldMetrics {
+public class FloatFieldMetrics extends FieldMetrics<Number> {
 
   /**
    * Constructor for creating a FieldMetrics with only NaN counter.
@@ -51,12 +49,12 @@ public class FloatFieldMetrics extends FieldMetrics {
   }
 
   @Override
-  public ByteBuffer lowerBound() {
+  public Number lowerBound() {
     throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
   }
 
   @Override
-  public ByteBuffer upperBound() {
+  public Number upperBound() {
     throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
   }
 }

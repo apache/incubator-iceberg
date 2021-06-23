@@ -20,25 +20,23 @@
 package org.apache.iceberg;
 
 
-import java.nio.ByteBuffer;
-
 /**
  * Iceberg internally tracked field level metrics.
  */
-public class FieldMetrics {
+public class FieldMetrics<T> {
   private final int id;
   private final long valueCount;
   private final long nullValueCount;
   private final long nanValueCount;
-  private final ByteBuffer lowerBound;
-  private final ByteBuffer upperBound;
+  private final T lowerBound;
+  private final T upperBound;
 
   public FieldMetrics(int id,
                       long valueCount,
                       long nullValueCount,
                       long nanValueCount,
-                      ByteBuffer lowerBound,
-                      ByteBuffer upperBound) {
+                      T lowerBound,
+                      T upperBound) {
     this.id = id;
     this.valueCount = valueCount;
     this.nullValueCount = nullValueCount;
@@ -78,14 +76,14 @@ public class FieldMetrics {
   /**
    * Returns the lower bound value of this field.
    */
-  public ByteBuffer lowerBound() {
+  public T lowerBound() {
     return lowerBound;
   }
 
   /**
    * Returns the upper bound value of this field.
    */
-  public ByteBuffer upperBound() {
+  public T upperBound() {
     return upperBound;
   }
 }

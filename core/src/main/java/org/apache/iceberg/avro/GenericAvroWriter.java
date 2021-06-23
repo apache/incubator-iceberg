@@ -20,6 +20,7 @@
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
+import java.util.Deque;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.avro.LogicalType;
@@ -28,6 +29,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.io.Encoder;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
   private ValueWriter<T> writer = null;
@@ -53,6 +55,8 @@ class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
   }
 
   private static class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
+    private final Deque<Integer> fieldIds = Lists.newLinkedList();
+
     private WriteBuilder() {
     }
 
@@ -68,9 +72,9 @@ class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
       Preconditions.checkArgument(options.size() == 2,
           "Cannot create writer for non-option union: %s", union);
       if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
-        return ValueWriters.option(0, options.get(1));
+        return ValueWriters.option(0, options.get(1), union.getTypes().get(1).getType());
       } else {
-        return ValueWriters.option(1, options.get(0));
+        return ValueWriters.option(1, options.get(0), union.getTypes().get(0).getType());
       }
     }
 
@@ -86,29 +90,34 @@ class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
 
     @Override
     public ValueWriter<?> map(Schema map, ValueWriter<?> valueWriter) {
-      return ValueWriters.map(ValueWriters.strings(), valueWriter);
+      int keyId = AvroSchemaUtil.getKeyId(map);
+      return ValueWriters.map(ValueWriters.strings(keyId), valueWriter);
     }
 
     @Override
     public ValueWriter<?> primitive(Schema primitive) {
+      Preconditions.checkState(!fieldIds.isEmpty() && fieldIds.peek() != null,
+          "[BUG] cannot get field id for primitive type %s", primitive);
+      int fieldId = fieldIds.peek();
+
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
           case "date":
-            return ValueWriters.ints();
+            return ValueWriters.ints(fieldId);
 
           case "time-micros":
-            return ValueWriters.longs();
+            return ValueWriters.longs(fieldId);
 
           case "timestamp-micros":
-            return ValueWriters.longs();
+            return ValueWriters.longs(fieldId);
 
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
+            return ValueWriters.decimal(fieldId, decimal.getPrecision(), decimal.getScale());
 
           case "uuid":
-            return ValueWriters.uuids();
+            return ValueWriters.uuids(fieldId);
 
           default:
             throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
@@ -119,24 +128,40 @@ class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
         case NULL:
           return ValueWriters.nulls();
         case BOOLEAN:
-          return ValueWriters.booleans();
+          return ValueWriters.booleans(fieldId);
         case INT:
-          return ValueWriters.ints();
+          return ValueWriters.ints(fieldId);
         case LONG:
-          return ValueWriters.longs();
+          return ValueWriters.longs(fieldId);
         case FLOAT:
-          return ValueWriters.floats();
+          return ValueWriters.floats(fieldId);
         case DOUBLE:
-          return ValueWriters.doubles();
+          return ValueWriters.doubles(fieldId);
         case STRING:
-          return ValueWriters.strings();
+          return ValueWriters.strings(fieldId);
         case FIXED:
-          return ValueWriters.genericFixed(primitive.getFixedSize());
+          return ValueWriters.genericFixed(fieldId, primitive.getFixedSize());
         case BYTES:
-          return ValueWriters.byteBuffers();
+          return ValueWriters.byteBuffers(fieldId);
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }
+    }
+
+    public void beforeField(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeField(fieldIds, name, parentSchema);
+    }
+
+    public void afterField(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.afterField(fieldIds);
+    }
+
+    public void beforeListElement(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeListElement(fieldIds, parentSchema);
+    }
+
+    public void beforeMapValue(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeMapValue(fieldIds, name, parentSchema);
     }
   }
 }

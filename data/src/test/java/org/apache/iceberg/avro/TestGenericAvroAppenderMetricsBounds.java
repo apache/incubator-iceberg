@@ -20,12 +20,23 @@
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
-import java.util.stream.Stream;
-import org.apache.avro.io.Encoder;
-import org.apache.iceberg.FieldMetrics;
+import java.util.Arrays;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.io.FileAppender;
 
-public interface ValueWriter<D> {
-  void write(D datum, Encoder encoder) throws IOException;
+public class TestGenericAvroAppenderMetricsBounds extends TestAvroMetricsBounds {
 
-  Stream<FieldMetrics> metrics();
+  @Override
+  protected Metrics writeAndGetMetrics(Schema schema, Record... records) throws IOException {
+    FileAppender<Record> appender = new GenericAppenderFactory(schema).newAppender(
+        org.apache.iceberg.Files.localOutput(temp.newFile()), FileFormat.AVRO);
+    try (FileAppender<Record> fileAppender = appender) {
+      Arrays.stream(records).forEach(fileAppender::add);
+    }
+    return appender.metrics();
+  }
 }

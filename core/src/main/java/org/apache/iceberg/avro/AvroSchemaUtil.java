@@ -408,4 +408,11 @@ public class AvroSchemaUtil {
     }
     return "_x" + Integer.toHexString(character).toUpperCase();
   }
+
+  static boolean supportsMetrics(Schema.Type type) {
+    // ENUM will not be created by converting iceberg schema to avro schema, and thus not included
+    return type == Schema.Type.BOOLEAN || type == Schema.Type.INT || type == Schema.Type.LONG ||
+        type == Schema.Type.FLOAT || type == Schema.Type.DOUBLE || type == Schema.Type.STRING ||
+        type == Schema.Type.FIXED || type == Schema.Type.BYTES;
+  }
 }

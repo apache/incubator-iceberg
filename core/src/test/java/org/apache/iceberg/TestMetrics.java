@@ -131,10 +131,16 @@ public abstract class TestMetrics {
     return false;
   }
 
+  public boolean supportTimeFields() {
+    return true;
+  }
+
   protected abstract OutputFile createOutputFile() throws IOException;
 
   @Test
   public void testMetricsForRepeatedValues() throws IOException {
+    Assume.assumeTrue("Skip test for classes that do not support time field", supportTimeFields());
+
     Record record = GenericRecord.create(SIMPLE_SCHEMA);
     record.setField("booleanCol", true);
     record.setField("intCol", 3);
@@ -169,6 +175,8 @@ public abstract class TestMetrics {
 
   @Test
   public void testMetricsForTopLevelFields() throws IOException {
+    Assume.assumeTrue("Skip test for classes that do not support time field", supportTimeFields());
+
     Record firstRecord = GenericRecord.create(SIMPLE_SCHEMA);
     firstRecord.setField("booleanCol", true);
     firstRecord.setField("intCol", 3);
@@ -274,7 +282,11 @@ public abstract class TestMetrics {
     assertBounds(6, BinaryType.get(),
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
     assertCounts(7, 1L, 0L, 1L, metrics);
-    assertBounds(7, DoubleType.get(), Double.NaN, Double.NaN, metrics);
+    if (fileFormat() == FileFormat.AVRO) {
+      assertBounds(7, Types.DoubleType.get(), null, null, metrics);
+    } else {
+      assertBounds(7, Types.DoubleType.get(), Double.NaN, Double.NaN, metrics);
+    }
   }
 
   private Record buildNestedTestRecord() {
@@ -325,11 +337,91 @@ public abstract class TestMetrics {
       assertCounts(4, null, null, metrics);
       assertCounts(6, null, null, metrics);
     }
-    assertBounds(1, IntegerType.get(), null, null, metrics);
-    assertBounds(2, StringType.get(), null, null, metrics);
-    assertBounds(4, IntegerType.get(), null, null, metrics);
-    assertBounds(6, StringType.get(), null, null, metrics);
-    assertBounds(7, structType, null, null, metrics);
+
+    if (fileFormat() == FileFormat.AVRO) {
+      assertBounds(1, IntegerType.get(), 1, 1, metrics);
+      assertBounds(2, StringType.get(), CharBuffer.wrap("BBB"), CharBuffer.wrap("BBB"), metrics);
+      assertBounds(4, IntegerType.get(), 10, 12, metrics);
+      assertBounds(6, StringType.get(), CharBuffer.wrap("4"), CharBuffer.wrap("4"), metrics);
+      assertBounds(7, structType, null, null, metrics);
+    } else {
+      assertBounds(1, IntegerType.get(), null, null, metrics);
+      assertBounds(2, StringType.get(), null, null, metrics);
+      assertBounds(4, IntegerType.get(), null, null, metrics);
+      assertBounds(6, StringType.get(), null, null, metrics);
+      assertBounds(7, structType, null, null, metrics);
+    }
+  }
+
+  @Test
+  public void testMetricsForComplexMapElements() throws IOException {
+    StructType keyStructType = StructType.of(
+        required(1, "leafIntCol", IntegerType.get()),
+        optional(2, "leafStringCol", StringType.get())
+    );
+    StructType valueSubStructType = StructType.of(
+        required(8, "leafLongCol", LongType.get()),
+        required(9, "leafFloatCol", FloatType.get())
+    );
+    StructType valueStructType = StructType.of(
+        required(3, "leafDoubleCol", DoubleType.get()),
+        optional(4, "leafStructCol", valueSubStructType)
+    );
+    Schema schema = new Schema(
+        optional(5, "mapCol", MapType.ofRequired(6, 7, keyStructType, valueStructType))
+    );
+
+    Record record = GenericRecord.create(schema);
+    Record keyStruct = GenericRecord.create(keyStructType);
+    keyStruct.setField("leafIntCol", 1);
+    keyStruct.setField("leafStringCol", "BBB");
+
+    Record valueSubStruct = GenericRecord.create(valueSubStructType);
+    valueSubStruct.setField("leafLongCol", 8L);
+    valueSubStruct.setField("leafFloatCol", 3.0F);
+
+    Record valueStruct = GenericRecord.create(valueStructType);
+    valueStruct.setField("leafDoubleCol", 2.0D);
+    valueStruct.setField("leafStructCol", valueSubStruct);
+
+    Map<Record, Record> map = Maps.newHashMap();
+    map.put(keyStruct, valueStruct);
+    record.setField("mapCol", map);
+
+    Metrics metrics = getMetrics(schema, record);
+    Assert.assertEquals(1L, (long) metrics.recordCount());
+
+    if (fileFormat() != FileFormat.ORC) {
+      assertCounts(1, 1L, 0L, metrics);
+      assertCounts(2, 1L, 0L, metrics);
+      assertCounts(3, 1L, 0L, 0L, metrics);
+      assertCounts(8, 1L, 0L, metrics);
+      assertCounts(9, 1L, 0L, 0L, metrics);
+    } else {
+      assertCounts(1, null, null, metrics);
+      assertCounts(2, null, null, metrics);
+      assertCounts(3, null, null, 0L, metrics);
+      assertCounts(8, null, null, metrics);
+      assertCounts(9, null, null, 0L, metrics);
+    }
+
+    if (fileFormat() == FileFormat.AVRO) {
+      assertBounds(1, IntegerType.get(), 1, 1, metrics);
+      assertBounds(2, StringType.get(), CharBuffer.wrap("BBB"), CharBuffer.wrap("BBB"), metrics);
+      assertBounds(3, DoubleType.get(), 2.0D, 2.0D, metrics);
+      assertBounds(8, LongType.get(), 8L, 8L, metrics);
+      assertBounds(9, FloatType.get(), 3.0F, 3.0F, metrics);
+    } else {
+      assertBounds(1, IntegerType.get(), null, null, metrics);
+      assertBounds(2, StringType.get(), null, null, metrics);
+      assertBounds(3, DoubleType.get(), null, null, metrics);
+      assertBounds(8, LongType.get(), null, null, metrics);
+      assertBounds(9, FloatType.get(), null, null, metrics);
+    }
+
+    assertBounds(4, valueSubStructType, null, null, metrics);
+    assertBounds(6, keyStructType, null, null, metrics);
+    assertBounds(7, valueStructType, null, null, metrics);
   }
 
   @Test
@@ -355,8 +447,13 @@ public abstract class TestMetrics {
     assertCounts(1, 2L, 0L, 2L, metrics);
     assertCounts(2, 2L, 0L, 2L, metrics);
     // below: current behavior; will be null once NaN is excluded from upper/lower bound
-    assertBounds(1, FloatType.get(), Float.NaN, Float.NaN, metrics);
-    assertBounds(2, DoubleType.get(), Double.NaN, Double.NaN, metrics);
+    if (fileFormat() == FileFormat.AVRO) {
+      assertBounds(1, FloatType.get(), null, null, metrics);
+      assertBounds(2, DoubleType.get(), null, null, metrics);
+    } else {
+      assertBounds(1, FloatType.get(), Float.NaN, Float.NaN, metrics);
+      assertBounds(2, DoubleType.get(), Double.NaN, Double.NaN, metrics);
+    }
   }
 
   @Test
@@ -372,9 +469,12 @@ public abstract class TestMetrics {
     if (fileFormat() == FileFormat.ORC) {
       assertBounds(1, FloatType.get(), Float.NaN, Float.NaN, metrics);
       assertBounds(2, DoubleType.get(), Double.NaN, Double.NaN, metrics);
-    } else {
+    } else if (fileFormat() == FileFormat.PARQUET) {
       assertBounds(1, FloatType.get(), 1.2F, Float.NaN, metrics);
       assertBounds(2, DoubleType.get(), 3.4D, Double.NaN, metrics);
+    } else { // avro
+      assertBounds(1, FloatType.get(), 1.2F, 5.6F, metrics);
+      assertBounds(2, DoubleType.get(), 3.4D, 7.8D, metrics);
     }
   }
 
@@ -388,7 +488,7 @@ public abstract class TestMetrics {
 
     // below: current behavior; will be non-NaN values once NaN is excluded from upper/lower bound. ORC and Parquet's
     // behaviors differ due to their implementation of comparison being different.
-    if (fileFormat() == FileFormat.ORC) {
+    if (fileFormat() != FileFormat.PARQUET) {
       assertBounds(1, FloatType.get(), 1.2F, 5.6F, metrics);
       assertBounds(2, DoubleType.get(), 3.4D, 7.8D, metrics);
     } else {
@@ -407,7 +507,7 @@ public abstract class TestMetrics {
 
     // below: current behavior; will be non-NaN values once NaN is excluded from upper/lower bound. ORC and Parquet's
     // behaviors differ due to their implementation of comparison being different.
-    if (fileFormat() == FileFormat.ORC) {
+    if (fileFormat() != FileFormat.PARQUET) {
       assertBounds(1, FloatType.get(), 1.2F, 5.6F, metrics);
       assertBounds(2, DoubleType.get(), 3.4D, 7.8D, metrics);
     } else {
@@ -516,7 +616,7 @@ public abstract class TestMetrics {
         MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "none")),
         buildNestedTestRecord());
     Assert.assertEquals(1L, (long) metrics.recordCount());
-    Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
+    assertNonNullColumnSizes(metrics);
     assertCounts(1, null, null, metrics);
     assertBounds(1, Types.IntegerType.get(), null, null, metrics);
     assertCounts(3, null, null, metrics);
@@ -536,7 +636,7 @@ public abstract class TestMetrics {
         MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "counts")),
         buildNestedTestRecord());
     Assert.assertEquals(1L, (long) metrics.recordCount());
-    Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
+    assertNonNullColumnSizes(metrics);
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.IntegerType.get(), null, null, metrics);
     assertCounts(3, 1L, 0L, metrics);
@@ -556,7 +656,7 @@ public abstract class TestMetrics {
         MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "full")),
         buildNestedTestRecord());
     Assert.assertEquals(1L, (long) metrics.recordCount());
-    Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
+    assertNonNullColumnSizes(metrics);
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.IntegerType.get(), Integer.MAX_VALUE, Integer.MAX_VALUE, metrics);
     assertCounts(3, 1L, 0L, metrics);
@@ -567,7 +667,11 @@ public abstract class TestMetrics {
     assertBounds(6, Types.BinaryType.get(),
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
     assertCounts(7, 1L, 0L, 1L, metrics);
-    assertBounds(7, Types.DoubleType.get(), Double.NaN, Double.NaN, metrics);
+    if (fileFormat() == FileFormat.AVRO) {
+      assertBounds(7, Types.DoubleType.get(), null, null, metrics);
+    } else {
+      assertBounds(7, Types.DoubleType.get(), Double.NaN, Double.NaN, metrics);
+    }
   }
 
   @Test
@@ -589,7 +693,7 @@ public abstract class TestMetrics {
     CharBuffer expectedMinBound = CharBuffer.wrap("Lorem ipsu");
     CharBuffer expectedMaxBound = CharBuffer.wrap("Lorem ipsv");
     Assert.assertEquals(1L, (long) metrics.recordCount());
-    Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
+    assertNonNullColumnSizes(metrics);
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.StringType.get(), expectedMinBound, expectedMaxBound, metrics);
   }
@@ -613,7 +717,7 @@ public abstract class TestMetrics {
     ByteBuffer expectedMinBounds = ByteBuffer.wrap(new byte[]{ 0x1, 0x2, 0x3, 0x4, 0x5 });
     ByteBuffer expectedMaxBounds = ByteBuffer.wrap(new byte[]{ 0x1, 0x2, 0x3, 0x4, 0x6 });
     Assert.assertEquals(1L, (long) metrics.recordCount());
-    Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
+    assertNonNullColumnSizes(metrics);
     assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.BinaryType.get(), expectedMinBounds, expectedMaxBounds, metrics);
   }
@@ -641,6 +745,12 @@ public abstract class TestMetrics {
     Assert.assertEquals(
         upperBound,
         upperBounds.containsKey(fieldId) ? fromByteBuffer(type, upperBounds.get(fieldId)) : null);
+  }
+
+  private void assertNonNullColumnSizes(Metrics metrics) {
+    if (fileFormat() != FileFormat.AVRO) {
+      Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
+    }
   }
 
 }
