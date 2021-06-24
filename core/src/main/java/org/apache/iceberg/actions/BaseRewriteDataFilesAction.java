@@ -35,14 +35,9 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.PropertyUtil;
@@ -213,7 +208,8 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       }
     }
 
-    Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks = groupTasksByPartition(fileScanTasks.iterator());
+    Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks =
+        TableScanUtil.groupTasksByPartition(spec, fileScanTasks.iterator());
     Map<StructLikeWrapper, Collection<FileScanTask>> filteredGroupedTasks = groupedTasks.entrySet().stream()
         .filter(kv -> kv.getValue().size() > 1)
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -244,22 +240,6 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     replaceDataFiles(currentDataFiles, addedDataFiles);
 
     return new RewriteDataFilesActionResult(currentDataFiles, addedDataFiles);
-  }
-
-
-  private Map<StructLikeWrapper, Collection<FileScanTask>> groupTasksByPartition(
-      CloseableIterator<FileScanTask> tasksIter) {
-    ListMultimap<StructLikeWrapper, FileScanTask> tasksGroupedByPartition = Multimaps.newListMultimap(
-        Maps.newHashMap(), Lists::newArrayList);
-    try (CloseableIterator<FileScanTask> iterator = tasksIter) {
-      iterator.forEachRemaining(task -> {
-        StructLikeWrapper structLike = StructLikeWrapper.forType(spec.partitionType()).set(task.file().partition());
-        tasksGroupedByPartition.put(structLike, task);
-      });
-    } catch (IOException e) {
-      LOG.warn("Failed to close task iterator", e);
-    }
-    return tasksGroupedByPartition.asMap();
   }
 
   private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles) {

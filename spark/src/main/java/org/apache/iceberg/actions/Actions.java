@@ -24,6 +24,7 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.spark.actions.BaseExpireSnapshotsSparkAction;
 import org.apache.iceberg.spark.actions.BaseRemoveOrphanFilesSparkAction;
+import org.apache.iceberg.spark.actions.BaseRewriteDeletesSparkAction;
 import org.apache.iceberg.spark.actions.BaseRewriteManifestsSparkAction;
 import org.apache.spark.sql.SparkSession;
 
@@ -81,6 +82,10 @@ public class Actions {
 
   public RewriteDataFilesAction rewriteDataFiles() {
     return new RewriteDataFilesAction(spark, table);
+  }
+
+  public RewriteDeletes rewriteDeletes() {
+    return new BaseRewriteDeletesSparkAction(spark, table);
   }
 
   public ExpireSnapshotsAction expireSnapshots() {
