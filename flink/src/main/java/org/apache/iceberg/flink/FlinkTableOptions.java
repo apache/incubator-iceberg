@@ -40,4 +40,10 @@ public class FlinkTableOptions {
           .intType()
           .defaultValue(100)
           .withDescription("Sets max infer parallelism for source operator.");
+
+  public static final ConfigOption<Boolean> ENABLE_VECTORIZED_READ =
+      ConfigOptions.key("enable-vectorized-read")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription("Enable to vectorized read iceberg table.");
 }

@@ -25,11 +25,14 @@ import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.io.RichInputFormat;
 import org.apache.flink.api.common.io.statistics.BaseStatistics;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.InputSplitAssigner;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.flink.FlinkTableOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -46,17 +49,21 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   private final FileIO io;
   private final EncryptionManager encryption;
   private final ScanContext context;
+  private final DataType[] dataTypes;
+  private final ReadableConfig readableConfig;
 
-  private transient RowDataIterator iterator;
+  private transient DataIterator<RowData> iterator;
   private transient long currentReadCount = 0L;
 
   FlinkInputFormat(TableLoader tableLoader, Schema tableSchema, FileIO io, EncryptionManager encryption,
-                   ScanContext context) {
+                   ScanContext context, DataType[] dataTypes, ReadableConfig readableConfig) {
     this.tableLoader = tableLoader;
     this.tableSchema = tableSchema;
     this.io = io;
     this.encryption = encryption;
     this.context = context;
+    this.dataTypes = dataTypes;
+    this.readableConfig = readableConfig;
   }
 
   @VisibleForTesting
@@ -91,9 +98,17 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
 
   @Override
   public void open(FlinkInputSplit split) {
-    this.iterator = new RowDataIterator(
-        split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
-        context.caseSensitive());
+    boolean enableVectorizedRead = readableConfig.get(FlinkTableOptions.ENABLE_VECTORIZED_READ);
+
+    if (enableVectorizedRead) {
+      this.iterator = new BatchRowDataIterator(
+          split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
+          context.caseSensitive(), dataTypes);
+    } else {
+      this.iterator = new RowDataIterator(
+          split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
+          context.caseSensitive());
+    }
   }
 
   @Override

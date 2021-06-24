@@ -31,6 +31,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
@@ -196,7 +197,10 @@ public class FlinkSource {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
       }
 
-      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build());
+      DataType[] dataTypes = projectedSchema != null ? projectedSchema.getFieldDataTypes() :
+          FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(table.schema())).getFieldDataTypes();
+      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build(), dataTypes,
+          readableConfig);
     }
 
     public DataStream<RowData> build() {
