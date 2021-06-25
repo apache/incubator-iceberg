@@ -270,12 +270,12 @@ ALTER TABLE prod.db.sample ADD PARTITION FIELD catalog -- identity transform
 ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id)
 ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(data, 4)
 ALTER TABLE prod.db.sample ADD PARTITION FIELD years(ts)
--- use optional AS keyword to specify a custom name for the partition field 
+-- use optional AS keyword to specify a custom name for the partition field
 ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id) AS shard
 ```
 
 !!! Warning
-    Changing partitioning will change the behavior of dynamic writes, which overwrite any partition that is written to. 
+    Changing partitioning will change the behavior of dynamic writes, which overwrite any partition that is written to.
     For example, if you partition by days and move to partitioning by hours, overwrites will overwrite hourly partitions but not days anymore.
 
 
@@ -290,7 +290,7 @@ ALTER TABLE prod.db.sample DROP PARTITION FIELD shard
 ```
 
 !!! Warning
-    Changing partitioning will change the behavior of dynamic writes, which overwrite any partition that is written to. 
+    Changing partitioning will change the behavior of dynamic writes, which overwrite any partition that is written to.
     For example, if you partition by days and move to partitioning by hours, overwrites will overwrite hourly partitions but not days anymore.
 
 
@@ -365,11 +365,42 @@ spark.read
 ```
 
 !!! Note
-    Spark does not currently support using `option` with `table` in DataFrameReader commands. All options will be silently 
+    Spark does not currently support using `option` with `table` in DataFrameReader commands. All options will be silently
     ignored. Do not use `table` when attempting to time-travel or use other options. Options will be supported with `table`
     in [Spark 3.1 - SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
 
 Time travel is not yet supported by Spark's SQL syntax.
+
+### Incremental read
+To incrementally read a specific table, Iceberg supports read over snapshot with two Spark read options:
+* `start-snapshot-id` the snapshot id of the start of the incremental read
+* `end-snapshot-id` the snapshot id of the end of the incremental read (need to be greater than the start)
+
+```scala
+// Read from snapshot ID 10963874102873L
+spark.read
+    .option("start-snapshot-id", 10963874102873L)
+    .format("iceberg")
+    .load("path/to/table")
+```
+
+```scala
+// Read from snapshot ID 296410040247533544L to ID 6536733823181975045L
+spark.read
+    .option("start-snapshot-id", 296410040247533544L)
+    .option("end-snapshot-id", 6536733823181975045L)
+    .format("iceberg")
+    .load("path/to/table")
+```
+!!! Note
+    Spark does not currently support using `option` with `table` in DataFrameReader commands. All options will be silently
+    ignored. Do not use `table` when attempting to time-travel or use other options. Options will be supported with `table`
+    in [Spark 3.1 - SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
+
+Incremental read not yet support overwrite operations.
+
+Incremental read is not yet supported by Spark's SQL syntax.
+
 
 ### Table names and paths
 
@@ -691,7 +722,7 @@ To inspect a table's history, snapshots, and other metadata, Iceberg supports me
 Metadata tables are identified by adding the metadata table name after the original table name. For example, history for `db.table` is read using `db.table.history`.
 
 !!! Note
-    As of Spark 3.0, the format of the table name for inspection (`catalog.database.table.metadata`) doesn't work with Spark's default catalog (`spark_catalog`). If you've replaced the default catalog, you may want to use DataFrameReader API to inspect the table. 
+    As of Spark 3.0, the format of the table name for inspection (`catalog.database.table.metadata`) doesn't work with Spark's default catalog (`spark_catalog`). If you've replaced the default catalog, you may want to use DataFrameReader API to inspect the table.
 
 ### History
 
@@ -801,4 +832,3 @@ spark.read.format("iceberg").load("db.table.files").show(truncate = false)
 // Hadoop path table
 spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#files").show(truncate = false)
 ```
-
