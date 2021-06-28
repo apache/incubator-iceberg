@@ -104,7 +104,7 @@ public class SnapshotParser {
     }
   }
 
-  static Snapshot fromJson(FileIO io, JsonNode node) {
+  static Snapshot fromJson(FileIO io, JsonNode node, String tableLocation, boolean shouldUseRelativePaths) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse table version from a non-object: %s", node);
 
@@ -142,20 +142,22 @@ public class SnapshotParser {
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
-      return new BaseSnapshot(io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, manifestList);
+      return new BaseSnapshot(io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, manifestList,
+          tableLocation, shouldUseRelativePaths);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
           location -> new GenericManifestFile(io.newInputFile(location), 0));
-      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, manifests);
+      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, manifests,
+          tableLocation, shouldUseRelativePaths);
     }
   }
 
-  public static Snapshot fromJson(FileIO io, String json) {
+  public static Snapshot fromJson(FileIO io, String json, String tableLocation, boolean shouldUseRelativePaths) {
     try {
-      return fromJson(io, JsonUtil.mapper().readValue(json, JsonNode.class));
+      return fromJson(io, JsonUtil.mapper().readValue(json, JsonNode.class), tableLocation, shouldUseRelativePaths);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read version from json: %s", json);
     }

@@ -167,7 +167,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       OutputFile manifestList = manifestListPath();
 
       try (ManifestListWriter writer = ManifestLists.write(
-          ops.current().formatVersion(), manifestList, snapshotId(), parentSnapshotId, sequenceNumber)) {
+          ops.current().formatVersion(), manifestList, snapshotId(), parentSnapshotId, sequenceNumber,
+          ops.current().location(), ops.current().shouldUseRelativePaths())) {
 
         // keep track of the manifest lists created
         manifestLists.add(manifestList.location());
@@ -188,12 +189,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       return new BaseSnapshot(ops.io(),
           sequenceNumber, snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          manifestList.location());
+          manifestList.location(), ops.current().location(), ops.current().shouldUseRelativePaths());
 
     } else {
       return new BaseSnapshot(ops.io(),
           snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          manifests);
+          manifests, ops.current().location(), ops.current().shouldUseRelativePaths());
     }
   }
 
@@ -367,19 +368,23 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
-    return ManifestFiles.write(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+    return ManifestFiles.write(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId(),
+            ops.current().location(), ops.current().shouldUseRelativePaths());
   }
 
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
-    return ManifestFiles.writeDeleteManifest(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+    return ManifestFiles.writeDeleteManifest(ops.current().formatVersion(), spec,
+            newManifestOutput(), snapshotId(), ops.current().location(), ops.current().shouldUseRelativePaths());
   }
 
   protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
-    return ManifestFiles.read(manifest, ops.io(), ops.current().specsById());
+    return ManifestFiles.read(manifest, ops.io(), ops.current().specsById(), ops.current().location(),
+        ops.current().shouldUseRelativePaths());
   }
 
   protected ManifestReader<DeleteFile> newDeleteManifestReader(ManifestFile manifest) {
-    return ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById());
+    return ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById(), ops.current().location(),
+        ops.current().shouldUseRelativePaths());
   }
 
   protected long snapshotId() {
@@ -394,7 +399,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById(),
+        ops.current().location(), ops.current().shouldUseRelativePaths())) {
       PartitionSummary stats = new PartitionSummary(ops.current().spec(manifest.partitionSpecId()));
       int addedFiles = 0;
       long addedRows = 0L;

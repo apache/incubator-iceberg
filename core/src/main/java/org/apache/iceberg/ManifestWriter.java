@@ -42,7 +42,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private final Long snapshotId;
   private final GenericManifestEntry<F> reused;
   private final PartitionSummary stats;
-
+  private final String tableLocation;
+  private final boolean shouldUseRelativePaths;
   private boolean closed = false;
   private int addedFiles = 0;
   private long addedRows = 0L;
@@ -52,13 +53,16 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private long deletedRows = 0L;
   private Long minSequenceNumber = null;
 
-  private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
+  private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId,
+      String tableLocation, boolean shouldUseRelativePaths) {
     this.file = file;
     this.specId = spec.specId();
     this.writer = newAppender(spec, file);
     this.snapshotId = snapshotId;
     this.reused = new GenericManifestEntry<>(spec.partitionType());
     this.stats = new PartitionSummary(spec);
+    this.tableLocation = tableLocation;
+    this.shouldUseRelativePaths = shouldUseRelativePaths;
   }
 
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
@@ -87,6 +91,12 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     stats.update(entry.file().partition());
     if (entry.sequenceNumber() != null && (minSequenceNumber == null || entry.sequenceNumber() < minSequenceNumber)) {
       this.minSequenceNumber = entry.sequenceNumber();
+    }
+    if (entry.file() instanceof BaseFile) {
+      BaseFile<?> entryFile = (BaseFile<?>) entry.file();
+      // Update path to use relative location if needed.
+      entryFile.setFilePath(MetadataPathUtils.toRelativePath(entryFile.path().toString(),
+          tableLocation, shouldUseRelativePaths));
     }
     writer.add(prepare(entry));
   }
@@ -168,8 +178,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V2Writer extends ManifestWriter<DataFile> {
     private final V2Metadata.IndexedManifestEntry<DataFile> entryWrapper;
 
-    V2Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId);
+    V2Writer(PartitionSpec spec, OutputFile file, Long snapshotId,
+        String tableLocation, boolean shouldUseRelativePaths) {
+      super(spec, file, snapshotId, tableLocation, shouldUseRelativePaths);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
 
@@ -201,8 +212,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V2DeleteWriter extends ManifestWriter<DeleteFile> {
     private final V2Metadata.IndexedManifestEntry<DeleteFile> entryWrapper;
 
-    V2DeleteWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId);
+    V2DeleteWriter(PartitionSpec spec, OutputFile file, Long snapshotId,
+        String tableLocation, boolean shouldUseRelativePaths) {
+      super(spec, file, snapshotId, tableLocation, shouldUseRelativePaths);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
 
@@ -239,8 +251,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V1Writer extends ManifestWriter<DataFile> {
     private final V1Metadata.IndexedManifestEntry entryWrapper;
 
-    V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId);
+    V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId,
+        String tableLocation, boolean shouldUseRelativePaths) {
+      super(spec, file, snapshotId, tableLocation, shouldUseRelativePaths);
       this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
     }
 

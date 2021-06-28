@@ -32,10 +32,12 @@ class InheritableMetadataFactory {
     return EMPTY;
   }
 
-  static InheritableMetadata fromManifest(ManifestFile manifest) {
+  static InheritableMetadata fromManifest(ManifestFile manifest, String tableLocation,
+      boolean shouldUseRelativePaths) {
     Preconditions.checkArgument(manifest.snapshotId() != null,
         "Cannot read from ManifestFile with null (unassigned) snapshot ID");
-    return new BaseInheritableMetadata(manifest.partitionSpecId(), manifest.snapshotId(), manifest.sequenceNumber());
+    return new BaseInheritableMetadata(manifest.partitionSpecId(), manifest.snapshotId(), manifest.sequenceNumber(),
+        tableLocation, shouldUseRelativePaths);
   }
 
   static InheritableMetadata forCopy(long snapshotId) {
@@ -46,11 +48,16 @@ class InheritableMetadataFactory {
     private final int specId;
     private final long snapshotId;
     private final long sequenceNumber;
+    private final String tableLocation;
+    private boolean shouldUseRelativePaths;
 
-    private BaseInheritableMetadata(int specId, long snapshotId, long sequenceNumber) {
+    private BaseInheritableMetadata(int specId, long snapshotId, long sequenceNumber, String tableLocation,
+        boolean shouldUseRelativePaths) {
       this.specId = specId;
       this.snapshotId = snapshotId;
       this.sequenceNumber = sequenceNumber;
+      this.tableLocation = tableLocation;
+      this.shouldUseRelativePaths = shouldUseRelativePaths;
     }
 
     @Override
@@ -58,6 +65,10 @@ class InheritableMetadataFactory {
       if (manifestEntry.file() instanceof BaseFile) {
         BaseFile<?> file = (BaseFile<?>) manifestEntry.file();
         file.setSpecId(specId);
+        if (file.path() != null) {
+          file.setFilePath(MetadataPathUtils.toAbsolutePath(file.path().toString(), tableLocation,
+              shouldUseRelativePaths));
+        }
       }
       if (manifestEntry.snapshotId() == null) {
         manifestEntry.setSnapshotId(snapshotId);

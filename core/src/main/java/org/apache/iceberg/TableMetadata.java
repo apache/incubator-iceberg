@@ -125,6 +125,14 @@ public class TableMetadata implements Serializable {
         ImmutableList.of(), ImmutableList.of());
   }
 
+  /**
+   * @return true if relative paths are enabled for this table, false otherwise.
+   */
+  public boolean shouldUseRelativePaths() {
+    return propertyAsBoolean(TableProperties.WRITE_METADATA_USE_RELATIVE_PATH,
+        TableProperties.WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT);
+  }
+
   public static class SnapshotLogEntry implements HistoryEntry {
     private final long timestampMillis;
     private final long snapshotId;
@@ -195,7 +203,7 @@ public class TableMetadata implements Serializable {
       }
       MetadataLogEntry that = (MetadataLogEntry) other;
       return timestampMillis == that.timestampMillis &&
-              java.util.Objects.equals(file, that.file);
+          java.util.Objects.equals(file, that.file);
     }
 
     @Override
@@ -323,7 +331,7 @@ public class TableMetadata implements Serializable {
       }
       previous = metadataEntry;
     }
-      // Make sure that this update's lastUpdatedMillis is > max(previousFile's timestamp)
+    // Make sure that this update's lastUpdatedMillis is > max(previousFile's timestamp)
     if (previous != null) {
       Preconditions.checkArgument(
           // commits can happen concurrently from different machines.
@@ -621,6 +629,46 @@ public class TableMetadata implements Serializable {
         addPreviousFile(file, lastUpdatedMillis));
   }
 
+  /**
+   * Convert manifest list paths to relative to the base table in all snapshots.
+   * @return updated table metadata
+   */
+  public TableMetadata convertAbsolutePathsToRelativePaths() {
+    List<Snapshot> newUpdatedSnapshots = Lists.newArrayListWithCapacity(snapshots.size());
+    for (Snapshot snapshot : snapshots) {
+      String manifestListLocation = MetadataPathUtils.toRelativePath(snapshot.manifestListLocation(), location,
+          shouldUseRelativePaths());
+      newUpdatedSnapshots.add(new BaseSnapshot(snapshot.io(), snapshot.sequenceNumber(),
+          snapshot.snapshotId(), snapshot.parentId(), snapshot.timestampMillis(), snapshot.operation(),
+          snapshot.summary(), manifestListLocation, location, shouldUseRelativePaths()));
+    }
+    return new TableMetadata(file, formatVersion, uuid, location,
+        lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, newUpdatedSnapshots,
+        snapshotLog, previousFiles);
+  }
+
+  /**
+   * Convert manifest list paths to absolute paths in all snapshots.
+   * @return updated table metadata
+   */
+  public TableMetadata convertRelativePathToAbsolutePaths() {
+    List<Snapshot> newUpdatedSnapshots = Lists.newArrayListWithCapacity(snapshots.size());
+    for (Snapshot snapshot : snapshots) {
+      String newManifestListLocation = MetadataPathUtils.toAbsolutePath(snapshot.manifestListLocation(),
+          location, shouldUseRelativePaths());
+      newUpdatedSnapshots.add(new BaseSnapshot(snapshot.io(), snapshot.sequenceNumber(),
+          snapshot.snapshotId(), snapshot.parentId(), snapshot.timestampMillis(), snapshot.operation(),
+          snapshot.summary(), newManifestListLocation, location, shouldUseRelativePaths()));
+    }
+
+    return new TableMetadata(file, formatVersion, uuid, location,
+        lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, newUpdatedSnapshots,
+        snapshotLog, previousFiles);
+  }
+
+
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
     List<Snapshot> filtered = Lists.newArrayListWithExpectedSize(snapshots.size());
     for (Snapshot snapshot : snapshots) {
@@ -806,7 +854,7 @@ public class TableMetadata implements Serializable {
     }
 
     int maxSize = Math.max(1, PropertyUtil.propertyAsInt(updatedProperties,
-            TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, TableProperties.METADATA_PREVIOUS_VERSIONS_MAX_DEFAULT));
+        TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, TableProperties.METADATA_PREVIOUS_VERSIONS_MAX_DEFAULT));
 
     List<MetadataLogEntry> newMetadataLog;
     if (previousFiles.size() >= maxSize) {
@@ -815,7 +863,8 @@ public class TableMetadata implements Serializable {
     } else {
       newMetadataLog = Lists.newArrayList(previousFiles);
     }
-    newMetadataLog.add(new MetadataLogEntry(timestampMillis, previousFile.location()));
+    newMetadataLog.add(new MetadataLogEntry(timestampMillis,
+        MetadataPathUtils.toRelativePath(previousFile.location(), location, shouldUseRelativePaths())));
 
     return newMetadataLog;
   }

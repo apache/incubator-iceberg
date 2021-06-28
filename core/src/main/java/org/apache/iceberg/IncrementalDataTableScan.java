@@ -79,7 +79,8 @@ class IncrementalDataTableScan extends DataTableScan {
         .filter(manifestFile -> snapshotIds.contains(manifestFile.snapshotId()))
         .toSet();
 
-    ManifestGroup manifestGroup = new ManifestGroup(tableOps().io(), manifests)
+    ManifestGroup manifestGroup = new ManifestGroup(tableOps().io(), manifests, tableOps().current().location(),
+        tableOps().current().shouldUseRelativePaths())
         .caseSensitive(isCaseSensitive())
         .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(filter())

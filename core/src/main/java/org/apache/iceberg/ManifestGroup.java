@@ -58,15 +58,24 @@ class ManifestGroup {
   private boolean ignoreResiduals;
   private List<String> columns;
   private boolean caseSensitive;
+  private String tableLocation;
+  private boolean shouldUseRelativePaths;
   private ExecutorService executorService;
 
   ManifestGroup(FileIO io, Iterable<ManifestFile> manifests) {
-    this(io,
-        Iterables.filter(manifests, manifest -> manifest.content() == ManifestContent.DATA),
-        Iterables.filter(manifests, manifest -> manifest.content() == ManifestContent.DELETES));
+    this(io, manifests, null, false);
   }
 
-  ManifestGroup(FileIO io, Iterable<ManifestFile> dataManifests, Iterable<ManifestFile> deleteManifests) {
+  ManifestGroup(FileIO io, Iterable<ManifestFile> manifests, String tableLocation,
+      Boolean shouldUseRelativePaths) {
+    this(io,
+        Iterables.filter(manifests, manifest -> manifest.content() == ManifestContent.DATA),
+        Iterables.filter(manifests, manifest -> manifest.content() == ManifestContent.DELETES), tableLocation,
+        shouldUseRelativePaths);
+  }
+
+  ManifestGroup(FileIO io, Iterable<ManifestFile> dataManifests, Iterable<ManifestFile> deleteManifests,
+      String tableLocation, boolean shouldUseRelativePaths) {
     this.io = io;
     this.dataManifests = Sets.newHashSet(dataManifests);
     this.deleteIndexBuilder = DeleteFileIndex.builderFor(io, deleteManifests);
@@ -80,6 +89,8 @@ class ManifestGroup {
     this.caseSensitive = true;
     this.manifestPredicate = m -> true;
     this.manifestEntryPredicate = e -> true;
+    this.tableLocation = tableLocation;
+    this.shouldUseRelativePaths = shouldUseRelativePaths;
   }
 
   ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {
@@ -242,7 +253,8 @@ class ManifestGroup {
     return Iterables.transform(
         matchingManifests,
         manifest -> {
-          ManifestReader<DataFile> reader = ManifestFiles.read(manifest, io, specsById)
+          ManifestReader<DataFile> reader = ManifestFiles.read(manifest, io, specsById, tableLocation,
+              shouldUseRelativePaths)
               .filterRows(dataFilter)
               .filterPartitions(partitionFilter)
               .caseSensitive(caseSensitive)

@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class TableMetadataParser {
 
@@ -121,7 +122,14 @@ public class TableMetadataParser {
          OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
-      toJson(metadata, generator);
+      if (metadata.shouldUseRelativePaths()) {
+        // If relative paths are enabled on this table, convert the paths to relative paths if necessary before
+        // flushing
+        TableMetadata updatedMetadata = metadata.convertAbsolutePathsToRelativePaths();
+        toJson(updatedMetadata, generator);
+      } else {
+        toJson(metadata, generator);
+      }
       generator.flush();
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
@@ -152,6 +160,7 @@ public class TableMetadataParser {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
@@ -255,7 +264,10 @@ public class TableMetadataParser {
   public static TableMetadata read(FileIO io, InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
-      return fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      TableMetadata tableMetadata =  fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      // If use relative paths is enabled on this table, convert the relative paths to absolute paths if necessary
+      return tableMetadata.shouldUseRelativePaths() ?
+          tableMetadata.convertRelativePathToAbsolutePaths() : tableMetadata;
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
@@ -372,6 +384,8 @@ public class TableMetadataParser {
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
     long currentVersionId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
+    boolean shouldUseRelativePaths = PropertyUtil.propertyAsBoolean(properties,
+        TableProperties.WRITE_METADATA_USE_RELATIVE_PATH, TableProperties.WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT);
 
     JsonNode snapshotArray = node.get(SNAPSHOTS);
     Preconditions.checkArgument(snapshotArray.isArray(),
@@ -380,7 +394,7 @@ public class TableMetadataParser {
     List<Snapshot> snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
     Iterator<JsonNode> iterator = snapshotArray.elements();
     while (iterator.hasNext()) {
-      snapshots.add(SnapshotParser.fromJson(io, iterator.next()));
+      snapshots.add(SnapshotParser.fromJson(io, iterator.next(), location, shouldUseRelativePaths));
     }
 
     ImmutableList.Builder<HistoryEntry> entries = ImmutableList.builder();
@@ -399,7 +413,7 @@ public class TableMetadataParser {
       while (logIterator.hasNext()) {
         JsonNode entryNode = logIterator.next();
         metadataEntries.add(new MetadataLogEntry(
-                JsonUtil.getLong(TIMESTAMP_MS, entryNode), JsonUtil.getString(METADATA_FILE, entryNode)));
+            JsonUtil.getLong(TIMESTAMP_MS, entryNode), JsonUtil.getString(METADATA_FILE, entryNode)));
       }
     }
 

@@ -34,6 +34,10 @@ class ManifestLists {
   }
 
   static List<ManifestFile> read(InputFile manifestList) {
+    return read(manifestList, null, false);
+  }
+
+  static List<ManifestFile> read(InputFile manifestList, String tableLocation, boolean shouldUseRelativePaths) {
     try (CloseableIterable<ManifestFile> files = Avro.read(manifestList)
         .rename("manifest_file", GenericManifestFile.class.getName())
         .rename("partitions", GenericPartitionFieldSummary.class.getName())
@@ -43,22 +47,54 @@ class ManifestLists {
         .reuseContainers(false)
         .build()) {
 
-      return Lists.newLinkedList(files);
+      return shouldUseRelativePaths ? updateManifestFilePathsToAbsolutePaths(files,
+          tableLocation) : Lists.newLinkedList(files);
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestList.location());
     }
   }
 
+  /**
+   * After the manifest files are read and relative paths are enabled on the table, convert the manifest file path to
+   * absolute path.
+   * @param files list of manifest files
+   * @param tableLocation table location needed for conversion
+   * @return List of manifest files with absolute file paths.
+   */
+  private static List<ManifestFile> updateManifestFilePathsToAbsolutePaths(
+      CloseableIterable<ManifestFile> files,
+      String tableLocation) {
+    List<ManifestFile> manifestFiles = Lists.newLinkedList(files);
+    List<ManifestFile> updatedManifestFiles = Lists.newArrayListWithCapacity(manifestFiles.size());
+    for (ManifestFile manifestFile : manifestFiles) {
+      // update the manifest files if necessary.
+      updatedManifestFiles.add(GenericManifestFile.copyOf(manifestFile)
+          .withManifestPath(MetadataPathUtils.toAbsolutePath(manifestFile.path(),
+              tableLocation, true)).build());
+    }
+    return updatedManifestFiles;
+  }
+
   static ManifestListWriter write(int formatVersion, OutputFile manifestListFile,
-                                  long snapshotId, Long parentSnapshotId, long sequenceNumber) {
+      long snapshotId, Long parentSnapshotId, long sequenceNumber) {
+    return write(
+        formatVersion, manifestListFile, snapshotId, parentSnapshotId - 1, sequenceNumber, null, false);
+  }
+
+
+  static ManifestListWriter write(int formatVersion, OutputFile manifestListFile,
+      long snapshotId, Long parentSnapshotId, long sequenceNumber, String tableLocation,
+      boolean shouldUseRelativePaths) {
     switch (formatVersion) {
       case 1:
         Preconditions.checkArgument(sequenceNumber == TableMetadata.INITIAL_SEQUENCE_NUMBER,
             "Invalid sequence number for v1 manifest list: %s", sequenceNumber);
-        return new ManifestListWriter.V1Writer(manifestListFile, snapshotId, parentSnapshotId);
+        return new ManifestListWriter.V1Writer(manifestListFile, snapshotId, parentSnapshotId, tableLocation,
+            shouldUseRelativePaths);
       case 2:
-        return new ManifestListWriter.V2Writer(manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
+        return new ManifestListWriter.V2Writer(manifestListFile, snapshotId, parentSnapshotId, sequenceNumber,
+            tableLocation, shouldUseRelativePaths);
     }
     throw new UnsupportedOperationException("Cannot write manifest list for table version: " + formatVersion);
   }

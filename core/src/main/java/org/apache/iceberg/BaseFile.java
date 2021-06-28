@@ -205,6 +205,10 @@ abstract class BaseFile<F>
     this.partitionSpecId = specId;
   }
 
+  void setFilePath(String filePath) {
+    this.filePath = filePath;
+  }
+
   protected abstract Schema getAvroSchema(Types.StructType partitionStruct);
 
   @Override
