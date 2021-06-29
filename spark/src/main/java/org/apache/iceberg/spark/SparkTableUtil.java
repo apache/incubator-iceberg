@@ -22,6 +22,7 @@ package org.apache.iceberg.spark;
 import java.io.IOException;
 import java.io.Serializable;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -36,11 +37,14 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.data.TableMigrationUtil;
+import org.apache.iceberg.exceptions.DuplicateFileException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
@@ -54,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.TaskContext;
@@ -63,6 +68,8 @@ import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.sql.Column;
+import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -78,6 +85,8 @@ import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.NamedExpression;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scala.Function2;
 import scala.Option;
 import scala.Predef;
@@ -94,6 +103,8 @@ import static org.apache.spark.sql.functions.col;
  * https://github.com/apache/iceberg/blob/apache-iceberg-0.8.0-incubating/spark/src/main/scala/org/apache/iceberg/spark/SparkTableUtil.scala
  */
 public class SparkTableUtil {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkTableUtil.class);
 
   private static final Joiner.MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
 
@@ -364,9 +375,11 @@ public class SparkTableUtil {
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
    * @param partitionFilter only import partitions whose values match those in the map, can be partially defined
+   * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
    */
   public static void importSparkTable(SparkSession spark, TableIdentifier sourceTableIdent, Table targetTable,
-                                      String stagingDir, Map<String, String> partitionFilter) {
+                                      String stagingDir, Map<String, String> partitionFilter,
+                                      boolean checkDuplicateFiles) {
     SessionCatalog catalog = spark.sessionState().catalog();
 
     String db = sourceTableIdent.database().nonEmpty() ?
@@ -382,13 +395,13 @@ public class SparkTableUtil {
       PartitionSpec spec = SparkSchemaUtil.specForTable(spark, sourceTableIdentWithDB.unquotedString());
 
       if (Objects.equal(spec, PartitionSpec.unpartitioned())) {
-        importUnpartitionedSparkTable(spark, sourceTableIdentWithDB, targetTable);
+        importUnpartitionedSparkTable(spark, sourceTableIdentWithDB, targetTable, checkDuplicateFiles);
       } else {
         List<SparkPartition> sourceTablePartitions = getPartitions(spark, sourceTableIdent,
             partitionFilter);
         Preconditions.checkArgument(!sourceTablePartitions.isEmpty(),
             "Cannot find any partitions in table %s", sourceTableIdent);
-        importSparkPartitions(spark, sourceTablePartitions, targetTable, spec, stagingDir);
+        importSparkPartitions(spark, sourceTablePartitions, targetTable, spec, stagingDir, checkDuplicateFiles);
       }
     } catch (AnalysisException e) {
       throw SparkExceptionUtil.toUncheckedException(
@@ -407,14 +420,15 @@ public class SparkTableUtil {
    * @param sourceTableIdent an identifier of the source Spark table
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
+   * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
    */
   public static void importSparkTable(SparkSession spark, TableIdentifier sourceTableIdent, Table targetTable,
-                                      String stagingDir) {
-    importSparkTable(spark, sourceTableIdent, targetTable, stagingDir, Collections.emptyMap());
+                                      String stagingDir, boolean checkDuplicateFiles) {
+    importSparkTable(spark, sourceTableIdent, targetTable, stagingDir, Collections.emptyMap(), checkDuplicateFiles);
   }
 
   private static void importUnpartitionedSparkTable(SparkSession spark, TableIdentifier sourceTableIdent,
-                                                    Table targetTable) {
+                                                    Table targetTable, boolean checkDuplicateFiles) {
     try {
       CatalogTable sourceTable = spark.sessionState().catalog().getTableMetadata(sourceTableIdent);
       Option<String> format =
@@ -430,6 +444,20 @@ public class SparkTableUtil {
 
       List<DataFile> files = TableMigrationUtil.listPartition(
           partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig, nameMapping);
+
+      if (checkDuplicateFiles) {
+        Dataset<Row> importedFiles = spark.createDataset(
+            Lists.transform(files, f -> f.path().toString()), Encoders.STRING())
+            .toDF("file_path");
+        Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
+        Column joinCond = existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
+        Dataset<Row> duplicates = importedFiles.join(existingFiles, joinCond);
+        if (!duplicates.isEmpty()) {
+          List<String> duplicateList = Arrays.stream((Row[]) duplicates.select("file_path").head(10))
+              .map(p -> p.getString(0)).collect(Collectors.toList());
+          throw new DuplicateFileException(duplicateList);
+        }
+      }
 
       AppendFiles append = targetTable.newAppend();
       files.forEach(append::appendFile);
@@ -451,9 +479,10 @@ public class SparkTableUtil {
    * @param targetTable an Iceberg table where to import the data
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
+   * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
    */
   public static void importSparkPartitions(SparkSession spark, List<SparkPartition> partitions, Table targetTable,
-                                           PartitionSpec spec, String stagingDir) {
+                                           PartitionSpec spec, String stagingDir, boolean checkDuplicateFiles) {
     Configuration conf = spark.sessionState().newHadoopConf();
     SerializableConfiguration serializableConf = new SerializableConfiguration(conf);
     int parallelism = Math.min(partitions.size(), spark.sessionState().conf().parallelPartitionDiscoveryParallelism());
@@ -469,10 +498,24 @@ public class SparkTableUtil {
         partitionRDD.rdd(),
         Encoders.javaSerialization(SparkPartition.class));
 
-    List<ManifestFile> manifests = partitionDS
+    Dataset<DataFile> filesToImport = partitionDS
         .flatMap((FlatMapFunction<SparkPartition, DataFile>) sparkPartition ->
                 listPartition(sparkPartition, spec, serializableConf, metricsConfig, nameMapping).iterator(),
-            Encoders.javaSerialization(DataFile.class))
+            Encoders.javaSerialization(DataFile.class));
+
+    if (checkDuplicateFiles) {
+      Dataset<Row> filesToImportDf = filesToImport.map(f -> f.path().toString(), Encoders.STRING()).toDF("file_path");
+      Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
+      Column joinCond = existingFiles.col("data_file.file_path").equalTo(filesToImportDf.col("file_path"));
+      Dataset<Row> duplicates = filesToImportDf.join(existingFiles, joinCond);
+      if (!duplicates.isEmpty()) {
+        List<String> duplicateList = Arrays.stream((Row[]) duplicates.select("file_path").head(10))
+            .map(p -> p.getString(0)).collect(Collectors.toList());
+        throw new DuplicateFileException(duplicateList);
+      }
+    }
+
+    List<ManifestFile> manifests = filesToImport
         .repartition(numShufflePartitions)
         .map((MapFunction<DataFile, Tuple2<String, DataFile>>) file ->
                 Tuple2.apply(file.path().toString(), file),
@@ -520,6 +563,48 @@ public class SparkTableUtil {
         .noRetry()
         .suppressFailureWhenFinished()
         .run(item -> io.deleteFile(item.path()));
+  }
+
+  // Attempt to use Spark3 Catalog resolution if available on the path
+  private static final DynMethods.UnboundMethod LOAD_CATALOG = DynMethods.builder("loadCatalogMetadataTable")
+      .hiddenImpl("org.apache.iceberg.spark.Spark3Util", SparkSession.class, String.class, MetadataTableType.class)
+      .orNoop()
+      .build();
+
+  public static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String tableName, MetadataTableType type) {
+    Preconditions.checkArgument(!LOAD_CATALOG.isNoop(), "Cannot find Spark3Util class but Spark3 is in use");
+    return LOAD_CATALOG.asStatic().invoke(spark, tableName, type);
+  }
+
+  public static Dataset<Row> loadMetadataTable(SparkSession spark, Table table, MetadataTableType type) {
+    String tableName = table.name();
+    String tableLocation = table.location();
+
+    DataFrameReader dataFrameReader = spark.read().format("iceberg");
+    if (tableName.contains("/")) {
+      // Hadoop Table or Metadata location passed, load without a catalog
+      return dataFrameReader.load(tableName + "#" + type);
+    }
+
+    // Try DSV2 catalog based name based resolution
+    if (spark.version().startsWith("3")) {
+      Dataset<Row> catalogMetadataTable = loadCatalogMetadataTable(spark, tableName, type);
+      if (catalogMetadataTable != null) {
+        return catalogMetadataTable;
+      }
+    }
+
+    // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
+    if (tableName.startsWith("hadoop.")) {
+      // Try loading by location as Hadoop table without Catalog
+      return dataFrameReader.load(tableLocation + "#" + type);
+    } else if (tableName.startsWith("hive")) {
+      // Try loading by name as a Hive table without Catalog
+      return dataFrameReader.load(tableName.replaceFirst("hive\\.", "") + "." + type);
+    } else {
+      throw new IllegalArgumentException(String.format(
+          "Cannot find the metadata table for %s of type %s", tableName, type));
+    }
   }
 
   /**

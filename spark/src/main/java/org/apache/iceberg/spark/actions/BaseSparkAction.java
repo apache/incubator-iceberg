@@ -33,20 +33,18 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.actions.Action;
 import org.apache.iceberg.actions.ManifestFileBean;
-import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.JobGroupUtils;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.broadcast.Broadcast;
-import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -151,46 +149,8 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
   }
 
-  // Attempt to use Spark3 Catalog resolution if available on the path
-  private static final DynMethods.UnboundMethod LOAD_CATALOG = DynMethods.builder("loadCatalogMetadataTable")
-      .hiddenImpl("org.apache.iceberg.spark.Spark3Util", SparkSession.class, String.class, MetadataTableType.class)
-      .orNoop()
-      .build();
-
-  private Dataset<Row> loadCatalogMetadataTable(String tableName, MetadataTableType type) {
-    Preconditions.checkArgument(!LOAD_CATALOG.isNoop(), "Cannot find Spark3Util class but Spark3 is in use");
-    return LOAD_CATALOG.asStatic().invoke(spark, tableName, type);
-  }
-
   protected Dataset<Row> loadMetadataTable(Table table, MetadataTableType type) {
-    String tableName = table.name();
-    String tableLocation = table.location();
-
-    DataFrameReader dataFrameReader = spark.read().format("iceberg");
-    if (tableName.contains("/")) {
-      // Hadoop Table or Metadata location passed, load without a catalog
-      return dataFrameReader.load(tableName + "#" + type);
-    }
-
-    // Try DSV2 catalog based name based resolution
-    if (spark.version().startsWith("3")) {
-      Dataset<Row> catalogMetadataTable = loadCatalogMetadataTable(tableName, type);
-      if (catalogMetadataTable != null) {
-        return catalogMetadataTable;
-      }
-    }
-
-    // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
-    if (tableName.startsWith("hadoop.")) {
-      // Try loading by location as Hadoop table without Catalog
-      return dataFrameReader.load(tableLocation + "#" + type);
-    } else if (tableName.startsWith("hive")) {
-      // Try loading by name as a Hive table without Catalog
-      return dataFrameReader.load(tableName.replaceFirst("hive\\.", "") + "." + type);
-    } else {
-      throw new IllegalArgumentException(String.format(
-          "Cannot find the metadata table for %s of type %s", tableName, type));
-    }
+    return SparkTableUtil.loadMetadataTable(spark, table, type);
   }
 
   private static class ReadManifest implements FlatMapFunction<ManifestFileBean, String> {

@@ -117,7 +117,7 @@ public abstract class TestIdentityPartitionData extends SparkTestBase {
     this.table = TABLES.create(SparkSchemaUtil.schemaForTable(spark, hiveTable),
         SparkSchemaUtil.specForTable(spark, hiveTable), properties, location.toString());
 
-    SparkTableUtil.importSparkTable(spark, new TableIdentifier(hiveTable), table, location.toString());
+    SparkTableUtil.importSparkTable(spark, new TableIdentifier(hiveTable), table, location.toString(), false);
   }
 
   @Before

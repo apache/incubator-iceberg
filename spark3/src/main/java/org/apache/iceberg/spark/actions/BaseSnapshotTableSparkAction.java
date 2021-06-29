@@ -133,7 +133,7 @@ public class BaseSnapshotTableSparkAction
       TableIdentifier v1TableIdent = v1SourceTable().identifier();
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
-      SparkTableUtil.importSparkTable(spark(), v1TableIdent, icebergTable, stagingLocation);
+      SparkTableUtil.importSparkTable(spark(), v1TableIdent, icebergTable, stagingLocation, false);
 
       LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();
