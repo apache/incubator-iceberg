@@ -38,10 +38,11 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public interface DataFile extends ContentFile<DataFile> {
   // fields for adding delete data files
   Types.NestedField CONTENT = optional(134, "content", IntegerType.get(),
-      "Contents of the file: 0=data, 1=position deletes, 2=equality deletes");
+      "Contents of the file: 0=data, 1=position deletes, 2=equality deletes, 3= index data");
   Types.NestedField FILE_PATH = required(100, "file_path", StringType.get(), "Location URI with FS scheme");
   Types.NestedField FILE_FORMAT = required(101, "file_format", StringType.get(),
-      "File format name: avro, orc, or parquet");
+      "File format name: avro, orc, parquet, or index.data");
+  // for index data, RECORD_COUNT == the RECORD_COUNT of corresponding data file
   Types.NestedField RECORD_COUNT = required(103, "record_count", LongType.get(), "Number of records in the file");
   Types.NestedField FILE_SIZE = required(104, "file_size_in_bytes", LongType.get(), "Total file size in bytes");
   Types.NestedField COLUMN_SIZES = optional(108, "column_sizes", MapType.ofRequired(117, 118,

@@ -28,7 +28,8 @@ public enum FileFormat {
   ORC("orc", true),
   PARQUET("parquet", true),
   AVRO("avro", true),
-  METADATA("metadata.json", false);
+  METADATA("metadata.json", false),
+  INDEXDATA("index.data", false);
 
   private final String ext;
   private final boolean splittable;

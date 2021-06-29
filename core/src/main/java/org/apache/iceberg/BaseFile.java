@@ -152,6 +152,19 @@ abstract class BaseFile<F>
   }
 
   /**
+   * Used by Index File.
+   */
+  BaseFile(FileContent content, String filePath, FileFormat format,
+           long fileSizeInBytes, long recordCount) {
+    this.content = content;
+    this.filePath = filePath;
+    this.format = format;
+    this.recordCount = recordCount;
+    this.fileSizeInBytes = fileSizeInBytes;
+  }
+
+
+  /**
    * Copy constructor.
    *
    * @param toCopy a generic data file to copy.

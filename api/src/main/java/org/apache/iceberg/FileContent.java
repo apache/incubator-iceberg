@@ -20,12 +20,13 @@
 package org.apache.iceberg;
 
 /**
- * Content type stored in a file, one of DATA, POSITION_DELETES, or EQUALITY_DELETES.
+ * Content type stored in a file, one of DATA, POSITION_DELETES, EQUALITY_DELETES or INDEX_DATA.
  */
 public enum FileContent {
   DATA(0),
   POSITION_DELETES(1),
-  EQUALITY_DELETES(2);
+  EQUALITY_DELETES(2),
+  INDEX_DATA(3);
 
   private final int id;
 

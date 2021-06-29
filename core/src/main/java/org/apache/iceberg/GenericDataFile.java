@@ -43,6 +43,13 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
   }
 
   /**
+   * Used by Index File. recordCount == corresponding Data File recordCount
+   */
+  GenericDataFile(String filePath, FileFormat format, long fileSizeInBytes, long recordCount) {
+    super(FileContent.INDEX_DATA, filePath, format, fileSizeInBytes, recordCount);
+  }
+
+  /**
    * Copy constructor.
    *
    * @param toCopy a generic data file to copy.
