@@ -25,8 +25,8 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * This class is inspired by Spark's {@code ColumnarBatch}.
- * This class wraps a columnar batch in the result set of an Iceberg table query.
+ * This class is inspired by Spark's {@code ColumnarBatch}. This class wraps a columnar batch in the result set of an
+ * Iceberg table query.
  */
 public class ColumnarBatch implements AutoCloseable {
 
@@ -36,7 +36,8 @@ public class ColumnarBatch implements AutoCloseable {
   ColumnarBatch(int numRows, ColumnVector[] columns) {
     for (int i = 0; i < columns.length; i++) {
       int columnValueCount = columns[i].getFieldVector().getValueCount();
-      Preconditions.checkArgument(numRows == columnValueCount,
+      Preconditions.checkArgument(
+          numRows == columnValueCount,
           "Number of rows (=" + numRows + ") != column[" + i + "] size (=" + columnValueCount + ")");
     }
     this.numRows = numRows;
@@ -44,9 +45,8 @@ public class ColumnarBatch implements AutoCloseable {
   }
 
   /**
-   * Create a new instance of {@link VectorSchemaRoot}
-   * from the arrow vectors stored in this arrow batch.
-   * The arrow vectors are owned by the reader.
+   * Create a new instance of {@link VectorSchemaRoot} from the arrow vectors stored in this arrow batch. The arrow
+   * vectors are owned by the reader.
    */
   public VectorSchemaRoot createVectorSchemaRootFromVectors() {
     return VectorSchemaRoot.of(Arrays.stream(columns)

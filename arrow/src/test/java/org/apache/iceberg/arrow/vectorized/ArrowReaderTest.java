@@ -146,8 +146,8 @@ public class ArrowReaderTest {
   }
 
   /**
-   * This test writes each partition with constant value rows. The Arrow vectors returned are mostly of type int32
-   * which is unexpected. This is happening because of dictionary encoding at the storage level.
+   * This test writes each partition with constant value rows. The Arrow vectors returned are mostly of type int32 which
+   * is unexpected. This is happening because of dictionary encoding at the storage level.
    * <p>
    * Following are the expected and actual Arrow schema:
    * <pre>
@@ -245,8 +245,8 @@ public class ArrowReaderTest {
   }
 
   /**
-   * Read selected rows and all columns from the table using a time range row filter.
-   * The test asserts that the result is empty.
+   * Read selected rows and all columns from the table using a time range row filter. The test asserts that the result
+   * is empty.
    */
   @Test
   public void testReadRangeFilterEmptyResult() throws Exception {
@@ -255,9 +255,9 @@ public class ArrowReaderTest {
     LocalDateTime beginTime = LocalDateTime.of(2021, 1, 1, 0, 0, 0);
     LocalDateTime endTime = LocalDateTime.of(2021, 2, 1, 0, 0, 0);
     TableScan scan = table.newScan()
-            .filter(Expressions.and(
-                    Expressions.greaterThanOrEqual("timestamp", timestampToMicros(beginTime)),
-                    Expressions.lessThan("timestamp", timestampToMicros(endTime))));
+        .filter(Expressions.and(
+            Expressions.greaterThanOrEqual("timestamp", timestampToMicros(beginTime)),
+            Expressions.lessThan("timestamp", timestampToMicros(endTime))));
     int numRoots = 0;
     try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, NUM_ROWS_PER_MONTH, false)) {
       for (ColumnarBatch batch : itr) {
@@ -645,10 +645,10 @@ public class ArrowReaderTest {
             "double_nullable", new FieldType(true, MinorType.FLOAT8.getType(), null), null),
         new Field(
             "timestamp_tz", new FieldType(false, new ArrowType.Timestamp(
-                org.apache.arrow.vector.types.TimeUnit.MICROSECOND, "UTC"), null), null),
+            org.apache.arrow.vector.types.TimeUnit.MICROSECOND, "UTC"), null), null),
         new Field(
             "timestamp_tz_nullable", new FieldType(true, new ArrowType.Timestamp(
-                org.apache.arrow.vector.types.TimeUnit.MICROSECOND, "UTC"), null), null),
+            org.apache.arrow.vector.types.TimeUnit.MICROSECOND, "UTC"), null), null),
         new Field(
             "string", new FieldType(false, MinorType.VARCHAR.getType(), null), null),
         new Field(

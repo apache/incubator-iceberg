@@ -30,9 +30,9 @@ import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.parquet.column.Dictionary;
 
 /**
- * This decoder reads Parquet dictionary encoded data in a vectorized fashion. Unlike other
- * vectorized readers, methods in this decoder don't need to read definition levels. In other
- * words, these methods are called when there are non-null values to be read.
+ * This decoder reads Parquet dictionary encoded data in a vectorized fashion. Unlike other vectorized readers, methods
+ * in this decoder don't need to read definition levels. In other words, these methods are called when there are
+ * non-null values to be read.
  */
 public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectorizedParquetValuesReader {
 
@@ -40,8 +40,9 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     super(maxDefLevel, setValidityVector);
   }
 
-  void readBatchOfDictionaryIds(IntVector intVector, int startOffset, int numValuesToRead,
-                                NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryIds(
+      IntVector intVector, int startOffset, int numValuesToRead,
+      NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -70,8 +71,9 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedLongs(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-                                         NullabilityHolder nullabilityHolder, int typeWidth) {
+  void readBatchOfDictionaryEncodedLongs(
+      FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
+      NullabilityHolder nullabilityHolder, int typeWidth) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -133,8 +135,9 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedIntegers(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-                                            NullabilityHolder nullabilityHolder, int typeWidth) {
+  void readBatchOfDictionaryEncodedIntegers(
+      FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
+      NullabilityHolder nullabilityHolder, int typeWidth) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -164,8 +167,9 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedFloats(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-                                          NullabilityHolder nullabilityHolder, int typeWidth) {
+  void readBatchOfDictionaryEncodedFloats(
+      FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
+      NullabilityHolder nullabilityHolder, int typeWidth) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -195,8 +199,9 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedDoubles(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-                                           NullabilityHolder nullabilityHolder, int typeWidth) {
+  void readBatchOfDictionaryEncodedDoubles(
+      FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
+      NullabilityHolder nullabilityHolder, int typeWidth) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -226,9 +231,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedFixedWidthBinary(FieldVector vector, int typeWidth, int startOffset,
-                                                    int numValuesToRead, Dictionary dict,
-                                                    NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedFixedWidthBinary(
+      FieldVector vector, int typeWidth, int startOffset,
+      int numValuesToRead, Dictionary dict,
+      NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -273,9 +279,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedFixedLengthDecimals(FieldVector vector, int typeWidth, int startOffset,
-                                                       int numValuesToRead, Dictionary dict,
-                                                       NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedFixedLengthDecimals(
+      FieldVector vector, int typeWidth, int startOffset,
+      int numValuesToRead, Dictionary dict,
+      NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -310,8 +317,9 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedVarWidthBinary(FieldVector vector, int startOffset, int numValuesToRead,
-                                                  Dictionary dict, NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedVarWidthBinary(
+      FieldVector vector, int startOffset, int numValuesToRead,
+      Dictionary dict, NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -344,9 +352,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedIntBackedDecimals(FieldVector vector, int startOffset,
-                                                         int numValuesToRead, Dictionary dict,
-                                                         NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedIntBackedDecimals(
+      FieldVector vector, int startOffset,
+      int numValuesToRead, Dictionary dict,
+      NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -378,9 +387,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedLongBackedDecimals(FieldVector vector, int startOffset,
-                                                     int numValuesToRead, Dictionary dict,
-                                                     NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedLongBackedDecimals(
+      FieldVector vector, int startOffset,
+      int numValuesToRead, Dictionary dict,
+      NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -392,8 +402,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
         case RLE:
           for (int i = 0; i < num; i++) {
             ((DecimalVector) vector).set(
-                    idx,
-                    dict.decodeToLong(currentValue));
+                idx,
+                dict.decodeToLong(currentValue));
             nullabilityHolder.setNotNull(idx);
             idx++;
           }
@@ -401,7 +411,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
         case PACKED:
           for (int i = 0; i < num; i++) {
             ((DecimalVector) vector).set(
-                    idx, dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]));
+                idx, dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]));
             nullabilityHolder.setNotNull(idx);
             idx++;
           }

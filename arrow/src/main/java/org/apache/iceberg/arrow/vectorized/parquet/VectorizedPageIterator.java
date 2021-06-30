@@ -163,9 +163,8 @@ public class VectorizedPageIterator extends BasePageIterator {
   }
 
   /**
-   * Method for reading a batch of values of TIMESTAMP_MILLIS data type. In iceberg, TIMESTAMP
-   * is always represented in micro-seconds. So we multiply values stored in millis with 1000
-   * before writing them to the vector.
+   * Method for reading a batch of values of TIMESTAMP_MILLIS data type. In iceberg, TIMESTAMP is always represented in
+   * micro-seconds. So we multiply values stored in millis with 1000 before writing them to the vector.
    */
   public int nextBatchTimestampMillis(
       final FieldVector vector, final int expectedBatchSize,
@@ -304,28 +303,28 @@ public class VectorizedPageIterator extends BasePageIterator {
   }
 
   public int nextBatchLongBackedDecimal(
-          final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-          NullabilityHolder nullabilityHolder) {
+      final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
+      NullabilityHolder nullabilityHolder) {
     final int actualBatchSize = getActualBatchSize(expectedBatchSize);
     if (actualBatchSize <= 0) {
       return 0;
     }
     if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
       vectorizedDefinitionLevelReader
-              .readBatchOfDictionaryEncodedLongBackedDecimals(
-                      vector,
-                      numValsInVector,
-                      actualBatchSize,
-                      nullabilityHolder,
-                      dictionaryEncodedValuesReader,
-                      dictionary);
-    } else {
-      vectorizedDefinitionLevelReader.readBatchOfLongBackedDecimals(
+          .readBatchOfDictionaryEncodedLongBackedDecimals(
               vector,
               numValsInVector,
               actualBatchSize,
               nullabilityHolder,
-              plainValuesReader);
+              dictionaryEncodedValuesReader,
+              dictionary);
+    } else {
+      vectorizedDefinitionLevelReader.readBatchOfLongBackedDecimals(
+          vector,
+          numValsInVector,
+          actualBatchSize,
+          nullabilityHolder,
+          plainValuesReader);
     }
     triplesRead += actualBatchSize;
     this.hasNext = triplesRead < triplesCount;
@@ -524,8 +523,9 @@ public class VectorizedPageIterator extends BasePageIterator {
   }
 
   @Override
-  protected void initDefinitionLevelsReader(DataPageV1 dataPageV1, ColumnDescriptor desc, ByteBufferInputStream in,
-                                            int triplesCount) throws IOException {
+  protected void initDefinitionLevelsReader(
+      DataPageV1 dataPageV1, ColumnDescriptor desc, ByteBufferInputStream in,
+      int triplesCount) throws IOException {
     this.vectorizedDefinitionLevelReader = newVectorizedDefinitionLevelReader(desc);
     this.vectorizedDefinitionLevelReader.initFromPage(triplesCount, in);
   }
@@ -539,5 +539,4 @@ public class VectorizedPageIterator extends BasePageIterator {
     int bitwidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
     return new VectorizedParquetDefinitionLevelReader(bitwidth, desc.getMaxDefinitionLevel(), setArrowValidityVector);
   }
-
 }

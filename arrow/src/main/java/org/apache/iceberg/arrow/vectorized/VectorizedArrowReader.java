@@ -305,9 +305,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             break;
           case INT32:
             Field intField = new Field(
-                    icebergField.name(),
-                    new FieldType(icebergField.isOptional(), new ArrowType.Int(Integer.SIZE, true),
-                            null, null), null);
+                icebergField.name(),
+                new FieldType(icebergField.isOptional(), new ArrowType.Int(Integer.SIZE, true),
+                    null, null), null);
             this.vec = intField.createVector(rootAlloc);
             ((IntVector) vec).allocateNew(batchSize);
             this.readType = ReadType.INT;
@@ -315,9 +315,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             break;
           case FLOAT:
             Field floatField = new Field(
-                    icebergField.name(),
-                    new FieldType(icebergField.isOptional(), new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE),
-                            null, null), null);
+                icebergField.name(),
+                new FieldType(icebergField.isOptional(), new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE),
+                    null, null), null);
             this.vec = floatField.createVector(rootAlloc);
             ((Float4Vector) vec).allocateNew(batchSize);
             this.readType = ReadType.FLOAT;
@@ -444,8 +444,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   /**
-   * A Dummy Vector Reader which doesn't actually read files, instead it returns a dummy
-   * VectorHolder which indicates the constant value which should be used for this column.
+   * A Dummy Vector Reader which doesn't actually read files, instead it returns a dummy VectorHolder which indicates
+   * the constant value which should be used for this column.
+   *
    * @param <T> The constant value to use
    */
   public static class ConstantVectorReader<T> extends VectorizedArrowReader {
@@ -473,6 +474,5 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public void setBatchSize(int batchSize) {
     }
   }
-
 }
 

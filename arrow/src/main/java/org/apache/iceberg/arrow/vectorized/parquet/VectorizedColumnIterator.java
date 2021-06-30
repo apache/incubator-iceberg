@@ -40,7 +40,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
 
   public VectorizedColumnIterator(ColumnDescriptor desc, String writerVersion, boolean setArrowValidityVector) {
     super(desc);
-    Preconditions.checkArgument(desc.getMaxRepetitionLevel() == 0,
+    Preconditions.checkArgument(
+        desc.getMaxRepetitionLevel() == 0,
         "Only non-nested columns are supported for vectorized reads");
     this.vectorizedPageIterator = new VectorizedPageIterator(desc, writerVersion, setArrowValidityVector);
   }
@@ -145,14 +146,14 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
   }
 
   public void nextBatchLongBackedDecimal(
-          FieldVector fieldVector,
-          NullabilityHolder nullabilityHolder) {
+      FieldVector fieldVector,
+      NullabilityHolder nullabilityHolder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch =
-              vectorizedPageIterator.nextBatchLongBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
-                      rowsReadSoFar, nullabilityHolder);
+          vectorizedPageIterator.nextBatchLongBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
+              rowsReadSoFar, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
       this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
@@ -236,5 +237,4 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
   public boolean producesDictionaryEncodedVector() {
     return vectorizedPageIterator.producesDictionaryEncodedVector();
   }
-
 }

@@ -23,24 +23,22 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.types.Types;
 
 /**
- * This class is inspired by Spark's {@code ColumnVector}.
- * This class represents the column data for an Iceberg table query.
- * It wraps an arrow {@link FieldVector} and provides simple
- * accessors for the row values. Advanced users can access
- * the {@link FieldVector}.
+ * This class is inspired by Spark's {@code ColumnVector}. This class represents the column data for an Iceberg table
+ * query. It wraps an arrow {@link FieldVector} and provides simple accessors for the row values. Advanced users can
+ * access the {@link FieldVector}.
  * <p>
- *   Supported Iceberg data types:
- *   <ul>
- *     <li>{@link Types.BooleanType}</li>
- *     <li>{@link Types.IntegerType}</li>
- *     <li>{@link Types.LongType}</li>
- *     <li>{@link Types.FloatType}</li>
- *     <li>{@link Types.DoubleType}</li>
- *     <li>{@link Types.StringType}</li>
- *     <li>{@link Types.BinaryType}</li>
- *     <li>{@link Types.TimestampType} (with and without timezone)</li>
- *     <li>{@link Types.DateType}</li>
- *   </ul>
+ * Supported Iceberg data types:
+ * <ul>
+ *   <li>{@link Types.BooleanType}</li>
+ *   <li>{@link Types.IntegerType}</li>
+ *   <li>{@link Types.LongType}</li>
+ *   <li>{@link Types.FloatType}</li>
+ *   <li>{@link Types.DoubleType}</li>
+ *   <li>{@link Types.StringType}</li>
+ *   <li>{@link Types.BinaryType}</li>
+ *   <li>{@link Types.TimestampType} (with and without timezone)</li>
+ *   <li>{@link Types.DateType}</li>
+ * </ul>
  */
 public class ColumnVector implements AutoCloseable {
   private final VectorHolder vectorHolder;

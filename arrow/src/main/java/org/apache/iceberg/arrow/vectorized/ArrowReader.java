@@ -54,9 +54,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
 
 /**
- * Vectorized reader that returns an iterator of {@link ColumnarBatch}.
- * See {@link #open(CloseableIterable)} ()} to learn about the
- * behavior of the iterator.
+ * Vectorized reader that returns an iterator of {@link ColumnarBatch}. See {@link #open(CloseableIterable)} ()} to
+ * learn about the behavior of the iterator.
  *
  * <p>The following Iceberg data types are supported and have been tested:
  * <ul>
@@ -99,18 +98,15 @@ public class ArrowReader extends CloseableGroup {
   /**
    * Create a new instance of the reader.
    *
-   * @param scan the table scan object.
-   * @param batchSize the maximum number of rows per Arrow batch.
-   * @param reuseContainers whether to reuse Arrow vectors when iterating through the data.
-   *                        If set to {@code false}, every {@link Iterator#next()} call creates
-   *                        new instances of Arrow vectors.
-   *                        If set to {@code true}, the Arrow vectors in the previous
-   *                        {@link Iterator#next()} may be reused for the data returned
-   *                        in the current {@link Iterator#next()}.
-   *                        This option avoids allocating memory again and again.
-   *                        Irrespective of the value of {@code reuseContainers}, the Arrow vectors
-   *                        in the previous {@link Iterator#next()} call are closed before creating
-   *                        new instances if the current {@link Iterator#next()}.
+   * @param scan            the table scan object.
+   * @param batchSize       the maximum number of rows per Arrow batch.
+   * @param reuseContainers whether to reuse Arrow vectors when iterating through the data. If set to {@code false},
+   *                        every {@link Iterator#next()} call creates new instances of Arrow vectors. If set to {@code
+   *                        true}, the Arrow vectors in the previous {@link Iterator#next()} may be reused for the data
+   *                        returned in the current {@link Iterator#next()}. This option avoids allocating memory again
+   *                        and again. Irrespective of the value of {@code reuseContainers}, the Arrow vectors in the
+   *                        previous {@link Iterator#next()} call are closed before creating new instances if the
+   *                        current {@link Iterator#next()}.
    */
   public ArrowReader(TableScan scan, int batchSize, boolean reuseContainers) {
     this.schema = scan.schema();
@@ -124,18 +120,18 @@ public class ArrowReader extends CloseableGroup {
   /**
    * Returns a new iterator of {@link ColumnarBatch} objects.
    * <p>
-   * Note that the reader owns the {@link ColumnarBatch} objects and takes care of closing them.
-   * The caller should not hold onto a {@link ColumnarBatch} or try to close them.
+   * Note that the reader owns the {@link ColumnarBatch} objects and takes care of closing them. The caller should not
+   * hold onto a {@link ColumnarBatch} or try to close them.
    *
    * <p>If {@code reuseContainers} is {@code false}, the Arrow vectors in the
-   * previous {@link ColumnarBatch} are closed before returning the next {@link ColumnarBatch} object.
-   * This implies that the caller should either use the {@link ColumnarBatch} or transfer the ownership of
-   * {@link ColumnarBatch} before getting the next {@link ColumnarBatch}.
+   * previous {@link ColumnarBatch} are closed before returning the next {@link ColumnarBatch} object. This implies that
+   * the caller should either use the {@link ColumnarBatch} or transfer the ownership of {@link ColumnarBatch} before
+   * getting the next {@link ColumnarBatch}.
    *
    * <p>If {@code reuseContainers} is {@code true}, the Arrow vectors in the
-   * previous {@link ColumnarBatch} may be reused for the next {@link ColumnarBatch}.
-   * This implies that the caller should either use the {@link ColumnarBatch} or deep copy the
-   * {@link ColumnarBatch} before getting the next {@link ColumnarBatch}.
+   * previous {@link ColumnarBatch} may be reused for the next {@link ColumnarBatch}. This implies that the caller
+   * should either use the {@link ColumnarBatch} or deep copy the {@link ColumnarBatch} before getting the next {@link
+   * ColumnarBatch}.
    */
   public CloseableIterator<ColumnarBatch> open(CloseableIterable<CombinedScanTask> tasks) {
     CloseableIterator<ColumnarBatch> itr = new VectorizedCombinedScanIterator(
@@ -158,8 +154,8 @@ public class ArrowReader extends CloseableGroup {
   }
 
   /**
-   * Reads the data file and returns an iterator of {@link VectorSchemaRoot}.
-   * Only Parquet data file format is supported.
+   * Reads the data file and returns an iterator of {@link VectorSchemaRoot}. Only Parquet data file format is
+   * supported.
    */
   private static final class VectorizedCombinedScanIterator implements CloseableIterator<ColumnarBatch> {
 
@@ -183,19 +179,17 @@ public class ArrowReader extends CloseableGroup {
      * @param nameMapping       Mapping from external schema names to Iceberg type IDs.
      * @param io                File I/O.
      * @param encryptionManager Encryption manager.
-     * @param caseSensitive     If {@code true}, column names are case sensitive.
-     *                          If {@code false}, column names are not case sensitive.
-     * @param batchSize         Batch size in number of rows. Each Arrow batch contains
-     *                          a maximum of {@code batchSize} rows.
-     * @param reuseContainers   If set to {@code false}, every {@link Iterator#next()} call creates
-     *                          new instances of Arrow vectors.
-     *                          If set to {@code true}, the Arrow vectors in the previous
-     *                          {@link Iterator#next()} may be reused for the data returned
-     *                          in the current {@link Iterator#next()}.
-     *                          This option avoids allocating memory again and again.
-     *                          Irrespective of the value of {@code reuseContainers}, the Arrow vectors
-     *                          in the previous {@link Iterator#next()} call are closed before creating
-     *                          new instances if the current {@link Iterator#next()}.
+     * @param caseSensitive     If {@code true}, column names are case sensitive. If {@code false}, column names are not
+     *                          case sensitive.
+     * @param batchSize         Batch size in number of rows. Each Arrow batch contains a maximum of {@code batchSize}
+     *                          rows.
+     * @param reuseContainers   If set to {@code false}, every {@link Iterator#next()} call creates new instances of
+     *                          Arrow vectors. If set to {@code true}, the Arrow vectors in the previous {@link
+     *                          Iterator#next()} may be reused for the data returned in the current {@link
+     *                          Iterator#next()}. This option avoids allocating memory again and again. Irrespective of
+     *                          the value of {@code reuseContainers}, the Arrow vectors in the previous {@link
+     *                          Iterator#next()} call are closed before creating new instances if the current {@link
+     *                          Iterator#next()}.
      */
     VectorizedCombinedScanIterator(
         CloseableIterable<CombinedScanTask> tasks,

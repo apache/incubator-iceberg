@@ -37,7 +37,6 @@ import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 
-
 public class ArrowSchemaUtil {
   private static final String ORIGINAL_TYPE = "originalType";
   private static final String MAP_TYPE = "mapType";
@@ -102,7 +101,8 @@ public class ArrowSchemaUtil {
         arrowType = new ArrowType.FixedSizeBinary(16);
         break;
       case TIMESTAMP:
-        arrowType = new ArrowType.Timestamp(TimeUnit.MICROSECOND,
+        arrowType = new ArrowType.Timestamp(
+            TimeUnit.MICROSECOND,
             ((Types.TimestampType) field.type()).shouldAdjustToUTC() ? "UTC" : null);
         break;
       case DATE:

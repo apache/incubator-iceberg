@@ -38,7 +38,6 @@ import org.apache.iceberg.types.Types.TimestampType;
 import org.junit.Assert;
 import org.junit.Test;
 
-
 public class ArrowSchemaUtilTest {
 
   private static final String INTEGER_FIELD = "i";

@@ -33,9 +33,8 @@ import org.apache.parquet.io.ParquetDecodingException;
  * A values reader for Parquet's run-length encoded data that reads column data in batches instead of one value at a
  * time. This is based off of the VectorizedRleValuesReader class in Apache Spark with these changes:
  * <p>
- * Writes batches of values retrieved to Arrow vectors. If all pages of a column within the row group
- * are not dictionary encoded, then dictionary ids are eagerly decoded into actual values before
- * writing them to the Arrow vectors
+ * Writes batches of values retrieved to Arrow vectors. If all pages of a column within the row group are not dictionary
+ * encoded, then dictionary ids are eagerly decoded into actual values before writing them to the Arrow vectors
  * </p>
  */
 @SuppressWarnings("checkstyle:VisibilityModifier")

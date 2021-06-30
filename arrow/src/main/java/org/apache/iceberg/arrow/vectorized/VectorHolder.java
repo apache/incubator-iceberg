@@ -113,8 +113,8 @@ public class VectorHolder {
   }
 
   /**
-   * A Vector Holder which does not actually produce values, consumers of this class should
-   * use the constantValue to populate their ColumnVector implementation.
+   * A Vector Holder which does not actually produce values, consumers of this class should use the constantValue to
+   * populate their ColumnVector implementation.
    */
   public static class ConstantVectorHolder<T> extends VectorHolder {
     private final T constantValue;
@@ -145,5 +145,4 @@ public class VectorHolder {
       super(vector, type, nulls);
     }
   }
-
 }
