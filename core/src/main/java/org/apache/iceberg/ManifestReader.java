@@ -44,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 /**
  * Base reader for data and delete manifest files.
@@ -193,6 +194,11 @@ public class ManifestReader<F extends ContentFile<F>>
 
     List<Types.NestedField> fields = Lists.newArrayList();
     fields.addAll(projection.asStruct().fields());
+    if (fields.isEmpty()) {
+      // For aggregation on Metadata "Entries" Tables, Spark passes an empty projection.
+      // This hits issues in BuildAvroProjection as 'data_files' is an 'required' field.
+      fields.add(required(DataFile.PARTITION_ID, DataFile.PARTITION_NAME, spec.partitionType()));
+    }
     fields.add(MetadataColumns.ROW_POSITION);
 
     switch (format) {

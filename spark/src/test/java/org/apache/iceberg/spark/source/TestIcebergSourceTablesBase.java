@@ -223,6 +223,30 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   @Test
+  public void testCountEntriesPartitionedTable() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "count_entries_partitioned_test");
+    createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+
+    // init load
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
+    Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    final int expectedEntryCount = 1;
+
+    // count entries
+    Assert.assertEquals("Count should return " + expectedEntryCount,
+        expectedEntryCount, spark.read().format("iceberg").load(loadLocation(tableIdentifier, "entries")).count());
+
+    // count all_entries
+    Assert.assertEquals("Count should return " + expectedEntryCount,
+        expectedEntryCount, spark.read().format("iceberg").load(loadLocation(tableIdentifier, "all_entries")).count());
+  }
+
+  @Test
   public void testFilesTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
