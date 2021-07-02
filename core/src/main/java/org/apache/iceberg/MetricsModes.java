@@ -150,19 +150,6 @@ public class MetricsModes {
     }
   }
 
-  /**
-   * Auto promote sorted columns to truncate(16) if default is set at Counts or None.
-   * @param defaultMode default mode
-   * @return mode to use
-   */
-  public static MetricsMode promoteSortedColumnDefault(MetricsMode defaultMode) {
-    if (defaultMode == None.get() || defaultMode == Counts.get()) {
-      return Truncate.withLength(16);
-    } else {
-      return defaultMode;
-    }
-  }
-
   // we cannot serialize/deserialize MetricsMode directly as it breaks reference equality used in metrics utils
   private abstract static class ProxySerializableMetricsMode implements MetricsMode {
     Object writeReplace() throws ObjectStreamException {

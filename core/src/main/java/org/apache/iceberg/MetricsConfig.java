@@ -20,8 +20,8 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
-import java.util.List;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.MetricsModes.MetricsMode;
@@ -100,7 +100,7 @@ public class MetricsConfig implements Serializable {
 
     // First set sorted column with sorted column default (can be overridden by user)
     final Set<String> sortedCols = new HashSet<>();
-    MetricsMode sortedColDefaultMode = MetricsModes.promoteSortedColumnDefault(spec.defaultMode);
+    MetricsMode sortedColDefaultMode = promoteSortedColumnDefault(spec.defaultMode);
     if (order != null) {
       sortedCols.addAll(SortOrderUtil.getSortedColumns(order));
       sortedCols.stream().forEach(sc -> {
@@ -129,6 +129,19 @@ public class MetricsConfig implements Serializable {
           spec.columnModes.put(columnAlias, mode);
         });
     return spec;
+  }
+
+  /**
+   * Auto promote sorted columns to truncate(16) if default is set at Counts or None.
+   * @param defaultMode default mode
+   * @return mode to use
+   */
+  private static MetricsMode promoteSortedColumnDefault(MetricsMode defaultMode) {
+    if (defaultMode == MetricsModes.None.get() || defaultMode == MetricsModes.Counts.get()) {
+      return MetricsModes.Truncate.withLength(16);
+    } else {
+      return defaultMode;
+    }
   }
 
   public void validateReferencedColumns(Schema schema) {
