@@ -319,6 +319,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
   public void testRewriteDataFilesForLargeFile() throws AnalysisException {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "100");
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
@@ -347,19 +348,68 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
 
     Actions actions = Actions.forTable(table);
 
-    long targetSizeInBytes = maxSizeFile.fileSizeInBytes() - 10;
+    long targetSizeInBytes = maxSizeFile.fileSizeInBytes() / 2;
     RewriteDataFilesActionResult result = actions
         .rewriteDataFiles()
         .targetSizeInBytes(targetSizeInBytes)
         .splitOpenFileCost(1)
         .execute();
 
-    Assert.assertEquals("Action should delete 4 data files", 4, result.deletedDataFiles().size());
-    Assert.assertEquals("Action should add 2 data files", 2, result.addedDataFiles().size());
+    // 1 big datafile and 2 small datafiles
+    Assert.assertEquals("Action should delete 3 data files", 3, result.deletedDataFiles().size());
+
+    // The 2 small datafiles will be rewritten to 1 datafile, the big datafile will be rewritten to 2 datafiles,
+    // so there are 3 datafiles in total
+    Assert.assertEquals("Action should add 3 data files", 3, result.addedDataFiles().size());
 
     spark.read().format("iceberg").load(tableLocation).createTempView("postRewrite");
     long postRewriteNumRecords = spark.read().format("iceberg").load(tableLocation).count();
     List<Object[]> rewrittenRecords = sql("SELECT * from postRewrite sort by c2");
+
+    Assert.assertEquals(originalNumRecords, postRewriteNumRecords);
+    assertEquals("Rows should be unchanged", originalRecords, rewrittenRecords);
+  }
+
+  @Test
+  public void testRewriteSingleLargeFile() throws AnalysisException {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "100");
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+    Assert.assertNull("Table must be empty", table.currentSnapshot());
+
+    List<ThreeColumnRecord> records1 = Lists.newArrayList();
+
+    IntStream.range(0, 200000).forEach(i -> records1.add(new ThreeColumnRecord(i, "foo" + i, "bar" + i)));
+    Dataset<Row> df = spark.createDataFrame(records1, ThreeColumnRecord.class).repartition(1);
+    writeDF(df);
+
+    table.refresh();
+
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    DataFile maxSizeFile = Collections.max(dataFiles, Comparator.comparingLong(DataFile::fileSizeInBytes));
+    Assert.assertEquals("Should have 1 files before rewrite", 1, dataFiles.size());
+
+    spark.read().format("iceberg").load(tableLocation).createTempView("originSingle");
+    long originalNumRecords = spark.read().format("iceberg").load(tableLocation).count();
+    List<Object[]> originalRecords = sql("SELECT * from originSingle sort by c2");
+
+    Actions actions = Actions.forTable(table);
+
+    long targetSizeInBytes = maxSizeFile.fileSizeInBytes() / 2;
+    RewriteDataFilesActionResult result = actions
+        .rewriteDataFiles()
+        .targetSizeInBytes(targetSizeInBytes)
+        .splitOpenFileCost(1)
+        .execute();
+
+    Assert.assertEquals("Action should delete 1 data files", 1, result.deletedDataFiles().size());
+    Assert.assertEquals("Action should add 2 data files", 2, result.addedDataFiles().size());
+
+    spark.read().format("iceberg").load(tableLocation).createTempView("postRewriteSingle");
+    long postRewriteNumRecords = spark.read().format("iceberg").load(tableLocation).count();
+    List<Object[]> rewrittenRecords = sql("SELECT * from postRewriteSingle sort by c2");
 
     Assert.assertEquals(originalNumRecords, postRewriteNumRecords);
     assertEquals("Rows should be unchanged", originalRecords, rewrittenRecords);

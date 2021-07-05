@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
@@ -215,7 +216,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
 
     Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks = groupTasksByPartition(fileScanTasks.iterator());
     Map<StructLikeWrapper, Collection<FileScanTask>> filteredGroupedTasks = groupedTasks.entrySet().stream()
-        .filter(kv -> kv.getValue().size() > 1)
+        .filter(kv -> kv.getValue().size() > 1 || isSplittable(kv.getValue().iterator().next()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     // Nothing to rewrite if there's only one DataFile in each partition.
@@ -238,12 +239,13 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     }
 
     List<DataFile> addedDataFiles = rewriteDataForTasks(combinedScanTasks);
-    List<DataFile> currentDataFiles = combinedScanTasks.stream()
+    Set<DataFile> currentDataFiles = combinedScanTasks.stream()
         .flatMap(tasks -> tasks.files().stream().map(FileScanTask::file))
-        .collect(Collectors.toList());
-    replaceDataFiles(currentDataFiles, addedDataFiles);
+        .collect(Collectors.toSet());
+    List<DataFile> deletedDataFiles = Lists.newArrayList(currentDataFiles);
 
-    return new RewriteDataFilesActionResult(currentDataFiles, addedDataFiles);
+    replaceDataFiles(deletedDataFiles, addedDataFiles);
+    return new RewriteDataFilesActionResult(deletedDataFiles, addedDataFiles);
   }
 
 
@@ -275,6 +277,10 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
           .run(fileIO::deleteFile);
       throw e;
     }
+  }
+
+  private boolean isSplittable(FileScanTask task) {
+    return task.file().fileSizeInBytes() > targetSizeInBytes;
   }
 
   private boolean isPartialFileScan(CombinedScanTask task) {
