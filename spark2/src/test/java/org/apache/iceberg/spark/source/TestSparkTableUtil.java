@@ -171,7 +171,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
           ImmutableMap.of(),
           location.getCanonicalPath());
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString(), false);
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
       long count = spark.read().format("iceberg").load(location.toString()).count();
       Assert.assertEquals("three values ", 3, count);
     }
@@ -189,7 +189,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
           ImmutableMap.of(),
           location.getCanonicalPath());
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString(), false);
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
       long count = spark.read().format("iceberg").load(location.toString()).count();
       Assert.assertEquals("three values ", 3, count);
     }
@@ -207,7 +207,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
           SparkSchemaUtil.schemaForTable(spark, "unpartitioned_table"),
           SparkSchemaUtil.specForTable(spark, "unpartitioned_table"));
 
-      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString(), false);
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
       long count1 = spark.read().format("iceberg").load(testUnpartitionedTableId.toString()).count();
       Assert.assertEquals("three values ", 3, count1);
 
@@ -222,7 +222,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
           SparkSchemaUtil.schemaForTable(spark, "partitioned_table"),
           SparkSchemaUtil.specForTable(spark, "partitioned_table"));
 
-      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString(), false);
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
       long count2 = spark.read().format("iceberg").load(testPartitionedTableId.toString()).count();
       Assert.assertEquals("three values ", 3, count2);
     }
@@ -251,7 +251,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
       table.updateProperties().set(DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping)).commit();
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString(), false);
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
 
       // The filter invoke the metric/dictionary row group filter in which it project schema
       // with name mapping again to match the metric read from footer.
@@ -293,7 +293,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
           .commit();
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString(), false);
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
 
       // The filter invoke the metric/dictionary row group filter in which it project schema
       // with name mapping again to match the metric read from footer.
@@ -333,7 +333,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
           ImmutableMap.of(),
           icebergLocation.getCanonicalPath());
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString(), false);
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
       List<SimpleRecord> results = spark.read().format("iceberg").load(icebergLocation.toString())
           .withColumnRenamed(partitionCol, "data")
           .as(Encoders.bean(SimpleRecord.class))
@@ -365,7 +365,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
           ImmutableMap.of(),
           icebergLocation.getCanonicalPath());
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString(), false);
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
       List<SimpleRecord> results = spark.read().format("iceberg").load(icebergLocation.toString())
           .as(Encoders.bean(SimpleRecord.class)).collectAsList();
 

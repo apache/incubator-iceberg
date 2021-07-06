@@ -121,8 +121,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           .saveAsTable("parquet_table");
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString(),
-          false);
+      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
 
       List<SimpleRecord> actualRecords = spark.read()
           .format("iceberg")
@@ -177,8 +176,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           1, SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'").size());
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString(),
-          false);
+      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
 
       List<SimpleRecord> actualRecords = spark.read()
           .format("iceberg")
@@ -224,8 +222,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
 
       File stagingDir = temp.newFolder("staging-dir");
       List<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'");
-      SparkTableUtil.importSparkPartitions(spark, partitions, table, table.spec(), stagingDir.toString(),
-          false);
+      SparkTableUtil.importSparkPartitions(spark, partitions, table, table.spec(), stagingDir.toString());
 
       List<SimpleRecord> expectedRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
 
@@ -270,8 +267,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
 
       File stagingDir = temp.newFolder("staging-dir");
       List<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'");
-      SparkTableUtil.importSparkPartitions(spark, partitions, table, table.spec(), stagingDir.toString(),
-          false);
+      SparkTableUtil.importSparkPartitions(spark, partitions, table, table.spec(), stagingDir.toString());
 
       List<SimpleRecord> expectedRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
 
@@ -326,8 +322,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           .commit();
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString(),
-          false);
+      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
 
       // validate we get the expected results back
       List<Row> expected = spark.table("parquet_table")
@@ -403,8 +398,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           .commit();
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString(),
-          false);
+      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
 
       // validate we get the expected results back
       List<Row> expected = spark.table("parquet_table")
@@ -463,8 +457,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           .commit();
 
       File stagingDir = temp.newFolder("staging-dir");
-      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString(),
-          false);
+      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
 
       // validate we get the expected results back
       List<Row> expected = spark.table("parquet_table")

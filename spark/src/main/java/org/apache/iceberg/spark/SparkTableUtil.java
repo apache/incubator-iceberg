@@ -427,6 +427,22 @@ public class SparkTableUtil {
     importSparkTable(spark, sourceTableIdent, targetTable, stagingDir, Collections.emptyMap(), checkDuplicateFiles);
   }
 
+  /**
+   * Import files from an existing Spark table to an Iceberg table.
+   *
+   * The import uses the Spark session to get table metadata. It assumes no
+   * operation is going on the original and target table and thus is not
+   * thread-safe.
+   * @param spark a Spark session
+   * @param sourceTableIdent an identifier of the source Spark table
+   * @param targetTable an Iceberg table where to import the data
+   * @param stagingDir a staging directory to store temporary manifest files
+   */
+  public static void importSparkTable(SparkSession spark, TableIdentifier sourceTableIdent, Table targetTable,
+                                      String stagingDir) {
+    importSparkTable(spark, sourceTableIdent, targetTable, stagingDir, Collections.emptyMap(), false);
+  }
+
   private static void importUnpartitionedSparkTable(SparkSession spark, TableIdentifier sourceTableIdent,
                                                     Table targetTable, boolean checkDuplicateFiles) {
     try {
@@ -455,6 +471,7 @@ public class SparkTableUtil {
         if (!duplicates.isEmpty()) {
           List<String> duplicateList = Arrays.stream((Row[]) duplicates.select("file_path").head(10))
               .map(p -> p.getString(0)).collect(Collectors.toList());
+        if (!duplicateList.isEmpty()) {
           throw new DuplicateFileException(duplicateList);
         }
       }
@@ -508,9 +525,9 @@ public class SparkTableUtil {
       Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
       Column joinCond = existingFiles.col("data_file.file_path").equalTo(filesToImportDf.col("file_path"));
       Dataset<Row> duplicates = filesToImportDf.join(existingFiles, joinCond);
-      if (!duplicates.isEmpty()) {
-        List<String> duplicateList = Arrays.stream((Row[]) duplicates.select("file_path").head(10))
+      List<String> duplicateList = Arrays.stream((Row[]) duplicates.head(10))
             .map(p -> p.getString(0)).collect(Collectors.toList());
+      if (!duplicateList.isEmpty()) {
         throw new DuplicateFileException(duplicateList);
       }
     }
@@ -545,6 +562,20 @@ public class SparkTableUtil {
       deleteManifests(targetTable.io(), manifests);
       throw e;
     }
+  }
+
+  /**
+   * Import files from given partitions to an Iceberg table.
+   *
+   * @param spark a Spark session
+   * @param partitions partitions to import
+   * @param targetTable an Iceberg table where to import the data
+   * @param spec a partition spec
+   * @param stagingDir a staging directory to store temporary manifest files
+   */
+  public static void importSparkPartitions(SparkSession spark, List<SparkPartition> partitions, Table targetTable,
+                                           PartitionSpec spec, String stagingDir) {
+    importSparkPartitions(spark, partitions, targetTable, spec, stagingDir, false);
   }
 
   public static List<SparkPartition> filterPartitions(List<SparkPartition> partitions,
