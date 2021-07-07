@@ -74,4 +74,11 @@ public interface ActionsProvider {
   default RemoveReachableFiles removeReachableFiles(String metadataLocation) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement removeReachableFiles");
   }
+
+  /*
+   * Instantiates an action to repair manfests.
+   */
+  default RepairManifests repairManifests(Table table) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement repairManifests");
+  }
 }

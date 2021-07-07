@@ -54,6 +54,7 @@ public class SparkDataFile implements DataFile {
 
   private final SparkStructLike wrappedPartition;
   private Row wrapped;
+  private int specId = -1;
 
   public SparkDataFile(Types.StructType type, StructType sparkType) {
     this.lowerBoundsType = type.fieldType("lower_bounds");
@@ -91,6 +92,11 @@ public class SparkDataFile implements DataFile {
     return this;
   }
 
+  public SparkDataFile withSpecId(int newSpecId) {
+    this.specId = newSpecId;
+    return this;
+  }
+
   @Override
   public Long pos() {
     return null;
@@ -98,7 +104,7 @@ public class SparkDataFile implements DataFile {
 
   @Override
   public int specId() {
-    return -1;
+    return specId;
   }
 
   @Override

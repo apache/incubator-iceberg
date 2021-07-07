@@ -24,6 +24,7 @@ import org.apache.iceberg.actions.ActionsProvider;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.actions.RemoveOrphanFiles;
 import org.apache.iceberg.actions.RemoveReachableFiles;
+import org.apache.iceberg.actions.RepairManifests;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.spark.sql.SparkSession;
 
@@ -47,6 +48,11 @@ abstract class BaseSparkActions implements ActionsProvider {
   @Override
   public RewriteManifests rewriteManifests(Table table) {
     return new BaseRewriteManifestsSparkAction(spark, table);
+  }
+
+  @Override
+  public RepairManifests repairManifests(Table table) {
+    return new BaseRepairManifestsSparkAction(spark, table);
   }
 
   @Override

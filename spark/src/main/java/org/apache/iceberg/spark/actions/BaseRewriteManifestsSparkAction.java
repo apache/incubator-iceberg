@@ -45,14 +45,11 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkDataFile;
-import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.broadcast.Broadcast;
@@ -78,7 +75,7 @@ import static org.apache.iceberg.MetadataTableType.ENTRIES;
  * for new manifests via {@link #stagingLocation}.
  */
 public class BaseRewriteManifestsSparkAction
-    extends BaseSnapshotUpdateSparkAction<RewriteManifests, RewriteManifests.Result>
+    extends BaseManifestSparkAction<RewriteManifests, RewriteManifests.Result>
     implements RewriteManifests {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseRewriteManifestsSparkAction.class);
@@ -87,9 +84,7 @@ public class BaseRewriteManifestsSparkAction
   private static final boolean USE_CACHING_DEFAULT = true;
 
   private final Encoder<ManifestFile> manifestEncoder;
-  private final Table table;
   private final int formatVersion;
-  private final FileIO fileIO;
   private final long targetManifestSizeBytes;
 
   private PartitionSpec spec = null;
@@ -97,18 +92,16 @@ public class BaseRewriteManifestsSparkAction
   private String stagingLocation = null;
 
   public BaseRewriteManifestsSparkAction(SparkSession spark, Table table) {
-    super(spark);
+    super(spark, table);
     this.manifestEncoder = Encoders.javaSerialization(ManifestFile.class);
-    this.table = table;
-    this.spec = table.spec();
+    this.spec = getTable().spec();
     this.targetManifestSizeBytes = PropertyUtil.propertyAsLong(
-        table.properties(),
+        getTable().properties(),
         TableProperties.MANIFEST_TARGET_SIZE_BYTES,
         TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
-    this.fileIO = SparkUtil.serializableFileIO(table);
 
     // default the staging location to the metadata location
-    TableOperations ops = ((HasTableOperations) table).operations();
+    TableOperations ops = ((HasTableOperations) getTable()).operations();
     Path metadataFilePath = new Path(ops.metadataFileLocation("file"));
     this.stagingLocation = metadataFilePath.getParent().toString();
 
@@ -123,8 +116,8 @@ public class BaseRewriteManifestsSparkAction
 
   @Override
   public RewriteManifests specId(int specId) {
-    Preconditions.checkArgument(table.specs().containsKey(specId), "Invalid spec id %d", specId);
-    this.spec = table.specs().get(specId);
+    Preconditions.checkArgument(getTable().specs().containsKey(specId), "Invalid spec id %d", specId);
+    this.spec = getTable().specs().get(specId);
     return this;
   }
 
@@ -142,7 +135,7 @@ public class BaseRewriteManifestsSparkAction
 
   @Override
   public RewriteManifests.Result execute() {
-    String desc = String.format("Rewriting manifests (staging location=%s) of %s", stagingLocation, table.name());
+    String desc = String.format("Rewriting manifests (staging location=%s) of %s", stagingLocation, getTable().name());
     JobGroupInfo info = newJobGroupInfo("REWRITE-MANIFESTS", desc);
     return withJobGroupInfo(info, this::doExecute);
   }
@@ -185,7 +178,7 @@ public class BaseRewriteManifestsSparkAction
         .createDataset(Lists.transform(manifests, ManifestFile::path), Encoders.STRING())
         .toDF("manifest");
 
-    Dataset<Row> manifestEntryDF = loadMetadataTable(table, ENTRIES)
+    Dataset<Row> manifestEntryDF = loadMetadataTable(getTable(), ENTRIES)
         .filter("status < 2") // select only live entries
         .selectExpr("input_file_name() as manifest", "snapshot_id", "sequence_number", "data_file");
 
@@ -196,7 +189,7 @@ public class BaseRewriteManifestsSparkAction
   }
 
   private List<ManifestFile> writeManifestsForUnpartitionedTable(Dataset<Row> manifestEntryDF, int numManifests) {
-    Broadcast<FileIO> io = sparkContext().broadcast(fileIO);
+    Broadcast<FileIO> io = sparkContext().broadcast(getFileIO());
     StructType sparkType = (StructType) manifestEntryDF.schema().apply("data_file").dataType();
 
     // we rely only on the target number of manifests for unpartitioned tables
@@ -216,7 +209,7 @@ public class BaseRewriteManifestsSparkAction
       Dataset<Row> manifestEntryDF, int numManifests,
       int targetNumManifestEntries) {
 
-    Broadcast<FileIO> io = sparkContext().broadcast(fileIO);
+    Broadcast<FileIO> io = sparkContext().broadcast(getFileIO());
     StructType sparkType = (StructType) manifestEntryDF.schema().apply("data_file").dataType();
 
     // we allow the actual size of manifests to be 10% higher if the estimation is not precise enough
@@ -254,7 +247,7 @@ public class BaseRewriteManifestsSparkAction
   }
 
   private List<ManifestFile> findMatchingManifests() {
-    Snapshot currentSnapshot = table.currentSnapshot();
+    Snapshot currentSnapshot = getTable().currentSnapshot();
 
     if (currentSnapshot == null) {
       return ImmutableList.of();
@@ -277,37 +270,6 @@ public class BaseRewriteManifestsSparkAction
     return manifest.addedFilesCount() != null &&
         manifest.existingFilesCount() != null &&
         manifest.deletedFilesCount() != null;
-  }
-
-  private void replaceManifests(Iterable<ManifestFile> deletedManifests, Iterable<ManifestFile> addedManifests) {
-    try {
-      boolean snapshotIdInheritanceEnabled = PropertyUtil.propertyAsBoolean(
-          table.properties(),
-          TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED,
-          TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
-
-      org.apache.iceberg.RewriteManifests rewriteManifests = table.rewriteManifests();
-      deletedManifests.forEach(rewriteManifests::deleteManifest);
-      addedManifests.forEach(rewriteManifests::addManifest);
-      commit(rewriteManifests);
-
-      if (!snapshotIdInheritanceEnabled) {
-        // delete new manifests as they were rewritten before the commit
-        deleteFiles(Iterables.transform(addedManifests, ManifestFile::path));
-      }
-    } catch (Exception e) {
-      // delete all new manifests because the rewrite failed
-      deleteFiles(Iterables.transform(addedManifests, ManifestFile::path));
-      throw e;
-    }
-  }
-
-  private void deleteFiles(Iterable<String> locations) {
-    Tasks.foreach(locations)
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
-        .run(fileIO::deleteFile);
   }
 
   private static ManifestFile writeManifest(
