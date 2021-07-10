@@ -32,6 +32,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.NativeFileEncryptParams;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
@@ -149,6 +150,22 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
 
   @Override
   public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat fileFormat) {
+    return newAppender(file, null, fileFormat);
+  }
+
+  @Override
+  public FileAppender<InternalRow> newAppender(EncryptedOutputFile file, FileFormat fileFormat) {
+    NativeFileEncryptParams nativeEncryption = null;
+    if (file.useNativeEncryption()) {
+      nativeEncryption = file.nativeEncryptionParameters();
+    }
+
+    return newAppender(file.encryptingOutputFile(), nativeEncryption, fileFormat);
+  }
+
+  private FileAppender<InternalRow> newAppender(OutputFile file,
+                                                NativeFileEncryptParams nativeEncryption,
+                                                FileFormat fileFormat) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
     try {
       switch (fileFormat) {
@@ -159,6 +176,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .metricsConfig(metricsConfig)
               .schema(writeSchema)
               .overwrite()
+              .encryption(nativeEncryption)
               .build();
 
         case AVRO:
@@ -188,7 +206,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
 
   @Override
   public DataWriter<InternalRow> newDataWriter(EncryptedOutputFile file, FileFormat format, StructLike partition) {
-    return new DataWriter<>(newAppender(file.encryptingOutputFile(), format), format,
+    return new DataWriter<>(newAppender(file, format), format,
         file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
   }
 
@@ -199,6 +217,10 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
         "Equality field ids shouldn't be null or empty when creating equality-delete writer");
     Preconditions.checkNotNull(eqDeleteRowSchema,
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
+    NativeFileEncryptParams nativeEncryption = null;
+    if (file.useNativeEncryption()) {
+      nativeEncryption = file.nativeEncryptionParameters();
+    }
 
     try {
       switch (format) {
@@ -211,6 +233,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .withPartition(partition)
               .equalityFieldIds(equalityFieldIds)
               .withKeyMetadata(file.keyMetadata())
+              .encryption(nativeEncryption)
               .buildEqualityWriter();
 
         case AVRO:
@@ -236,6 +259,10 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   @Override
   public PositionDeleteWriter<InternalRow> newPosDeleteWriter(EncryptedOutputFile file, FileFormat format,
                                                               StructLike partition) {
+    NativeFileEncryptParams nativeEncryption = null;
+    if (file.useNativeEncryption()) {
+      nativeEncryption = file.nativeEncryptionParameters();
+    }
     try {
       switch (format) {
         case PARQUET:
@@ -249,6 +276,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .withPartition(partition)
               .withKeyMetadata(file.keyMetadata())
               .transformPaths(path -> UTF8String.fromString(path.toString()))
+              .encryption(nativeEncryption)
               .buildPositionWriter();
 
         case AVRO:

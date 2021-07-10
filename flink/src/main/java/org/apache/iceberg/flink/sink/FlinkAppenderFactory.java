@@ -35,6 +35,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.NativeFileEncryptParams;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.data.FlinkAvroWriter;
 import org.apache.iceberg.flink.data.FlinkOrcWriter;
@@ -94,6 +95,22 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
   @Override
   public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
+    return newAppender(outputFile, null, format);
+  }
+
+  @Override
+  public FileAppender<RowData> newAppender(EncryptedOutputFile outputFile, FileFormat format) {
+    NativeFileEncryptParams nativeEncryption = null;
+    if (outputFile.useNativeEncryption()) {
+      nativeEncryption = outputFile.nativeEncryptionParameters();
+    }
+
+    return newAppender(outputFile.encryptingOutputFile(), nativeEncryption, format);
+  }
+
+  private FileAppender<RowData> newAppender(OutputFile outputFile,
+                                            NativeFileEncryptParams nativeEncryption,
+                                            FileFormat format) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
     try {
       switch (format) {
@@ -122,6 +139,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .metricsConfig(metricsConfig)
               .schema(schema)
               .overwrite()
+              .encryption(nativeEncryption)
               .build();
 
         default:
@@ -135,7 +153,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   @Override
   public DataWriter<RowData> newDataWriter(EncryptedOutputFile file, FileFormat format, StructLike partition) {
     return new DataWriter<>(
-        newAppender(file.encryptingOutputFile(), format), format,
+        newAppender(file, format), format,
         file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
   }
 
@@ -148,6 +166,10 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
 
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
+    NativeFileEncryptParams nativeEncryption = null;
+    if (outputFile.useNativeEncryption()) {
+      nativeEncryption = outputFile.nativeEncryptionParameters();
+    }
     try {
       switch (format) {
         case AVRO:
@@ -173,6 +195,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .withSpec(spec)
               .withKeyMetadata(outputFile.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
+              .encryption(nativeEncryption)
               .buildEqualityWriter();
 
         default:
@@ -188,6 +211,10 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   public PositionDeleteWriter<RowData> newPosDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
                                                           StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
+    NativeFileEncryptParams nativeEncryption = null;
+    if (outputFile.useNativeEncryption()) {
+      nativeEncryption = outputFile.nativeEncryptionParameters();
+    }
     try {
       switch (format) {
         case AVRO:
@@ -213,6 +240,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .withSpec(spec)
               .withKeyMetadata(outputFile.keyMetadata())
               .transformPaths(path -> StringData.fromString(path.toString()))
+              .encryption(nativeEncryption)
               .buildPositionWriter();
 
         default:

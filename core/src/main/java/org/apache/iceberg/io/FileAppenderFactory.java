@@ -41,6 +41,11 @@ public interface FileAppenderFactory<T> {
    */
   FileAppender<T> newAppender(OutputFile outputFile, FileFormat fileFormat);
 
+  // TODO document this, or change the previous function
+  default FileAppender<T> newAppender(EncryptedOutputFile outputFile, FileFormat fileFormat) {
+    return null;
+  }
+
   /**
    * Create a new {@link DataWriter}.
    *
