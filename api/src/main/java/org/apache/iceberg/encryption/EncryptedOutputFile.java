@@ -21,6 +21,7 @@ package org.apache.iceberg.encryption;
 
 import org.apache.iceberg.io.OutputFile;
 
+// TODO update class description
 /**
  * Thin wrapper around a {@link OutputFile} that is encrypting bytes written to the underlying
  * file system, via an encryption key that is symbolized by the enclosed
@@ -32,6 +33,13 @@ import org.apache.iceberg.io.OutputFile;
 public interface EncryptedOutputFile {
 
   /**
+   * Use flat filestream encryption (default) or native format encryption
+   */
+  default boolean useNativeEncryption() {
+    return false;
+  }
+
+  /**
    * An OutputFile instance that encrypts the bytes that are written to its output streams.
    */
   OutputFile encryptingOutputFile();
@@ -41,4 +49,8 @@ public interface EncryptedOutputFile {
    * {@link #encryptingOutputFile()}.
    */
   EncryptionKeyMetadata keyMetadata();
+
+  default NativeFileEncryptParams nativeEncryptionParameters() {
+    return null;
+  }
 }
