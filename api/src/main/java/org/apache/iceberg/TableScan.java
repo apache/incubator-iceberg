@@ -144,20 +144,20 @@ public interface TableScan {
    *
    * @param fromSnapshotId the last snapshot id read by the user, exclusive
    * @param toSnapshotId read append data up to this snapshot id
-   * @return a table scan which can read append data from {@code fromSnapshotId}
+   * @return a table scan which can read data from {@code fromSnapshotId}
    * exclusive and up to {@code toSnapshotId} inclusive
    */
-  TableScan appendsBetween(long fromSnapshotId, long toSnapshotId);
+  TableScan dataBetween(long fromSnapshotId, long toSnapshotId);
 
   /**
    * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to the current snapshot
    * inclusive.
    *
    * @param fromSnapshotId - the last snapshot id read by the user, exclusive
-   * @return a table scan which can read append data from {@code fromSnapshotId}
+   * @return a table scan which can read data from {@code fromSnapshotId}
    * exclusive and up to current snapshot inclusive
    */
-  TableScan appendsAfter(long fromSnapshotId);
+  TableScan dataAfter(long fromSnapshotId);
 
   /**
    * Plan the {@link FileScanTask files} that will be read by this scan.

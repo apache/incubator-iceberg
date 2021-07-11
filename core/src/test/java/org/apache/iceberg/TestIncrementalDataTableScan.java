@@ -67,11 +67,11 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     AssertHelpers.assertThrows(
         "Check refinement api",
         IllegalArgumentException.class, "from snapshot id 1 not in existing snapshot ids range (2, 4]",
-        () -> table.newScan().appendsBetween(2, 5).appendsBetween(1, 4));
+        () -> table.newScan().dataBetween(2, 5).dataBetween(1, 4));
     AssertHelpers.assertThrows(
         "Check refinement api",
         IllegalArgumentException.class, "to snapshot id 3 not in existing snapshot ids range (1, 2]",
-        () -> table.newScan().appendsBetween(1, 2).appendsBetween(1, 3));
+        () -> table.newScan().dataBetween(1, 2).dataBetween(1, 3));
   }
 
   @Test
@@ -208,7 +208,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
 
     TableScan scan1 = table.newScan()
         .filter(Expressions.equal("id", 5))
-        .appendsBetween(1, 3);
+        .dataBetween(1, 3);
 
     try (CloseableIterable<CombinedScanTask> tasks = scan1.planTasks()) {
       Assert.assertTrue("Tasks should not be empty", com.google.common.collect.Iterables.size(tasks) > 0);
@@ -221,7 +221,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
 
     TableScan scan2 = table.newScan()
         .filter(Expressions.equal("id", 5))
-        .appendsBetween(1, 3)
+        .dataBetween(1, 3)
         .ignoreResiduals();
 
     try (CloseableIterable<CombinedScanTask> tasks = scan2.planTasks()) {
@@ -277,14 +277,14 @@ public class TestIncrementalDataTableScan extends TableTestBase {
   }
 
   private List<String> appendsAfterScan(long fromSnapshotId) {
-    final TableScan appendsAfter = table.newScan().appendsAfter(fromSnapshotId);
+    final TableScan appendsAfter = table.newScan().dataAfter(fromSnapshotId);
     return filesToScan(appendsAfter);
   }
 
   private List<String> appendsBetweenScan(long fromSnapshotId, long toSnapshotId) {
     Snapshot s1 = table.snapshot(fromSnapshotId);
     Snapshot s2 = table.snapshot(toSnapshotId);
-    TableScan appendsBetween = table.newScan().appendsBetween(s1.snapshotId(), s2.snapshotId());
+    TableScan appendsBetween = table.newScan().dataBetween(s1.snapshotId(), s2.snapshotId());
     return filesToScan(appendsBetween);
   }
 

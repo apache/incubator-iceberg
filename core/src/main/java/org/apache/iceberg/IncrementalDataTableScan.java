@@ -54,18 +54,18 @@ class IncrementalDataTableScan extends DataTableScan {
   }
 
   @Override
-  public TableScan appendsBetween(long newFromSnapshotId, long newToSnapshotId) {
+  public TableScan dataBetween(long newFromSnapshotId, long newToSnapshotId) {
     validateSnapshotIdsRefinement(newFromSnapshotId, newToSnapshotId);
     return new IncrementalDataTableScan(tableOps(), table(), schema(),
         context().fromSnapshotId(newFromSnapshotId).toSnapshotId(newToSnapshotId));
   }
 
   @Override
-  public TableScan appendsAfter(long newFromSnapshotId) {
+  public TableScan dataAfter(long newFromSnapshotId) {
     final Snapshot currentSnapshot = table().currentSnapshot();
     Preconditions.checkState(currentSnapshot != null,
         "Cannot scan appends after %s, there is no current snapshot", newFromSnapshotId);
-    return appendsBetween(newFromSnapshotId, currentSnapshot.snapshotId());
+    return dataBetween(newFromSnapshotId, currentSnapshot.snapshotId());
   }
 
   @Override
@@ -73,22 +73,27 @@ class IncrementalDataTableScan extends DataTableScan {
     List<Snapshot> snapshots = snapshotsWithin(table(),
         context().fromSnapshotId(), context().toSnapshotId());
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
-    Set<ManifestFile> manifests = FluentIterable
+    Set<ManifestFile> dataManifests = FluentIterable
         .from(snapshots)
         .transformAndConcat(Snapshot::dataManifests)
         .filter(manifestFile -> snapshotIds.contains(manifestFile.snapshotId()))
         .toSet();
 
-    ManifestGroup manifestGroup = new ManifestGroup(tableOps().io(), manifests)
+    Set<ManifestFile> deleteManifests = FluentIterable
+        .from(snapshots)
+        .transformAndConcat(Snapshot::deleteManifests)
+        .filter(manifestFile -> snapshotIds.contains(manifestFile.snapshotId()))
+        .toSet();
+
+    ManifestGroup manifestGroup = new ManifestGroup(tableOps().io(), dataManifests, deleteManifests)
         .caseSensitive(isCaseSensitive())
         .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(filter())
         .filterManifestEntries(
             manifestEntry ->
                 snapshotIds.contains(manifestEntry.snapshotId()) &&
-                manifestEntry.status() == ManifestEntry.Status.ADDED)
-        .specsById(tableOps().current().specsById())
-        .ignoreDeleted();
+                manifestEntry.status() != ManifestEntry.Status.EXISTING)
+        .specsById(tableOps().current().specsById());
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
@@ -97,7 +102,7 @@ class IncrementalDataTableScan extends DataTableScan {
     Listeners.notifyAll(new IncrementalScanEvent(table().name(), context().fromSnapshotId(),
         context().toSnapshotId(), context().rowFilter(), schema()));
 
-    if (PLAN_SCANS_WITH_WORKER_POOL && manifests.size() > 1) {
+    if (PLAN_SCANS_WITH_WORKER_POOL && dataManifests.size() > 1) {
       manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
     }
 
@@ -113,17 +118,7 @@ class IncrementalDataTableScan extends DataTableScan {
   private static List<Snapshot> snapshotsWithin(Table table, long fromSnapshotId, long toSnapshotId) {
     List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, fromSnapshotId, toSnapshotId);
     List<Snapshot> snapshots = Lists.newArrayList();
-    for (Long snapshotId : snapshotIds) {
-      Snapshot snapshot = table.snapshot(snapshotId);
-      // for now, incremental scan supports only appends
-      if (snapshot.operation().equals(DataOperations.APPEND)) {
-        snapshots.add(snapshot);
-      } else if (snapshot.operation().equals(DataOperations.OVERWRITE)) {
-        throw new UnsupportedOperationException(
-            String.format("Found %s operation, cannot support incremental data in snapshots (%s, %s]",
-                DataOperations.OVERWRITE, fromSnapshotId, toSnapshotId));
-      }
-    }
+    snapshotIds.stream().map(table::snapshot).forEach(snapshots::add);
     return snapshots;
   }
 

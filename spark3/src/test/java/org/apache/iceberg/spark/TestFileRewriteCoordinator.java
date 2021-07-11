@@ -188,7 +188,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
 
     String secondFileSetID = UUID.randomUUID().toString();
 
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().appendsAfter(firstFileSetSnapshotId).planFiles()) {
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().dataAfter(firstFileSetSnapshotId).planFiles()) {
       // stage 2 more files for compaction
       taskSetManager.stageTasks(table, secondFileSetID, Lists.newArrayList(tasks));
     }

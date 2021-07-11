@@ -59,9 +59,9 @@ class FlinkSplitGenerator {
 
     if (context.startSnapshotId() != null) {
       if (context.endSnapshotId() != null) {
-        scan = scan.appendsBetween(context.startSnapshotId(), context.endSnapshotId());
+        scan = scan.dataBetween(context.startSnapshotId(), context.endSnapshotId());
       } else {
-        scan = scan.appendsAfter(context.startSnapshotId());
+        scan = scan.dataAfter(context.startSnapshotId());
       }
     }
 

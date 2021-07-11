@@ -69,7 +69,7 @@ public class TestStaticTable extends HadoopTableTestBase {
       AssertHelpers.assertThrows("Static tables do not support incremental scans",
           UnsupportedOperationException.class,
           String.format("Cannot incrementally scan table of type %s", type),
-          () -> staticTable.newScan().appendsAfter(1));
+          () -> staticTable.newScan().dataAfter(1));
     }
   }
 

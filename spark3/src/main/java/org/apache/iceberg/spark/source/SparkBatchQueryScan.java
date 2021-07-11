@@ -97,9 +97,9 @@ class SparkBatchQueryScan extends SparkBatchScan {
 
       if (startSnapshotId != null) {
         if (endSnapshotId != null) {
-          scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
+          scan = scan.dataBetween(startSnapshotId, endSnapshotId);
         } else {
-          scan = scan.appendsAfter(startSnapshotId);
+          scan = scan.dataAfter(startSnapshotId);
         }
       }
 

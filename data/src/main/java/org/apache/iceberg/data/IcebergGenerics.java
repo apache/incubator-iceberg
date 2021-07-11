@@ -78,12 +78,12 @@ public class IcebergGenerics {
     }
 
     public ScanBuilder appendsBetween(long fromSnapshotId, long toSnapshotId) {
-      this.tableScan = tableScan.appendsBetween(fromSnapshotId, toSnapshotId);
+      this.tableScan = tableScan.dataBetween(fromSnapshotId, toSnapshotId);
       return this;
     }
 
     public ScanBuilder appendsAfter(long fromSnapshotId) {
-      this.tableScan = tableScan.appendsAfter(fromSnapshotId);
+      this.tableScan = tableScan.dataAfter(fromSnapshotId);
       return this;
     }
 
