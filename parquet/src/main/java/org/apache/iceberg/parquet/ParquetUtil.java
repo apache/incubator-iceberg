@@ -338,7 +338,7 @@ public class ParquetUtil {
   }
 
   public static boolean hasNonBloomFilterPages(ColumnChunkMetaData meta) {
-    return meta.getBloomFilterOffset() == -1;
+    return meta.getBloomFilterOffset() < 0;
   }
 
   public static Dictionary readDictionary(ColumnDescriptor desc, PageReader pageSource) {
