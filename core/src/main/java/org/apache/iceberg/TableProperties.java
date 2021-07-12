@@ -188,4 +188,7 @@ public class TableProperties {
 
   public static final String MERGE_CARDINALITY_CHECK_ENABLED = "write.merge.cardinality-check.enabled";
   public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
+
+  public static final String SPARK_BATCH_SCAN_POOL_SIZE = "read.spark.scan.pool-size";
+  public static final int SPARK_BATCH_SCAN_POOL_SIZE_DEFAULT = 6;
 }

@@ -24,7 +24,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -33,6 +35,7 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
@@ -70,6 +73,8 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final List<Expression> filterExpressions;
   private final int batchSize;
   private final CaseInsensitiveStringMap options;
+  private final int poolSize;
+  private final ForkJoinPool pool;
 
   // lazy variables
   private StructType readSchema = null;
@@ -84,6 +89,9 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
     this.batchSize = Spark3Util.batchSize(table.properties(), options);
     this.options = options;
+    this.poolSize = options.getInt(TableProperties.SPARK_BATCH_SCAN_POOL_SIZE,
+            TableProperties.SPARK_BATCH_SCAN_POOL_SIZE_DEFAULT);
+    this.pool = new ForkJoinPool(this.poolSize);
   }
 
   protected Table table() {
@@ -123,6 +131,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     return readSchema;
   }
 
+  @SuppressWarnings("checkstyle:LocalVariableName")
   @Override
   public InputPartition[] planInputPartitions() {
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
@@ -131,13 +140,28 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
 
     List<CombinedScanTask> scanTasks = tasks();
-    InputPartition[] readTasks = new InputPartition[scanTasks.size()];
-    for (int i = 0; i < scanTasks.size(); i++) {
-      readTasks[i] = new ReadTask(
-          scanTasks.get(i), tableBroadcast, expectedSchemaString,
-          caseSensitive, localityPreferred);
+    int taskSize = scanTasks.size();
+    InputPartition[] readTasks = new InputPartition[taskSize];
+    long startTime = System.currentTimeMillis();
+
+    try {
+      pool.submit(() -> IntStream.range(0, taskSize).parallel()
+              .mapToObj(taskId -> {
+                LOG.trace("The size of scanTasks is {},  current taskId is {}, current thread id is {}",
+                        taskSize, taskId, Thread.currentThread().getName());
+                readTasks[taskId] = new ReadTask(scanTasks.get(taskId), tableBroadcast,
+                        expectedSchemaString, caseSensitive, localityPreferred);
+                return true;
+              }).collect(Collectors.toList())).get();
+    } catch (Exception e) {
+      LOG.error("Fail to construct ReadTask with thread size = {}, and the size of scanTasks is {}",
+          poolSize, taskSize, e);
+      System.exit(-1);
     }
 
+    long endTime = System.currentTimeMillis();
+    LOG.info("It took {} s to construct {} readTasks with localityPreferred = {}.", (startTime - endTime) / 1000,
+        taskSize, localityPreferred);
     return readTasks;
   }
 
