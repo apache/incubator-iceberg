@@ -22,6 +22,7 @@ package org.apache.iceberg.data;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
@@ -108,6 +109,10 @@ public abstract class DeleteFilter<T> {
     return (Long) posAccessor.get(asStructLike(record));
   }
 
+  public CloseableIterable<Boolean> checkShouldKeep(CloseableIterable<T> records) {
+    return checkShouldKeepEqDeletes(checkShouldKeepPosDeletes(records));
+  }
+
   public CloseableIterable<T> filter(CloseableIterable<T> records) {
     return applyEqDeletes(applyPosDeletes(records));
   }
@@ -161,6 +166,15 @@ public abstract class DeleteFilter<T> {
     return deletedRowsFilter.filter(records);
   }
 
+  private CloseableIterable<Boolean> checkShouldKeepEqDeletes(CloseableIterable<Optional<T>> records) {
+    Predicate<T> remainingRows = applyEqDeletes().stream()
+        .map(Predicate::negate)
+        .reduce(Predicate::and)
+        .orElse(t -> true);
+
+    return CloseableIterable.transform(records, r -> r.isPresent() && remainingRows.test(r.get()));
+  }
+
   private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
     // Predicate to test whether a row should be visible to user after applying equality deletions.
     Predicate<T> remainingRows = applyEqDeletes().stream()
@@ -176,6 +190,22 @@ public abstract class DeleteFilter<T> {
     };
 
     return remainingRowsFilter.filter(records);
+  }
+
+  private CloseableIterable<Optional<T>> checkShouldKeepPosDeletes(CloseableIterable<T> records) {
+    if (posDeletes.isEmpty()) {
+      return CloseableIterable.transform(records, Optional::ofNullable);
+    }
+
+    List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
+
+    // if there are fewer deletes than a reasonable number to keep in memory, use a set
+    if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
+      return Deletes.checkShouldKeep(records, this::pos,
+          Deletes.toPositionSet(dataFile.path(), CloseableIterable.concat(deletes)));
+    }
+
+    return Deletes.streamingCheckShouldKeep(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));
   }
 
   private CloseableIterable<T> applyPosDeletes(CloseableIterable<T> records) {
