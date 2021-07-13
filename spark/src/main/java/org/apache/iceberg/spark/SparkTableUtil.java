@@ -44,7 +44,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.data.TableMigrationUtil;
-import org.apache.iceberg.exceptions.DuplicateFileException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
@@ -110,6 +109,9 @@ public class SparkTableUtil {
 
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
+
+  private static final String duplicateFileMessage = "Duplicate data files will be added to this table: %s.  " +
+      "Enable ignore.duplicates flag to avoid this error";
 
   private SparkTableUtil() {
   }
@@ -463,17 +465,14 @@ public class SparkTableUtil {
 
       if (checkDuplicateFiles) {
         Dataset<Row> importedFiles = spark.createDataset(
-            Lists.transform(files, f -> f.path().toString()), Encoders.STRING())
-            .toDF("file_path");
+            Lists.transform(files, f -> f.path().toString()), Encoders.STRING()).toDF("file_path");
         Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
         Column joinCond = existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
         Dataset<Row> duplicates = importedFiles.join(existingFiles, joinCond);
-        if (!duplicates.isEmpty()) {
-          List<String> duplicateList = Arrays.stream((Row[]) duplicates.select("file_path").head(10))
+        List<String> duplicateList = Arrays.stream((Row[]) duplicates.head(10))
               .map(p -> p.getString(0)).collect(Collectors.toList());
-        if (!duplicateList.isEmpty()) {
-          throw new DuplicateFileException(duplicateList);
-        }
+        Preconditions.checkState(duplicateList.isEmpty(),
+            String.format(duplicateFileMessage, Joiner.on(",").join(duplicateList)));
       }
 
       AppendFiles append = targetTable.newAppend();
@@ -521,15 +520,14 @@ public class SparkTableUtil {
             Encoders.javaSerialization(DataFile.class));
 
     if (checkDuplicateFiles) {
-      Dataset<Row> filesToImportDf = filesToImport.map(f -> f.path().toString(), Encoders.STRING()).toDF("file_path");
+      Dataset<Row> importedFiles = filesToImport.map(f -> f.path().toString(), Encoders.STRING()).toDF("file_path");
       Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
-      Column joinCond = existingFiles.col("data_file.file_path").equalTo(filesToImportDf.col("file_path"));
-      Dataset<Row> duplicates = filesToImportDf.join(existingFiles, joinCond);
+      Column joinCond = existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
+      Dataset<Row> duplicates = importedFiles.join(existingFiles, joinCond);
       List<String> duplicateList = Arrays.stream((Row[]) duplicates.head(10))
             .map(p -> p.getString(0)).collect(Collectors.toList());
-      if (!duplicateList.isEmpty()) {
-        throw new DuplicateFileException(duplicateList);
-      }
+      Preconditions.checkState(duplicateList.isEmpty(),
+          String.format(duplicateFileMessage, Joiner.on(",").join(duplicateList)));
     }
 
     List<ManifestFile> manifests = filesToImport

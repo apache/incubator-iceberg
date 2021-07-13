@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.exceptions.DuplicateFileException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -493,7 +492,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         catalogName, tableName, sourceTableName);
 
     AssertHelpers.assertThrows("Should not allow adding duplicate files",
-        DuplicateFileException.class,
+        IllegalStateException.class,
         "Duplicate data files will be added to this table",
         () -> scalarSql("CALL %s.system.add_files(" +
             "table => '%s', " +
@@ -548,7 +547,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         catalogName, tableName, sourceTableName);
 
     AssertHelpers.assertThrows("Should not allow adding duplicate files",
-        DuplicateFileException.class,
+        IllegalStateException.class,
         "Duplicate data files will be added to this table",
         () -> scalarSql("CALL %s.system.add_files('%s', '%s')",
             catalogName, tableName, sourceTableName));
