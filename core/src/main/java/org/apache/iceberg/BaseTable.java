@@ -83,9 +83,16 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
    */
   public Schema schemaForSnapshot(long snapshotId) {
     TableMetadata current = ops.current();
+    // First, check if the snapshot has a schema id associated with it
+    Snapshot snapshot = current.snapshot(snapshotId);
+    Preconditions.checkArgument(snapshot != null, "Cannot find snapshot %s", snapshotId);
+    Integer schemaId = snapshot.schemaId();
+    if (schemaId != null) {
+      return current.schemasById().get(schemaId);
+    }
+    // Otherwise, read each of the previous metadata files until we find one whose current
+    // snapshot id is the snapshot id
     Schema schemaForSnapshot = null;
-    // read each of the previous metadata files until we find one whose current snapshot id
-    // is the snapshot id
     for (TableMetadata.MetadataLogEntry logEntry : current.previousFiles()) {
       String metadataFile = logEntry.file();
       TableMetadata metadata = TableMetadataParser.read(io(), metadataFile);

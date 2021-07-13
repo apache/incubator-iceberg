@@ -34,6 +34,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -68,8 +69,8 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     this.spark = spark;
     this.table = table;
     this.options = options;
-    this.snapshotId = Spark3Util.propertyAsLong(options, "snapshot-id", null);
-    this.asOfTimestamp = Spark3Util.propertyAsLong(options, "as-of-timestamp", null);
+    this.snapshotId = Spark3Util.propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID, null);
+    this.asOfTimestamp = Spark3Util.propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP, null);
     this.caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
   }
 

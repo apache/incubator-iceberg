@@ -24,6 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -101,8 +102,8 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     SparkSession spark = SparkSession.active();
     setupDefaultSparkCatalog(spark);
     String path = options.get("path");
-    Long snapshotId = Spark3Util.propertyAsLong(options, "snapshot-id", null);
-    Long asOfTimestamp = Spark3Util.propertyAsLong(options, "as-of-timestamp", null);
+    Long snapshotId = Spark3Util.propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID, null);
+    Long asOfTimestamp = Spark3Util.propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP, null);
     CatalogManager catalogManager = spark.sessionState().catalogManager();
 
     if (path.contains("/")) {
