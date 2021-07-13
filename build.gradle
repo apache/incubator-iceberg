@@ -36,6 +36,7 @@ buildscript {
 plugins {
   id 'nebula.dependency-recommender' version '9.0.2'
   id 'org.projectnessie' version '0.5.1'
+  id 'org.jetbrains.gradle.plugin.idea-ext' version '1.0'
 }
 
 try {
@@ -1325,4 +1326,5 @@ apply from: 'jmh.gradle'
 apply from: 'baseline.gradle'
 apply from: 'deploy.gradle'
 apply from: 'tasks.gradle'
+apply from: 'idea.gradle'
 
