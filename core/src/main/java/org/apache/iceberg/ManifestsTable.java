@@ -41,7 +41,8 @@ public class ManifestsTable extends BaseMetadataTable {
           Types.NestedField.optional(11, "contains_nan", Types.BooleanType.get()),
           Types.NestedField.optional(12, "lower_bound", Types.StringType.get()),
           Types.NestedField.optional(13, "upper_bound", Types.StringType.get())
-      )))
+      ))),
+      Types.NestedField.required(14, "content", Types.IntegerType.get(), "Contents of the manifest: 0=data, 1=deletes")
   );
 
   private final PartitionSpec spec;
@@ -94,7 +95,8 @@ public class ManifestsTable extends BaseMetadataTable {
         manifest.addedFilesCount(),
         manifest.existingFilesCount(),
         manifest.deletedFilesCount(),
-        partitionSummariesToRows(spec, manifest.partitions())
+        partitionSummariesToRows(spec, manifest.partitions()),
+        manifest.content().id()
     );
   }
 

@@ -53,7 +53,8 @@ public class AllManifestsTable extends BaseMetadataTable {
           Types.NestedField.required(11, "contains_nan", Types.BooleanType.get()),
           Types.NestedField.optional(12, "lower_bound", Types.StringType.get()),
           Types.NestedField.optional(13, "upper_bound", Types.StringType.get())
-      )))
+      ))),
+      Types.NestedField.optional(14, "content", Types.IntegerType.get(), "Contents of the manifest: 0=data, 1=deletes")
   );
 
   AllManifestsTable(TableOperations ops, Table table) {
