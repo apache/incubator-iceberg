@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -221,7 +222,15 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   @Override
   public String description() {
     String filters = filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
-    return String.format("%s [filters=%s]", table, filters);
+
+    List<String> filePaths = new ArrayList<>();
+    for (CombinedScanTask scanTask : tasks()) {
+      for (FileScanTask partitionFile : scanTask.files()) {
+        filePaths.add(partitionFile.file().path().toString());
+      }
+    }
+    String partitions = String.join(", ", filePaths);
+    return String.format("%s [filters=%s] [partitions=%s]", table, filters, partitions);
   }
 
   static class ReaderFactory implements PartitionReaderFactory {
