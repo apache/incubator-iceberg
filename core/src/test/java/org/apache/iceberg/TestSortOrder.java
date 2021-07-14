@@ -21,9 +21,12 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SortOrderUtil;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -314,5 +317,16 @@ public class TestSortOrder {
   public void testEmptySortOrder() {
     SortOrder order = SortOrder.builderFor(SCHEMA).build();
     Assert.assertEquals("Order must be unsorted", SortOrder.unsorted(), order);
+  }
+
+  @Test
+  public void testSortOrderColumnNames() {
+    SortOrder order = SortOrder.builderFor(SCHEMA)
+        .withOrderId(10)
+        .asc("s.id")
+        .desc(truncate("data", 10))
+        .build();
+    Set<String> sortedCols = SortOrderUtil.getSortedColumns(order);
+    Assert.assertEquals(ImmutableSet.of("s.id", "data"), sortedCols);
   }
 }

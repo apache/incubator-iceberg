@@ -117,7 +117,7 @@ public class Parquet {
     public WriteBuilder forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
-      metricsConfig(MetricsConfig.fromProperties(table.properties()));
+      metricsConfig(MetricsConfig.fromTable(table));
       return this;
     }
 
@@ -307,7 +307,7 @@ public class Parquet {
       rowSchema(table.schema());
       withSpec(table.spec());
       setAll(table.properties());
-      metricsConfig(MetricsConfig.fromProperties(table.properties()));
+      metricsConfig(MetricsConfig.fromTable(table));
       return this;
     }
 

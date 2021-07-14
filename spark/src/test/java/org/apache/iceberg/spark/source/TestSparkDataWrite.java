@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -30,11 +31,14 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -473,6 +477,65 @@ public abstract class TestSparkDataWrite {
     );
     Assert.assertEquals("Number of rows should match", expected2.size(), actual2.size());
     Assert.assertEquals("Result rows should match", expected2, actual2);
+  }
+
+  @Test
+  public void testSortOrderMetrics() throws IOException {
+    Assume.assumeTrue(
+        "Advanced metrics not supported in Avro",
+        format != FileFormat.AVRO);
+
+    File parent = temp.newFolder(format.toString());
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).asc("id").build();
+    Map<String, String> properties = ImmutableMap.of(
+        TableProperties.DEFAULT_WRITE_METRICS_MODE, "none"
+    );
+    Table table = tables.create(SCHEMA, spec, sortOrder, properties, location.toString());
+
+    List<SimpleRecord> expected = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+    df.select("id", "data").write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    table.refresh();
+
+    int upperBound = Integer.MIN_VALUE;
+    int lowerBound = Integer.MAX_VALUE;
+
+    for (ManifestFile manifest : table.currentSnapshot().allManifests()) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+        Assert.assertEquals("Should have reported record count as 1", 1, file.recordCount());
+
+        // Sorted columns auto-promoted despite default MetricsMode being None.
+        int id = SCHEMA.caseInsensitiveFindField("id").fieldId();
+        int data = SCHEMA.caseInsensitiveFindField("data").fieldId();
+        Assert.assertTrue(file.upperBounds().containsKey(id));
+        upperBound = Math.max(upperBound,
+            Conversions.fromByteBuffer(Types.IntegerType.get(), file.upperBounds().get(id)));
+
+        Assert.assertTrue(file.lowerBounds().containsKey(id));
+        lowerBound = Math.min(lowerBound,
+            Conversions.fromByteBuffer(Types.IntegerType.get(), file.upperBounds().get(id)));
+
+        Assert.assertFalse(file.upperBounds().containsKey(data));
+        Assert.assertFalse(file.lowerBounds().containsKey(data));
+      }
+    }
+
+    Assert.assertEquals(3, upperBound);
+    Assert.assertEquals(1, lowerBound);
   }
 
   public void partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType option)

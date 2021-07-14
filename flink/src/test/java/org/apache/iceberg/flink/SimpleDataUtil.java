@@ -119,23 +119,23 @@ public class SimpleDataUtil {
     return GenericRowData.ofKind(RowKind.UPDATE_AFTER, id, StringData.fromString(data));
   }
 
-  public static DataFile writeFile(Schema schema, PartitionSpec spec, Configuration conf,
+  public static DataFile writeFile(Table table, Configuration conf,
                                    String location, String filename, List<RowData> rows)
       throws IOException {
     Path path = new Path(location, filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
 
-    RowType flinkSchema = FlinkSchemaUtil.convert(schema);
+    RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
     FileAppenderFactory<RowData> appenderFactory =
-        new FlinkAppenderFactory(schema, flinkSchema, ImmutableMap.of(), spec);
+        new FlinkAppenderFactory(table, flinkSchema, ImmutableMap.of());
 
     FileAppender<RowData> appender = appenderFactory.newAppender(fromPath(path, conf), fileFormat);
     try (FileAppender<RowData> closeableAppender = appender) {
       closeableAppender.addAll(rows);
     }
 
-    return DataFiles.builder(spec)
+    return DataFiles.builder(table.spec())
         .withInputFile(HadoopInputFile.fromPath(path, conf))
         .withMetrics(appender.metrics())
         .build();

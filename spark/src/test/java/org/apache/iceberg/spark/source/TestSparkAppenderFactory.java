@@ -45,9 +45,10 @@ public class TestSparkAppenderFactory extends TestAppenderFactory<InternalRow> {
                                                                    Schema eqDeleteSchema,
                                                                    Schema posDeleteRowSchema) {
     return SparkAppenderFactory.builderFor(table, table.schema(), sparkType)
-        .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
-        .eqDeleteRowSchema(eqDeleteSchema)
-        .posDelRowSchema(posDeleteRowSchema).build();
+      .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
+      .eqDeleteRowSchema(eqDeleteSchema)
+      .posDelRowSchema(posDeleteRowSchema)
+      .build();
   }
 
   @Override

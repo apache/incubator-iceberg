@@ -322,8 +322,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
   public void testRewriteAvoidRepeateCompress() throws IOException {
     Assume.assumeFalse("ORC does not support getting length when file is opening", format.equals(FileFormat.ORC));
     List<Record> expected = Lists.newArrayList();
-    Schema schema = icebergTableUnPartitioned.schema();
-    GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(schema);
+    GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(icebergTableUnPartitioned);
     File file = temp.newFile();
     int count = 0;
     try (FileAppender<Record> fileAppender = genericAppenderFactory.newAppender(Files.localOutput(file), format)) {

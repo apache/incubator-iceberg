@@ -25,10 +25,13 @@ import org.apache.iceberg.MetricsModes.Full;
 import org.apache.iceberg.MetricsModes.None;
 import org.apache.iceberg.MetricsModes.Truncate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestMetricsModes {
 
@@ -74,5 +77,56 @@ public class TestMetricsModes {
     MetricsConfig config = MetricsConfig.fromProperties(properties);
     Assert.assertEquals("Invalid mode should be defaulted to library default (truncate(16))",
         MetricsModes.Truncate.withLength(16), config.columnMode("col"));
+  }
+
+  @Test
+  public void testMetricsConfigSortedColsDefault() {
+    Map<String, String> properties = ImmutableMap.of(
+        TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts",
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "counts",
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2", "none");
+
+    Schema schema = new Schema(
+        required(1, "col1", Types.IntegerType.get()),
+        required(2, "col2", Types.IntegerType.get()),
+        required(3, "col3", Types.IntegerType.get()),
+        required(4, "col4", Types.IntegerType.get())
+    );
+    SortOrder sortOrder = SortOrder.builderFor(schema).asc("col2").asc("col3").build();
+
+    Table testTable = TestMetricUtil.createTestTable(properties, sortOrder, schema);
+
+    MetricsConfig config = MetricsConfig.fromTable(testTable);
+    Assert.assertEquals("Non-sorted existing column should not be overridden",
+        Counts.get(), config.columnMode("col1"));
+    Assert.assertEquals("Sorted column defaults should not override user specified config",
+        None.get(), config.columnMode("col2"));
+    Assert.assertEquals("Unspecified sorted column should use default",
+        Truncate.withLength(16), config.columnMode("col3"));
+    Assert.assertEquals("Unspecified normal column should use default",
+        Counts.get(), config.columnMode("col4"));
+  }
+
+  @Test
+  public void testMetricsConfigSortedColsDefaultByInvalid() {
+    Map<String, String> properties = ImmutableMap.of(
+        TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts",
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "full",
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2", "invalid");
+
+    Schema schema = new Schema(
+        required(1, "col1", Types.IntegerType.get()),
+        required(2, "col2", Types.IntegerType.get()),
+        required(3, "col3", Types.IntegerType.get())
+    );
+    SortOrder sortOrder = SortOrder.builderFor(schema).asc("col2").asc("col3").build();
+
+    Table testTable = TestMetricUtil.createTestTable(properties, sortOrder, schema);
+
+    MetricsConfig config = MetricsConfig.fromTable(testTable);
+    Assert.assertEquals("Non-sorted existing column should not be overridden",
+        Full.get(), config.columnMode("col1"));
+    Assert.assertEquals("Sorted column defaults applies as user entered invalid mode",
+        Truncate.withLength(16), config.columnMode("col2"));
   }
 }

@@ -424,7 +424,7 @@ public class SparkTableUtil {
       Map<String, String> partition = Collections.emptyMap();
       PartitionSpec spec = PartitionSpec.unpartitioned();
       Configuration conf = spark.sessionState().newHadoopConf();
-      MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
+      MetricsConfig metricsConfig = MetricsConfig.fromTable(targetTable);
       String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
       NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
 

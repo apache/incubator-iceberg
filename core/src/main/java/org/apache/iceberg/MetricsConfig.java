@@ -20,11 +20,14 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SortOrderUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,6 +80,14 @@ public class MetricsConfig implements Serializable {
   }
 
   public static MetricsConfig fromProperties(Map<String, String> props) {
+    return from(props, null);
+  }
+
+  public static MetricsConfig fromTable(Table table) {
+    return from(table.properties(), table.sortOrder());
+  }
+
+  private static MetricsConfig from(Map<String, String> props, SortOrder order) {
     MetricsConfig spec = new MetricsConfig();
     String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     try {
@@ -87,6 +98,18 @@ public class MetricsConfig implements Serializable {
       spec.defaultMode = MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     }
 
+    // First set sorted column with sorted column default (can be overridden by user)
+    final Set<String> sortedCols = new HashSet<>();
+    MetricsMode sortedColDefaultMode = promoteSortedColumnDefault(spec.defaultMode);
+    if (order != null) {
+      sortedCols.addAll(SortOrderUtil.getSortedColumns(order));
+      sortedCols.stream().forEach(sc -> {
+        if (!props.containsKey(METRICS_MODE_COLUMN_CONF_PREFIX + sc)) {
+          spec.columnModes.put(sc, sortedColDefaultMode);
+        }
+      });
+    }
+
     props.keySet().stream()
         .filter(key -> key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX))
         .forEach(key -> {
@@ -95,14 +118,30 @@ public class MetricsConfig implements Serializable {
           try {
             mode = MetricsModes.fromString(props.get(key));
           } catch (IllegalArgumentException err) {
-            // Mode was invalid, log the error and use the default
+            // Mode was invalid, log the error and use the default (or default for sorted columns)
             LOG.warn("Ignoring invalid metrics mode for column {}: {}", columnAlias, props.get(key), err);
-            mode = spec.defaultMode;
+            if (sortedCols.contains(columnAlias)) {
+              mode = sortedColDefaultMode;
+            } else {
+              mode = spec.defaultMode;
+            }
           }
           spec.columnModes.put(columnAlias, mode);
         });
-
     return spec;
+  }
+
+  /**
+   * Auto promote sorted columns to truncate(16) if default is set at Counts or None.
+   * @param defaultMode default mode
+   * @return mode to use
+   */
+  private static MetricsMode promoteSortedColumnDefault(MetricsMode defaultMode) {
+    if (defaultMode == MetricsModes.None.get() || defaultMode == MetricsModes.Counts.get()) {
+      return MetricsModes.Truncate.withLength(16);
+    } else {
+      return defaultMode;
+    }
   }
 
   public void validateReferencedColumns(Schema schema) {

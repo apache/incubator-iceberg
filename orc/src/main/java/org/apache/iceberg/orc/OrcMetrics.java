@@ -146,7 +146,8 @@ public class OrcMetrics {
       if (icebergColOpt.isPresent()) {
         final Types.NestedField icebergCol = icebergColOpt.get();
         final int fieldId = icebergCol.fieldId();
-        final MetricsMode metricsMode = effectiveMetricsConfig.columnMode(icebergCol.name());
+        final String colName = schema.findColumnName(icebergCol.fieldId());
+        final MetricsMode metricsMode = effectiveMetricsConfig.columnMode(colName);
 
         columnSizes.put(fieldId, colStat.getBytesOnDisk());
 

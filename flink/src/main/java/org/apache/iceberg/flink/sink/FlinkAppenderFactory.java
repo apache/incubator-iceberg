@@ -28,9 +28,9 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -49,10 +49,9 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Serializable {
-  private final Schema schema;
+  private final Table table;
   private final RowType flinkSchema;
   private final Map<String, String> props;
-  private final PartitionSpec spec;
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
@@ -60,17 +59,26 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   private RowType eqDeleteFlinkSchema = null;
   private RowType posDeleteFlinkSchema = null;
 
-  public FlinkAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props, PartitionSpec spec) {
-    this(schema, flinkSchema, props, spec, null, null, null);
+  public FlinkAppenderFactory(Table table, RowType flinkSchema, Map<String, String> props) {
+    this(table, flinkSchema, props, null, null, null);
   }
 
-  public FlinkAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props,
-                              PartitionSpec spec, int[] equalityFieldIds,
-                              Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
-    this.schema = schema;
+  public FlinkAppenderFactory(Table table, RowType flinkSchema, Map<String, String> props,
+                              int[] equalityFieldIds, Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
+    Preconditions.checkNotNull(table, "Table must not be null");
+    Preconditions.checkNotNull(flinkSchema, "Flink Schema must not be null");
+    if (equalityFieldIds != null) {
+      Preconditions.checkNotNull(eqDeleteRowSchema, "Equality Field Ids and Equality Delete Row Schema" +
+          " must be set together");
+    }
+    if (eqDeleteRowSchema != null) {
+      Preconditions.checkNotNull(equalityFieldIds, "Equality Field Ids and Equality Delete Row Schema" +
+          " must be set together");
+    }
+
+    this.table = table;
     this.flinkSchema = flinkSchema;
     this.props = props;
-    this.spec = spec;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
@@ -94,14 +102,14 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
   @Override
   public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
+    MetricsConfig metricsConfig = MetricsConfig.fromTable(table);
     try {
       switch (format) {
         case AVRO:
           return Avro.write(outputFile)
               .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
               .setAll(props)
-              .schema(schema)
+              .schema(table.schema())
               .metricsConfig(metricsConfig)
               .overwrite()
               .build();
@@ -111,7 +119,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
               .setAll(props)
               .metricsConfig(metricsConfig)
-              .schema(schema)
+              .schema(table.schema())
               .overwrite()
               .build();
 
@@ -120,7 +128,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
               .setAll(props)
               .metricsConfig(metricsConfig)
-              .schema(schema)
+              .schema(table.schema())
               .overwrite()
               .build();
 
@@ -136,7 +144,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   public DataWriter<RowData> newDataWriter(EncryptedOutputFile file, FileFormat format, StructLike partition) {
     return new DataWriter<>(
         newAppender(file.encryptingOutputFile(), format), format,
-        file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
+        file.encryptingOutputFile().location(), table.spec(), partition, file.keyMetadata());
   }
 
   @Override
@@ -157,7 +165,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .overwrite()
               .setAll(props)
               .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
+              .withSpec(table.spec())
               .withKeyMetadata(outputFile.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
@@ -170,7 +178,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .setAll(props)
               .metricsConfig(metricsConfig)
               .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
+              .withSpec(table.spec())
               .withKeyMetadata(outputFile.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
@@ -197,7 +205,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .overwrite()
               .setAll(props)
               .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
+              .withSpec(table.spec())
               .withKeyMetadata(outputFile.keyMetadata())
               .buildPositionWriter();
 
@@ -210,7 +218,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .setAll(props)
               .metricsConfig(metricsConfig)
               .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
+              .withSpec(table.spec())
               .withKeyMetadata(outputFile.keyMetadata())
               .transformPaths(path -> StringData.fromString(path.toString()))
               .buildPositionWriter();

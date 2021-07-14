@@ -79,7 +79,7 @@ public class GenericAppenderHelper {
   private static DataFile appendToLocalFile(
       Table table, File file, FileFormat format, StructLike partition, List<Record> records)
       throws IOException {
-    FileAppender<Record> appender = new GenericAppenderFactory(table.schema()).newAppender(
+    FileAppender<Record> appender = new GenericAppenderFactory(table).newAppender(
         Files.localOutput(file), format);
     try (FileAppender<Record> fileAppender = appender) {
       fileAppender.addAll(records);
