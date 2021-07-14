@@ -22,9 +22,6 @@ package org.apache.iceberg.mr.hive;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -59,8 +56,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ObjectArrays;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.rules.TemporaryFolder;
 
@@ -206,8 +201,8 @@ abstract class TestTables {
       records.forEach(record -> {
         query.append("(");
         query.append(record.struct().fields().stream()
-                .map(field -> getStringValueForInsert(record.getField(field.name()), field.type()))
-                .collect(Collectors.joining(",")));
+            .map(field -> HiveIcebergTestUtils.getStringValueForInsert(record.getField(field.name()), field.type()))
+            .collect(Collectors.joining(",")));
         query.append("),");
       });
       query.setLength(query.length() - 1);
@@ -437,20 +432,6 @@ abstract class TestTables {
 
   private static String tablePath(TableIdentifier identifier) {
     return "/" + Joiner.on("/").join(identifier.namespace().levels()) + "/" + identifier.name();
-  }
-
-  private String getStringValueForInsert(Object value, Type type) {
-    String template = "\'%s\'";
-    if (type.equals(Types.TimestampType.withoutZone())) {
-      return String.format(template, Timestamp.valueOf((LocalDateTime) value).toString());
-    } else if (type.equals(Types.TimestampType.withZone())) {
-      return String.format(template, Timestamp.from(((OffsetDateTime) value).toInstant()).toString());
-    } else if (type.equals(Types.BooleanType.get())) {
-      // in hive2 boolean type values must not be surrounded in apostrophes. Otherwise the value is translated to true.
-      return value.toString();
-    } else {
-      return String.format(template, value.toString());
-    }
   }
 
   enum TestTableType {

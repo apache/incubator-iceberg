@@ -55,9 +55,7 @@ public class IcebergTimestampObjectInspectorHive3 extends AbstractPrimitiveJavaO
       return null;
     }
     LocalDateTime time = (LocalDateTime) o;
-    Timestamp timestamp = Timestamp.ofEpochMilli(time.toInstant(ZoneOffset.UTC).toEpochMilli());
-    timestamp.setNanos(time.getNano());
-    return timestamp;
+    return Timestamp.ofEpochMilli(time.toInstant(ZoneOffset.UTC).toEpochMilli(), time.getNano());
   }
 
   @Override

@@ -115,7 +115,7 @@ public class TestHiveIcebergOutputCommitter {
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
 
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 1);
-    HiveIcebergTestUtils.validateData(table, expected, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, expected, 0);
   }
 
   @Test
@@ -127,7 +127,7 @@ public class TestHiveIcebergOutputCommitter {
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
 
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 3);
-    HiveIcebergTestUtils.validateData(table, expected, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, expected, 0);
   }
 
   @Test
@@ -139,7 +139,7 @@ public class TestHiveIcebergOutputCommitter {
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
 
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 2);
-    HiveIcebergTestUtils.validateData(table, expected, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, expected, 0);
   }
 
   @Test
@@ -151,7 +151,7 @@ public class TestHiveIcebergOutputCommitter {
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
 
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 6);
-    HiveIcebergTestUtils.validateData(table, expected, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, expected, 0);
   }
 
   @Test
@@ -163,19 +163,19 @@ public class TestHiveIcebergOutputCommitter {
     // Write records and abort the tasks
     writeRecords(table.name(), 2, 0, false, true, conf);
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 0);
-    HiveIcebergTestUtils.validateData(table, Collections.emptyList(), 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, Collections.emptyList(), 0);
 
     // Write records but do not abort the tasks
     // The data files remain since we can not identify them but should not be read
     writeRecords(table.name(), 2, 1, false, false, conf);
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 2);
-    HiveIcebergTestUtils.validateData(table, Collections.emptyList(), 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, Collections.emptyList(), 0);
 
     // Write and commit the records
     List<Record> expected = writeRecords(table.name(), 2, 2, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 4);
-    HiveIcebergTestUtils.validateData(table, expected, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, expected, 0);
   }
 
   @Test
@@ -187,7 +187,7 @@ public class TestHiveIcebergOutputCommitter {
     committer.abortJob(new JobContextImpl(conf, JOB_ID), JobStatus.State.FAILED);
 
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 0);
-    HiveIcebergTestUtils.validateData(table, Collections.emptyList(), 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, Collections.emptyList(), 0);
   }
 
   @Test

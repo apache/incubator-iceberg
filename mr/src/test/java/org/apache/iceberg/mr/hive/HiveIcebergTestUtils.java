@@ -32,6 +32,10 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -59,7 +63,9 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.junit.Assert;
@@ -106,6 +112,13 @@ public class HiveIcebergTestUtils {
               PrimitiveObjectInspectorFactory.writableStringObjectInspector,
               PrimitiveObjectInspectorFactory.writableStringObjectInspector
           ));
+
+  public static final DateTimeFormatter TIMESTAMP_WITH_TZ_FORMATTER = new DateTimeFormatterBuilder()
+      .appendPattern("yyyy-MM-dd HH:mm:ss")
+      .appendFraction(ChronoField.MICRO_OF_SECOND, 0, 9, true)
+      .appendLiteral(' ')
+      .appendZoneOrOffsetId()
+      .toFormatter();
 
   private HiveIcebergTestUtils() {
     // Empty constructor for the utility class
@@ -210,14 +223,14 @@ public class HiveIcebergTestUtils {
   }
 
   /**
-   * Validates whether the table contains the expected records. The results should be sorted by a unique key so we do
-   * not end up with flaky tests.
+   * Validates whether the table contains the expected records reading the data through the Iceberg API.
+   * The results should be sorted by a unique key so we do not end up with flaky tests.
    * @param table The table we should read the records from
    * @param expected The expected list of Records
    * @param sortBy The column position by which we will sort
    * @throws IOException Exceptions when reading the table data
    */
-  public static void validateData(Table table, List<Record> expected, int sortBy) throws IOException {
+  public static void validateDataWithIceberg(Table table, List<Record> expected, int sortBy) throws IOException {
     // Refresh the table, so we get the new data as well
     table.refresh();
     List<Record> records = new ArrayList<>(expected.size());
@@ -265,5 +278,59 @@ public class HiveIcebergTestUtils {
     Assert.assertEquals(dataFileNum, dataFiles.size());
     Assert.assertFalse(
         new File(HiveIcebergOutputCommitter.generateJobLocation(table.location(), conf, jobId)).exists());
+  }
+
+  /**
+   * Simplified implementation for checking that the returned results from a SELECT statement are the same than the
+   * inserted values. We expect that the values are inserted using {@link #getStringValueForInsert(Object, Type)}.
+   * <p>
+   * For the full implementation we might want to add sorting so the check could work for every table/query.
+   * @param shell The shell used for executing the query
+   * @param tableName The name of the table to query
+   * @param expected The records we inserted
+   */
+  public static void validateDataWithSql(TestHiveShell shell, String tableName, List<Record> expected) {
+    List<Object[]> actual = shell.executeStatement("SELECT * from " + tableName);
+
+    for (int rowId = 0; rowId < expected.size(); ++rowId) {
+      Record record = expected.get(rowId);
+      Object[] row = actual.get(rowId);
+      Assert.assertEquals(record.size(), row.length);
+      for (int fieldId = 0; fieldId < record.size(); ++fieldId) {
+        Types.NestedField field = record.struct().fields().get(fieldId);
+        String inserted = getStringValueForInsert(record.getField(field.name()), field.type())
+            // If there are enclosing quotes then remove them
+            .replaceAll("'(.*)'", "$1");
+        String returned = row[fieldId].toString();
+        if (field.type().equals(Types.TimestampType.withZone()) && MetastoreUtil.hive3PresentOnClasspath()) {
+          Timestamp timestamp = Timestamp.from(ZonedDateTime.parse(returned, TIMESTAMP_WITH_TZ_FORMATTER).toInstant());
+          returned = timestamp.toString();
+        }
+        Assert.assertEquals(inserted, returned);
+      }
+    }
+  }
+
+  public static String getStringValueForInsert(Object value, Type type) {
+    String template = "\'%s\'";
+    if (type.equals(Types.TimestampType.withoutZone())) {
+      return String.format(template, Timestamp.valueOf((LocalDateTime) value).toString());
+    } else if (type.equals(Types.TimestampType.withZone())) {
+      Timestamp timestamp;
+      // Hive2 stores Timestamps with local TZ, Hive3 stores Timestamps in UTC so we have to insert different timestamp
+      // to get the same expected values in the Iceberg rows. The Hive query should return the same values as inserted
+      // in both cases
+      if (MetastoreUtil.hive3PresentOnClasspath()) {
+        timestamp = Timestamp.from(((OffsetDateTime) value).toInstant());
+      } else {
+        timestamp = Timestamp.valueOf(((OffsetDateTime) value).withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime());
+      }
+      return String.format(template, timestamp.toString());
+    } else if (type.equals(Types.BooleanType.get())) {
+      // in hive2 boolean type values must not be surrounded in apostrophes. Otherwise the value is translated to true.
+      return value.toString();
+    } else {
+      return String.format(template, value.toString());
+    }
   }
 }
