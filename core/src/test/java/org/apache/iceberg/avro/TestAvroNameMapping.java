@@ -287,6 +287,69 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     // no-op
   }
 
+  @Test
+  public void testInferredMappingNestedStruct() throws IOException {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get())
+    );
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+
+    Schema readSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(3, "location", Types.StructType.of(
+            Types.NestedField.required(1, "lat", Types.FloatType.get()),
+            Types.NestedField.required(2, "long", Types.FloatType.get())))
+    );
+
+    Record projected = writeAndRead(writeSchema, readSchema, record, null);
+    AvroTestHelpers.assertEquals(writeSchema.asStruct(), record, projected);
+
+    validateJsonSerialization(projected);
+    validateNewNestedStruct(projected, readSchema.findField("location"));
+  }
+
+  @Test
+  public void testInferredMappingTwoNestedStructs() throws IOException {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get())
+    );
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+
+    Schema readSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(3, "location", Types.StructType.of(
+            Types.NestedField.required(1, "lat", Types.FloatType.get()),
+            Types.NestedField.required(2, "long", Types.FloatType.get()))),
+        Types.NestedField.optional(4, "address", Types.StructType.of(
+            Types.NestedField.required(5, "street", Types.IntegerType.get())))
+    );
+
+    Record projected = writeAndRead(writeSchema, readSchema, record, null);
+    AvroTestHelpers.assertEquals(writeSchema.asStruct(), record, projected);
+
+    validateJsonSerialization(projected);
+    validateNewNestedStruct(projected, readSchema.findField("location"));
+    validateNewNestedStruct(projected, readSchema.findField("address"));
+  }
+
+  private void validateJsonSerialization(Record projected) {
+    Assert.assertFalse("Projected schema can be serialized to json", projected.getSchema().toString().isEmpty());
+  }
+
+  private void validateNewNestedStruct(Record projected, Types.NestedField field) {
+    String newTypeName = "r" + field.fieldId();
+    String newFieldName = field.name() + "_" + newTypeName;
+    Assert.assertNull(field.name() + " field should be null", projected.get(newFieldName));
+    Assert.assertNotNull(field.name() + " field is renamed to " + newFieldName,
+        projected.getSchema().getField(newFieldName));
+    Assert.assertEquals(field.name() + " field should have schema type name " + newTypeName,
+        newTypeName, projected.getSchema().getField(newFieldName).schema().getTypes().get(1).getName());
+  }
+
   @Override
   protected Record writeAndRead(String desc,
                                 Schema writeSchema,

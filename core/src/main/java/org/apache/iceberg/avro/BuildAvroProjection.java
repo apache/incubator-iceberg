@@ -101,9 +101,10 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
             "Missing required field: %s", field.name());
         // Create a field that will be defaulted to null. We assign a unique suffix to the field
         // to make sure that even if records in the file have the field it is not projected.
+        String typeName = "r" + field.fieldId();
         Schema.Field newField = new Schema.Field(
-            field.name() + "_r" + field.fieldId(),
-            AvroSchemaUtil.toOption(AvroSchemaUtil.convert(field.type())), null, JsonProperties.NULL_VALUE);
+            field.name() + "_" + typeName,
+            AvroSchemaUtil.toOption(AvroSchemaUtil.convert(field.type(), typeName)), null, JsonProperties.NULL_VALUE);
         newField.addProp(AvroSchemaUtil.FIELD_ID_PROP, field.fieldId());
         updatedFields.add(newField);
         hasChange = true;
