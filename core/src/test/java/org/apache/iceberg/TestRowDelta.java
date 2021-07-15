@@ -629,4 +629,49 @@ public class TestRowDelta extends V2TableTestBase {
         files(FILE_A_DELETES),
         statuses(Status.ADDED));
   }
+
+  @Test
+  public void testValidateDataFilesToRecentRewrite() {
+    table.newAppend()
+            .appendFile(FILE_A)
+            .appendFile(FILE_B)
+            .commit();
+
+    long expireSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.newRewrite()
+            .rewriteFiles(Sets.newHashSet(FILE_A), Sets.newHashSet(FILE_C, FILE_D))
+            .commit();
+
+    // overwrite FILE_B
+    table.newOverwrite()
+            .deleteFile(FILE_B)
+            .commit();
+
+    Assert.assertEquals("Table should not have any delete manifests",
+            0, table.currentSnapshot().deleteManifests().size());
+
+    table.expireSnapshots().expireSnapshotId(expireSnapshotId).commit();
+
+    AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A is missing",
+            ValidationException.class, "Cannot commit, missing data files",
+            () -> table.newRowDelta()
+                    .addDeletes(FILE_A_DELETES)
+                    .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+                    .commit());
+
+    table.newRowDelta()
+            .addDeletes(FILE_C_DELETES)
+            .validateDataFilesExist(ImmutableList.of(FILE_C.path()))
+            .commit();
+
+    Assert.assertEquals("Table should have one new delete manifest",
+            1, table.currentSnapshot().deleteManifests().size());
+    ManifestFile deletes = table.currentSnapshot().deleteManifests().get(0);
+    validateDeleteManifest(deletes,
+            seqs(4),
+            ids(table.currentSnapshot().snapshotId()),
+            files(FILE_C_DELETES),
+            statuses(Status.ADDED));
+  }
 }

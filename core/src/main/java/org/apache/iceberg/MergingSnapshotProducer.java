@@ -329,6 +329,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         }
       }
 
+      if (currentSnapshot.operation().equals(DataOperations.REPLACE)) {
+        break;
+      }
       currentSnapshotId = currentSnapshot.parentId();
     }
 
