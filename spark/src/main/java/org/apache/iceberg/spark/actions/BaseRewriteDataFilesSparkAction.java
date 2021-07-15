@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseRewriteDataFilesFileGroupInfo;
@@ -43,6 +44,7 @@ import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.RewriteStrategy;
+import org.apache.iceberg.actions.SortStrategy;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -100,9 +102,26 @@ abstract class BaseRewriteDataFilesSparkAction
    */
   protected abstract BinPackStrategy binPackStrategy();
 
+  /**
+   * The framework specific {@link SortStrategy}
+   */
+  protected abstract SortStrategy sortStrategy();
+
   @Override
   public RewriteDataFiles binPack() {
     this.strategy = binPackStrategy();
+    return this;
+  }
+
+  @Override
+  public RewriteDataFiles sort(SortOrder sortOrder) {
+    this.strategy = sortStrategy().sortOrder(sortOrder);
+    return this;
+  }
+
+  @Override
+  public RewriteDataFiles sort() {
+    this.strategy = sortStrategy();
     return this;
   }
 
@@ -141,7 +160,13 @@ abstract class BaseRewriteDataFilesSparkAction
 
     try {
       Map<StructLike, List<FileScanTask>> filesByPartition = Streams.stream(fileScanTasks)
-          .collect(Collectors.groupingBy(task -> task.file().partition()));
+          .collect(Collectors.groupingBy(task -> {
+            if (task.file().specId() == table.spec().specId()) {
+              return task.file().partition();
+            } else {
+              return EmptyStruct.instance();
+            }
+          }));
 
       Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = Maps.newHashMap();
 
@@ -372,6 +397,33 @@ abstract class BaseRewriteDataFilesSparkAction
 
     public int totalGroupCount() {
       return totalGroupCount;
+    }
+  }
+
+  static class EmptyStruct implements StructLike {
+
+    private static EmptyStruct instance;
+
+    static EmptyStruct instance() {
+      if (instance == null) {
+        instance = new EmptyStruct();
+      }
+      return instance;
+    }
+
+    @Override
+    public int size() {
+      return 0;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return null;
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+
     }
   }
 }

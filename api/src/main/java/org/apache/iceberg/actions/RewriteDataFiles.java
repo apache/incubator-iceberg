@@ -20,6 +20,7 @@
 package org.apache.iceberg.actions;
 
 import java.util.List;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
 
@@ -82,6 +83,23 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    */
   default RewriteDataFiles binPack() {
     return this;
+  }
+
+  /**
+   * Choose SORT as a strategy for this rewrite operation using the table's sortOrder
+   * @return this for method chaining
+   */
+  default RewriteDataFiles sort() {
+    throw new UnsupportedOperationException("SORT Rewrite Strategy not implemented for this framework");
+  }
+
+  /**
+   * Choose SORT as a strategy for this rewrite operation and manually specify the sortOrder to use
+   * @param sortOrder user defined sortOrder
+   * @return this for method chaining
+   */
+  default RewriteDataFiles sort(SortOrder sortOrder) {
+    throw new UnsupportedOperationException("SORT Rewrite Strategy not implemented for this framework");
   }
 
   /**
