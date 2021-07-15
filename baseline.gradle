@@ -36,7 +36,7 @@ subprojects {
     apply plugin: 'com.palantir.baseline-checkstyle'
     apply plugin: 'com.palantir.baseline-error-prone'
   }
-  apply plugin: 'com.palantir.baseline-scalastyle'
+  apply plugin: 'com.github.alisiikh.scalastyle'
   apply plugin: 'com.palantir.baseline-class-uniqueness'
   apply plugin: 'com.palantir.baseline-reproducibility'
   apply plugin: 'com.palantir.baseline-exact-dependencies'
@@ -47,7 +47,8 @@ subprojects {
 
   // So we apply Spotless manually to get a similar effect to baseline-format, but change the
   // import order.
-  pluginManager.withPlugin('com.diffplug.gradle.spotless') {
+
+  pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
       java {
         target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/jmh/java/**/*.java'
@@ -79,7 +80,20 @@ subprojects {
           '-Xep:StrictUnusedVariable:OFF',
           '-Xep:TypeParameterShadowing:OFF',
           '-Xep:TypeParameterUnusedInFormals:OFF',
+          '-Xep:ConsistentOverrides:OFF',
+          '-Xep:JavaTimeSystemDefaultTimeZone:OFF'
       )
+    }
+  }
+
+  pluginManager.withPlugin('com.github.alisiikh.scalastyle') {
+    scalastyle {
+      config = file("${rootDir}/project/scalastyle_config.xml")
+      inputEncoding = 'UTF-8'
+      outputEncoding = 'UTF-8'
+      failOnWarning = false
+      verbose = false
+      quiet = false
     }
   }
 }

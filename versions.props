@@ -11,6 +11,7 @@ org.apache.spark:spark-hive_2.11 = 2.4.8
 org.apache.spark:spark-avro_2.11 = 2.4.8
 org.apache.pig:pig = 0.14.0
 com.fasterxml.jackson.*:* = 2.11.4
+com.google.errorprone:error_prone_annotations = 2.3.3
 com.google.guava:guava = 28.0-jre
 com.github.ben-manes.caffeine:caffeine = 2.8.4
 org.apache.arrow:arrow-vector = 2.0.0

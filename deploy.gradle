@@ -22,7 +22,6 @@ if (project.hasProperty('release') && jdkVersion != '8') {
 }
 
 subprojects {
-  apply plugin: 'maven' // make pom files for deployment
   apply plugin: 'maven-publish'
   apply plugin: 'signing'
 
