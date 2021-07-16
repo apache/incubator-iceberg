@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.data.parquet;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -30,7 +28,6 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
@@ -49,6 +46,8 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
+import static org.apache.iceberg.util.DateTimeUtil.instantFromInt96;
+
 public abstract class BaseParquetReaders<T> {
   protected BaseParquetReaders() {
   }
@@ -65,11 +64,11 @@ public abstract class BaseParquetReaders<T> {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       return (ParquetValueReader<T>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new ReadBuilder(fileSchema, idToConstant));
+                                      new ReadBuilder(fileSchema, idToConstant));
     } else {
       return (ParquetValueReader<T>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new FallbackReadBuilder(fileSchema, idToConstant));
+                                      new FallbackReadBuilder(fileSchema, idToConstant));
     }
   }
 
@@ -193,7 +192,7 @@ public abstract class BaseParquetReaders<T> {
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 
       return new ParquetValueReaders.ListReader<>(repeatedD, repeatedR,
-          ParquetValueReaders.option(elementType, elementD, elementReader));
+                                                  ParquetValueReaders.option(elementType, elementD, elementReader));
     }
 
     @Override
@@ -216,8 +215,8 @@ public abstract class BaseParquetReaders<T> {
       int valueD = type.getMaxDefinitionLevel(path(valueType.getName())) - 1;
 
       return new ParquetValueReaders.MapReader<>(repeatedD, repeatedR,
-          ParquetValueReaders.option(keyType, keyD, keyReader),
-          ParquetValueReaders.option(valueType, valueD, valueReader));
+                                                 ParquetValueReaders.option(keyType, keyD, keyReader),
+                                                 ParquetValueReaders.option(valueType, valueD, valueReader));
     }
 
     @Override
@@ -294,13 +293,13 @@ public abstract class BaseParquetReaders<T> {
         case BINARY:
           return new ParquetValueReaders.BytesReader(desc);
         case INT32:
-          if (expected != null && expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
+          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
             return new ParquetValueReaders.IntAsLongReader(desc);
           } else {
             return new ParquetValueReaders.UnboxedReader<>(desc);
           }
         case FLOAT:
-          if (expected != null && expected.typeId() == org.apache.iceberg.types.Type.TypeID.DOUBLE) {
+          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.DOUBLE) {
             return new ParquetValueReaders.FloatAsDoubleReader(desc);
           } else {
             return new ParquetValueReaders.UnboxedReader<>(desc);
@@ -360,21 +359,13 @@ public abstract class BaseParquetReaders<T> {
   }
 
   private static class TimestampInt96Reader extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
-    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
-
     private TimestampInt96Reader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
     public OffsetDateTime read(OffsetDateTime reuse) {
-      final ByteBuffer byteBuffer = column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      final long timeOfDayNanos = byteBuffer.getLong();
-      final int julianDay = byteBuffer.getInt();
-
-      return Instant
-              .ofEpochMilli(TimeUnit.DAYS.toMillis(julianDay - UNIX_EPOCH_JULIAN))
-              .plusNanos(timeOfDayNanos).atOffset(ZoneOffset.UTC);
+      return instantFromInt96(column.nextBinary().toByteBuffer()).atOffset(ZoneOffset.UTC);
     }
   }
 

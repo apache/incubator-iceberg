@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.source;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -467,6 +468,17 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           .select("id", "tmp_col")
           .collectAsList();
       Assert.assertEquals("Rows must match", expected, actual);
+
+      // validate we can filter on int96 timestamp column
+      List<Row> expectedTs = spark.table("parquet_table")
+          .filter(functions.col("tmp_col").equalTo(Timestamp.valueOf("2010-03-20 10:40:30.1234")))
+          .select("id", "tmp_col")
+          .collectAsList();
+      List<Row> actualTs = spark.read().format("iceberg").load(tableLocation)
+          .filter(functions.col("tmp_col").equalTo(Timestamp.valueOf("2010-03-20 10:40:30.1234")))
+          .select("id", "tmp_col")
+          .collectAsList();
+      Assert.assertEquals("Rows must match", expectedTs, actualTs);
 
       // validate we did not persist metrics for INT96
       Dataset<Row> fileDF = spark.read().format("iceberg").load(tableLocation + "#files");

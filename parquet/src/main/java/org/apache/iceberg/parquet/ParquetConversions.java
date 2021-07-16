@@ -23,12 +23,16 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.PrimitiveType;
+
+import static org.apache.iceberg.util.DateTimeUtil.instantFromInt96;
 
 class ParquetConversions {
   private ParquetConversions() {
@@ -77,6 +81,12 @@ class ParquetConversions {
       } else if (icebergType.typeId() == Type.TypeID.DOUBLE &&
           parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
         return value -> ((Float) fromParquet.apply(value)).doubleValue();
+      } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP &&
+          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
+        return value -> {
+          Instant instant = instantFromInt96(((Binary) fromParquet.apply(value)).toByteBuffer());
+          return ChronoUnit.MICROS.between(Instant.EPOCH, instant);
+        };
       }
     }
 

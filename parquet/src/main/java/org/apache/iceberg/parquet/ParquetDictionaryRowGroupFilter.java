@@ -66,7 +66,7 @@ public class ParquetDictionaryRowGroupFilter {
   /**
    * Test whether the dictionaries for a row group may contain records that match the expression.
    *
-   * @param fileSchema schema for the Parquet file
+   * @param fileSchema   schema for the Parquet file
    * @param dictionaries a dictionary page read store
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
@@ -408,15 +408,21 @@ public class ParquetDictionaryRowGroupFilter {
         switch (col.getPrimitiveType().getPrimitiveTypeName()) {
           case FIXED_LEN_BYTE_ARRAY: dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
             break;
-          case BINARY: dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
+          case BINARY:
+          case INT96:
+            dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
             break;
-          case INT32: dictSet.add((T) conversion.apply(dict.decodeToInt(i)));
+          case INT32:
+            dictSet.add((T) conversion.apply(dict.decodeToInt(i)));
             break;
-          case INT64: dictSet.add((T) conversion.apply(dict.decodeToLong(i)));
+          case INT64:
+            dictSet.add((T) conversion.apply(dict.decodeToLong(i)));
             break;
-          case FLOAT: dictSet.add((T) conversion.apply(dict.decodeToFloat(i)));
+          case FLOAT:
+            dictSet.add((T) conversion.apply(dict.decodeToFloat(i)));
             break;
-          case DOUBLE: dictSet.add((T) conversion.apply(dict.decodeToDouble(i)));
+          case DOUBLE:
+            dictSet.add((T) conversion.apply(dict.decodeToDouble(i)));
             break;
           default:
             throw new IllegalArgumentException(
@@ -433,5 +439,4 @@ public class ParquetDictionaryRowGroupFilter {
   private static boolean mayContainNull(ColumnChunkMetaData meta) {
     return meta.getStatistics() == null || meta.getStatistics().getNumNulls() != 0;
   }
-
 }

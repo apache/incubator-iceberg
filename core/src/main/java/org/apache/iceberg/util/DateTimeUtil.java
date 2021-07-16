@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.util;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -26,8 +28,11 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.TimeUnit;
 
 public class DateTimeUtil {
+  public static final long UNIX_EPOCH_JULIAN = 2_440_588L;
+
   private DateTimeUtil() {
   }
 
@@ -80,5 +85,16 @@ public class DateTimeUtil {
 
   public static long microsFromTimestamptz(OffsetDateTime dateTime) {
     return ChronoUnit.MICROS.between(EPOCH, dateTime);
+  }
+
+  public static Instant instantFromInt96(ByteBuffer bytes) {
+    final ByteBuffer byteBuffer = bytes.order(ByteOrder.LITTLE_ENDIAN);
+
+    final long timeOfDayNanos = byteBuffer.getLong();
+    final int julianDay = byteBuffer.getInt();
+
+    return Instant
+        .ofEpochMilli(TimeUnit.DAYS.toMillis(julianDay - UNIX_EPOCH_JULIAN))
+        .plusNanos(timeOfDayNanos);
   }
 }

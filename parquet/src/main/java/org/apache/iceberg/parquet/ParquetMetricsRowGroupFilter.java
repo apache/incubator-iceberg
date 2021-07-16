@@ -66,7 +66,7 @@ public class ParquetMetricsRowGroupFilter {
    * Test whether the file may contain records that match the expression.
    *
    * @param fileSchema schema for the Parquet file
-   * @param rowGroup metadata for a row group
+   * @param rowGroup   metadata for a row group
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup) {
@@ -94,7 +94,11 @@ public class ParquetMetricsRowGroupFilter {
         if (colType.getId() != null) {
           int id = colType.getId().intValue();
           Type icebergType = schema.findType(id);
-          stats.put(id, col.getStatistics());
+
+          Statistics<?> columnStats = colType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT96
+              ? col.getStatistics()
+              : null;
+          stats.put(id, columnStats);
           valueCounts.put(id, col.getValueCount());
           conversions.put(id, ParquetConversions.converterFromParquet(colType, icebergType));
         }
@@ -488,12 +492,12 @@ public class ParquetMetricsRowGroupFilter {
    * Checks against older versions of Parquet statistics which may have a null count but undefined min and max
    * statistics. Returns true if nonNull values exist in the row group but no further statistics are available.
    * <p>
-   * We can't use {@code  statistics.hasNonNullValue()} because it is inaccurate with older files and will return
-   * false if min and max are not set.
+   * We can't use {@code  statistics.hasNonNullValue()} because it is inaccurate with older files and will return false
+   * if min and max are not set.
    * <p>
    * This is specifically for 1.5.0-CDH Parquet builds and later which contain the different unusual hasNonNull
-   * behavior. OSS Parquet builds are not effected because PARQUET-251 prohibits the reading of these statistics
-   * from versions of Parquet earlier than 1.8.0.
+   * behavior. OSS Parquet builds are not effected because PARQUET-251 prohibits the reading of these statistics from
+   * versions of Parquet earlier than 1.8.0.
    *
    * @param statistics Statistics to check
    * @param valueCount Number of values in the row group
