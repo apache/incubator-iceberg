@@ -22,7 +22,6 @@ package org.apache.iceberg.spark;
 import java.io.IOException;
 import java.io.Serializable;
 import java.net.URI;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -469,8 +468,8 @@ public class SparkTableUtil {
         Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
         Column joinCond = existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
         Dataset<Row> duplicates = importedFiles.join(existingFiles, joinCond);
-        List<String> duplicateList = Arrays.stream((Row[]) duplicates.head(10))
-              .map(p -> p.getString(0)).collect(Collectors.toList());
+        List<String> duplicateList = duplicates.takeAsList(10)
+            .stream().map(p -> p.getString(0)).collect(Collectors.toList());
         Preconditions.checkState(duplicateList.isEmpty(),
             String.format(duplicateFileMessage, Joiner.on(",").join(duplicateList)));
       }
@@ -524,8 +523,8 @@ public class SparkTableUtil {
       Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
       Column joinCond = existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
       Dataset<Row> duplicates = importedFiles.join(existingFiles, joinCond);
-      List<String> duplicateList = Arrays.stream((Row[]) duplicates.head(10))
-            .map(p -> p.getString(0)).collect(Collectors.toList());
+      List<String> duplicateList = duplicates.takeAsList(10)
+          .stream().map(p -> p.getString(0)).collect(Collectors.toList());
       Preconditions.checkState(duplicateList.isEmpty(),
           String.format(duplicateFileMessage, Joiner.on(",").join(duplicateList)));
     }
