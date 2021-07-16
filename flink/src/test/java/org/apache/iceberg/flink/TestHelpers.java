@@ -50,6 +50,7 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.flink.source.FlinkInputFormat;
@@ -115,7 +116,11 @@ public class TestHelpers {
     Assert.assertEquals(expected, results);
   }
 
-  public static void assertRowData(Types.StructType structType, LogicalType rowType, Record expectedRecord,
+  public static void assertRowData(Schema schema, StructLike expected, RowData actual) {
+    assertRowData(schema.asStruct(), FlinkSchemaUtil.convert(schema), expected, actual);
+  }
+
+  public static void assertRowData(Types.StructType structType, LogicalType rowType, StructLike expectedRecord,
                                    RowData actualRowData) {
     if (expectedRecord == null && actualRowData == null) {
       return;
@@ -130,10 +135,15 @@ public class TestHelpers {
     }
 
     for (int i = 0; i < types.size(); i += 1) {
-      Object expected = expectedRecord.get(i);
       LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
-      assertEquals(types.get(i), logicalType, expected,
-          RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData));
+      Object expected = expectedRecord.get(i, Object.class);
+      // The RowData.createFieldGetter won't return null for the required field. But in the projection case, if we are
+      // projecting a nested required field from a optional struct, then we should give a null for the projected field
+      // if the outer struct value is null. So we need to check the nullable for actualRowData here. For more details
+      // please see issue #2738.
+      Object actual = actualRowData.isNullAt(i) ? null :
+          RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
+      assertEquals(types.get(i), logicalType, expected, actual);
     }
   }
 
@@ -212,8 +222,8 @@ public class TestHelpers {
         assertMapValues(type.asMapType(), logicalType, (Map<?, ?>) expected, (MapData) actual);
         break;
       case STRUCT:
-        Assert.assertTrue("Should expect a Record", expected instanceof Record);
-        assertRowData(type.asStructType(), logicalType, (Record) expected, (RowData) actual);
+        Assert.assertTrue("Should expect a Record", expected instanceof StructLike);
+        assertRowData(type.asStructType(), logicalType, (StructLike) expected, (RowData) actual);
         break;
       case UUID:
         Assert.assertTrue("Should expect a UUID", expected instanceof UUID);

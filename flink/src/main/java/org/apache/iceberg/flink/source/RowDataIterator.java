@@ -34,6 +34,7 @@ import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.FlinkAvroReader;
 import org.apache.iceberg.flink.data.FlinkOrcReader;
 import org.apache.iceberg.flink.data.FlinkParquetReaders;
+import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -72,6 +73,12 @@ class RowDataIterator extends DataIterator<RowData> {
 
     FlinkDeleteFilter deletes = new FlinkDeleteFilter(task, tableSchema, projectedSchema);
     CloseableIterable<RowData> iterable = deletes.filter(newIterable(task, deletes.requiredSchema(), idToConstant));
+
+    // Project the RowData to remove the extra meta columns.
+    if (!projectedSchema.sameSchema(deletes.requiredSchema())) {
+      RowDataProjection rowDataProjection = RowDataProjection.create(deletes.requiredSchema(), projectedSchema);
+      iterable = CloseableIterable.transform(iterable, rowDataProjection::project);
+    }
 
     return iterable.iterator();
   }
