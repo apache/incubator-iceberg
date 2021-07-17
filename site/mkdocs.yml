@@ -55,6 +55,7 @@ nav:
     - Blogs: blogs.md
     - Trademarks: trademarks.md
     - How to Release: how-to-release.md
+    - Security: security.md
   - Tables:
     - Configuration: configuration.md
     - Schemas: schemas.md
