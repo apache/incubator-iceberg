@@ -41,6 +41,13 @@ public interface Table {
 
   /**
    * Refresh the current table metadata.
+   *
+   * <p>If this table is associated with a TransactionalCatalog, this refresh will be bounded by
+   * the visibility that the {@code IsolationLevel} of that transaction exposes. For example, if
+   * we are in a context of {@code READ_COMMITTED}, this refresh will update to the latest state
+   * of the table. However, in the case of {@code SERIALIZABLE} where this table hasn't mutated
+   * within this transaction, calling refresh will have no impact as the isolation level
+   * constrains all observations to within the transactional snapshot.
    */
   void refresh();
 
