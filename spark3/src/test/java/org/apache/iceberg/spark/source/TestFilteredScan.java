@@ -23,9 +23,11 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -60,6 +62,7 @@ import org.apache.spark.sql.sources.EqualTo;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.sources.GreaterThan;
 import org.apache.spark.sql.sources.LessThan;
+import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.StringStartsWith;
 import org.apache.spark.sql.types.IntegerType$;
 import org.apache.spark.sql.types.LongType$;
@@ -421,6 +424,19 @@ public class TestFilteredScan {
   }
 
   @Test
+  public void testPartitionedByDataNotStartsWithFilter() {
+    Table table = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
+    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
+
+    SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+
+    pushFilters(builder, new Not(new StringStartsWith("data", "junc")));
+    Batch scan = builder.build().toBatch();
+
+    Assert.assertEquals(9, scan.planInputPartitions().length);
+  }
+
+  @Test
   public void testPartitionedByIdStartsWith() {
     Table table = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID, "id_ident", "id");
 
@@ -437,6 +453,22 @@ public class TestFilteredScan {
   }
 
   @Test
+  public void testPartitionedByIdNotStartsWith() {
+    Table table = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID, "id_ident", "id");
+
+    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of(
+        "path", table.location())
+    );
+
+    SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+
+    pushFilters(builder, new Not(new StringStartsWith("data", "junc")));
+    Batch scan = builder.build().toBatch();
+
+    Assert.assertEquals(9, scan.planInputPartitions().length);
+  }
+
+  @Test
   public void testUnpartitionedStartsWith() {
     Dataset<Row> df = spark.read()
         .format("iceberg")
@@ -450,6 +482,27 @@ public class TestFilteredScan {
 
     Assert.assertEquals(1, matchedData.size());
     Assert.assertEquals("junction", matchedData.get(0));
+  }
+
+  @Test
+  public void testUnpartitionedNotStartsWith() {
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+        .load(unpartitioned.toString());
+
+    List<String> matchedData = df.where("data NOT LIKE 'jun%'")
+        .select("data")
+        .as(Encoders.STRING())
+        .collectAsList();
+
+    List<String> expected = testRecords(SCHEMA).stream()
+        .map(r -> r.getField("data").toString())
+        .filter(d -> !d.startsWith("jun"))
+        .collect(Collectors.toList());
+
+    Assert.assertEquals(9, matchedData.size());
+    Assert.assertEquals(new HashSet<>(expected), new HashSet<>(matchedData));
   }
 
   private static Record projectFlat(Schema projection, Record record) {

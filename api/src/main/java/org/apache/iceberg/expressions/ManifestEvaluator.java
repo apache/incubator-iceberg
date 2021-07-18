@@ -340,6 +340,56 @@ public class ManifestEvaluator {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      int pos = Accessors.toPosition(ref.accessor());
+      PartitionFieldSummary fieldStats = stats.get(pos);
+
+      // Iceberg does not implement SQL 3-boolean logic. Therefore, for all null values, we have decided to
+      // return ROWS_MIGHT_MATCH in order to allow the query engine to further evaluate this partition, as
+      // null does not start with any non-null value.
+      if (fieldStats.containsNull() || fieldStats.lowerBound() == null) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      ByteBuffer prefixAsBytes = lit.toByteBuffer();
+
+      Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+      ByteBuffer lower = fieldStats.lowerBound();
+
+      // notStartsWith will match unless all values must start with the prefix. this happens when the lower and upper
+      // bounds both start with the prefix.
+      if (lower != null) {
+        // if lower is shorter than the prefix, it can't start with the prefix
+        if (lower.remaining() < prefixAsBytes.remaining()) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        // truncate lower bound to the prefix and check for equality
+        int cmp = comparator.compare(BinaryUtil.truncateBinary(lower, prefixAsBytes.remaining()), prefixAsBytes);
+        if (cmp == 0) {
+          // the lower bound starts with the prefix; check the upper bound
+          ByteBuffer upper = fieldStats.upperBound();
+          if (upper != null) {
+            // if upper is shorter than the prefix, it can't start with the prefix
+            if (upper.remaining() < prefixAsBytes.remaining()) {
+              return ROWS_MIGHT_MATCH;
+            }
+
+            // truncate upper bound so that its length in bytes is not greater than the length of prefix
+            cmp = comparator.compare(BinaryUtil.truncateBinary(upper, prefixAsBytes.remaining()), prefixAsBytes);
+            if (cmp == 0) {
+              // both bounds match the prefix, so all rows must match the prefix and none do not match
+              return ROWS_CANNOT_MATCH;
+            }
+          }
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
     private boolean allValuesAreNull(PartitionFieldSummary summary, Type.TypeID typeId) {
       // containsNull encodes whether at least one partition value is null,
       // lowerBound is null if all partition values are null

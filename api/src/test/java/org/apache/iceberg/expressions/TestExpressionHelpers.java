@@ -46,10 +46,12 @@ import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.predicate;
 import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
 
@@ -95,7 +97,9 @@ public class TestExpressionHelpers {
 
   @Test
   public void testRewriteNot() {
-    StructType struct = StructType.of(NestedField.optional(1, "a", Types.IntegerType.get()));
+    StructType struct = StructType.of(
+        NestedField.optional(1, "a", Types.IntegerType.get()),
+        NestedField.optional(2, "s", Types.StringType.get()));
     Expression[][] expressions = new Expression[][] {
         // (rewritten pred, original pred) pairs
         { isNull("a"), isNull("a") },
@@ -123,6 +127,8 @@ public class TestExpressionHelpers {
         { and(notEqual("a", 5), notNull("a")), and(notEqual("a", 5), notNull("a")) },
         { or(equal("a", 5), isNull("a")), not(and(notEqual("a", 5), notNull("a"))) },
         { or(equal("a", 5), notNull("a")), or(equal("a", 5), not(isNull("a"))) },
+        { startsWith("s", "hello"), not(notStartsWith("s", "hello")) },
+        { notStartsWith("s", "world"), not(startsWith("s", "world")) }
     };
 
     for (Expression[] pair : expressions) {

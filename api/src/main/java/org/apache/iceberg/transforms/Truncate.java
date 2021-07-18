@@ -285,7 +285,29 @@ abstract class Truncate<T> implements Transform<T, T> {
       if (predicate.isUnaryPredicate()) {
         return Expressions.predicate(predicate.op(), name);
       } else if (predicate.isLiteralPredicate()) {
-        return ProjectionUtil.truncateArray(name, predicate.asLiteralPredicate(), this);
+        BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
+        switch (pred.op()) {
+          case STARTS_WITH:
+            if (pred.literal().value().length() < width()) {
+              return Expressions.predicate(pred.op(), name, pred.literal().value());
+            } else if (pred.literal().value().length() == width()) {
+              return Expressions.equal(name, pred.literal().value());
+            }
+
+            return ProjectionUtil.truncateArray(name, pred, this);
+
+          case NOT_STARTS_WITH:
+            if (pred.literal().value().length() < width()) {
+              return Expressions.predicate(pred.op(), name, pred.literal().value());
+            } else if (pred.literal().value().length() == width()) {
+              return Expressions.notEqual(name, pred.literal().value());
+            }
+
+            return null;
+
+          default:
+            return ProjectionUtil.truncateArray(name, pred, this);
+        }
       } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
       }
@@ -303,14 +325,27 @@ abstract class Truncate<T> implements Transform<T, T> {
         return Expressions.predicate(predicate.op(), name);
       } else if (predicate instanceof BoundLiteralPredicate) {
         BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
-        if (pred.op() == Expression.Operation.STARTS_WITH) {
-          if (pred.literal().value().length() < width()) {
-            return Expressions.predicate(pred.op(), name, pred.literal().value());
-          } else if (pred.literal().value().length() == width()) {
-            return Expressions.equal(name, pred.literal().value());
-          }
-        } else {
-          return ProjectionUtil.truncateArrayStrict(name, pred, this);
+        switch (pred.op()) {
+          case STARTS_WITH:
+            if (pred.literal().value().length() < width()) {
+              return Expressions.predicate(pred.op(), name, pred.literal().value());
+            } else if (pred.literal().value().length() == width()) {
+              return Expressions.equal(name, pred.literal().value());
+            }
+
+            return null;
+
+          case NOT_STARTS_WITH:
+            if (pred.literal().value().length() < width()) {
+              return Expressions.predicate(pred.op(), name, pred.literal().value());
+            } else if (pred.literal().value().length() == width()) {
+              return Expressions.notEqual(name, pred.literal().value());
+            }
+
+            return Expressions.predicate(pred.op(), name, apply(pred.literal().value()).toString());
+
+          default:
+            return ProjectionUtil.truncateArrayStrict(name, pred, this);
         }
       } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.NOT_IN) {
         return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);

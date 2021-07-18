@@ -69,6 +69,8 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return cmp.compare(value, literal.value()) != 0;
       case STARTS_WITH:
         return String.valueOf(value).startsWith((String) literal.value());
+      case NOT_STARTS_WITH:
+        return !String.valueOf(value).startsWith((String) literal.value());
       default:
         throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + op());
     }
@@ -91,6 +93,8 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return term() + " != " + literal;
       case STARTS_WITH:
         return term() + " startsWith \"" + literal + "\"";
+      case NOT_STARTS_WITH:
+        return term() + " notStartsWith \"" + literal + "\"";
       case IN:
         return term() + " in { " + literal + " }";
       case NOT_IN:
