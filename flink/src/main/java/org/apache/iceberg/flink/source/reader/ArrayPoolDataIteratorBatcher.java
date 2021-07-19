@@ -31,12 +31,12 @@ import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.Position;
 import org.apache.iceberg.io.CloseableIterator;
 
-public class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
+class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
 
   private final Configuration config;
   private final RecordFactory<T> recordFactory;
 
-  public ArrayPoolDataIteratorBatcher(Configuration config, RecordFactory<T> recordFactory) {
+  ArrayPoolDataIteratorBatcher(Configuration config, RecordFactory<T> recordFactory) {
     this.config = config;
     this.recordFactory = recordFactory;
   }

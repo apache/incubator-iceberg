@@ -33,7 +33,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, IcebergSourceSplit> {
+class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, IcebergSourceSplit> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSourceSplitReader.class);
 
   private final ReaderFactory<T> readerFactory;
@@ -44,7 +44,7 @@ public class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPositio
   @Nullable
   private String currentSplitId;
 
-  public IcebergSourceSplitReader(ReaderFactory<T> readerFactory) {
+  IcebergSourceSplitReader(ReaderFactory<T> readerFactory) {
     this.readerFactory = readerFactory;
     this.splits = new ArrayDeque<>();
   }

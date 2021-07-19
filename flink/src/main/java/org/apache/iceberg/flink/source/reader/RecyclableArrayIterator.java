@@ -31,7 +31,7 @@ import org.apache.iceberg.io.CloseableIterator;
  * Similar to the {@link ArrayResultIterator}.
  * Main difference is the records array can be recycled back to a pool.
  */
-public final class RecyclableArrayIterator<E> implements CloseableIterator<RecordAndPosition<E>> {
+final class RecyclableArrayIterator<E> implements CloseableIterator<RecordAndPosition<E>> {
 
   private final Pool.Recycler<E[]> recycler;
   private final E[] records;
@@ -40,7 +40,7 @@ public final class RecyclableArrayIterator<E> implements CloseableIterator<Recor
 
   private int pos;
 
-  public RecyclableArrayIterator(Pool.Recycler<E[]> recycler) {
+  RecyclableArrayIterator(Pool.Recycler<E[]> recycler) {
     this(recycler, null, 0, CheckpointedPosition.NO_OFFSET, 0L);
   }
 
@@ -50,7 +50,7 @@ public final class RecyclableArrayIterator<E> implements CloseableIterator<Recor
    * the contract that each record needs to point to the position AFTER itself
    * (because a checkpoint taken after the record was emitted needs to resume from after that record).
    */
-  public RecyclableArrayIterator(
+  RecyclableArrayIterator(
       Pool.Recycler<E[]> recycler, final E[] newRecords,
       final int newNum, final long fileOffset, final long recordOffset) {
     this.recycler = recycler;

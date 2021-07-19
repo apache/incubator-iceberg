@@ -26,12 +26,12 @@ import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterator;
 
-public abstract class DataIteratorReaderFactory<T> implements ReaderFactory<T> {
+abstract class DataIteratorReaderFactory<T> implements ReaderFactory<T> {
 
   private final Configuration config;
   private final DataIteratorBatcher<T> batcher;
 
-  public DataIteratorReaderFactory(Configuration config, DataIteratorBatcher<T> batcher) {
+  DataIteratorReaderFactory(Configuration config, DataIteratorBatcher<T> batcher) {
     this.config = config;
     this.batcher = batcher;
   }

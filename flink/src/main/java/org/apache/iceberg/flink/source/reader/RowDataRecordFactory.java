@@ -26,12 +26,12 @@ import org.apache.flink.table.runtime.typeutils.InternalSerializers;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.flink.data.RowDataUtil;
 
-public class RowDataRecordFactory implements RecordFactory<RowData> {
+class RowDataRecordFactory implements RecordFactory<RowData> {
 
   private final RowType rowType;
   private final TypeSerializer[] fieldSerializers;
 
-  public RowDataRecordFactory(final RowType rowType) {
+  RowDataRecordFactory(final RowType rowType) {
     this.rowType = rowType;
     this.fieldSerializers = createFieldSerializers(rowType);
   }
