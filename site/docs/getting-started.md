@@ -17,9 +17,13 @@
 
 # Getting Started
 
-## Using Iceberg in Spark 3
-
 The latest version of Iceberg is [{{ versions.iceberg }}](./releases.md).
+
+Spark is currently the most feature-rich compute engine for Iceberg operations. 
+We recommend you to get started with Spark to understand Iceberg concepts and features with examples.
+You can also view documentations of using Iceberg with other compute engine under the **Engines** tab.
+
+## Using Iceberg in Spark 3
 
 To use Iceberg in a Spark shell, use the `--packages` option:
 
