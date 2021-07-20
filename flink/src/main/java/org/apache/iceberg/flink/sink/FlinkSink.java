@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -254,6 +255,11 @@ public class FlinkSink {
           Preconditions.checkNotNull(field, "Missing required equality field column '%s' in table schema %s",
               column, table.schema());
           equalityFieldIds.add(field.fieldId());
+        }
+      } else {
+        Set<Integer> identifierFieldIds = table.schema().identifierFieldIds();
+        if (identifierFieldIds != null && identifierFieldIds.size() > 0) {
+          equalityFieldIds.addAll(identifierFieldIds);
         }
       }
 
