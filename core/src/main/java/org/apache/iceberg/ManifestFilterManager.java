@@ -20,10 +20,12 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
@@ -173,14 +175,31 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     // use a common metrics evaluator for all manifests because it is bound to the table schema
     StrictMetricsEvaluator metricsEvaluator = new StrictMetricsEvaluator(tableSchema, deleteExpression);
 
+    final UserGroupInformation ugi;
+    try {
+      ugi = UserGroupInformation.getCurrentUser();
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to get current user from UserGroupInformation", e);
+    }
+
     ManifestFile[] filtered = new ManifestFile[manifests.size()];
     // open all of the manifest files in parallel, use index to avoid reordering
     Tasks.range(filtered.length)
         .stopOnFailure().throwFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
         .run(index -> {
-          ManifestFile manifest = filterManifest(metricsEvaluator, manifests.get(index));
-          filtered[index] = manifest;
+          try {
+            ugi.doAs(new PrivilegedExceptionAction<Void>() {
+              @Override
+              public Void run() {
+                ManifestFile manifest = filterManifest(metricsEvaluator, manifests.get(index));
+                filtered[index] = manifest;
+                return null;
+              }
+            });
+          } catch (IOException | InterruptedException e) {
+            throw new RuntimeException("Error running filterManifests", e);
+          }
         });
 
     validateRequiredDeletes(filtered);

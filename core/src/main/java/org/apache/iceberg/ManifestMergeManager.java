@@ -21,11 +21,13 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.security.PrivilegedExceptionAction;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -114,29 +116,46 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
     List<ManifestFile>[] binResults = (List<ManifestFile>[])
         Array.newInstance(List.class, bins.size());
 
+    final UserGroupInformation ugi;
+    try {
+      ugi = UserGroupInformation.getCurrentUser();
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to get current user from UserGroupInformation", e);
+    }
+
     Tasks.range(bins.size())
         .stopOnFailure().throwFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
         .run(index -> {
-          List<ManifestFile> bin = bins.get(index);
-          List<ManifestFile> outputManifests = Lists.newArrayList();
-          binResults[index] = outputManifests;
+          try {
+            ugi.doAs(new PrivilegedExceptionAction<Void>() {
+              @Override
+              public Void run() {
+                List<ManifestFile> bin = bins.get(index);
+                List<ManifestFile> outputManifests = Lists.newArrayList();
+                binResults[index] = outputManifests;
 
-          if (bin.size() == 1) {
-            // no need to rewrite
-            outputManifests.add(bin.get(0));
-            return;
-          }
+                if (bin.size() == 1) {
+                  // no need to rewrite
+                  outputManifests.add(bin.get(0));
+                  return null;
+                }
 
-          // if the bin has the first manifest (the new data files or an appended manifest file) then only merge it
-          // if the number of manifests is above the minimum count. this is applied only to bins with an in-memory
-          // manifest so that large manifests don't prevent merging older groups.
-          if (bin.contains(first) && bin.size() < minCountToMerge) {
-            // not enough to merge, add all manifest files to the output list
-            outputManifests.addAll(bin);
-          } else {
-            // merge the group
-            outputManifests.add(createManifest(specId, bin));
+                // if the bin has the first manifest (the new data files or an appended manifest file)
+                // then only merge it if the number of manifests is above the minimum count. this is applied only to
+                // bins with an in-memory manifest so that large manifests don't prevent merging older groups.
+                if (bin.contains(first) && bin.size() < minCountToMerge) {
+                  // not enough to merge, add all manifest files to the output list
+                  outputManifests.addAll(bin);
+                } else {
+                  // merge the group
+                  outputManifests.add(createManifest(specId, bin));
+                }
+                return null;
+              }
+            });
+          } catch (IOException | InterruptedException e) {
+            throw new RuntimeException("Error running mergeGroup", e);
           }
         });
 
