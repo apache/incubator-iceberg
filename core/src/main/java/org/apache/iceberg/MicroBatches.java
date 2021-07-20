@@ -21,11 +21,11 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -109,18 +109,18 @@ public class MicroBatches {
       return this;
     }
 
-    public MicroBatch generate(long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
+    public MicroBatch generate(long startFileIndex, long targetSizeInBytes, boolean isStarting) {
       Preconditions.checkArgument(startFileIndex >= 0, "startFileIndex is unexpectedly smaller than 0");
       Preconditions.checkArgument(targetSizeInBytes > 0, "targetSizeInBytes should be larger than 0");
 
-      List<ManifestFile> manifests = scanAllFiles ? snapshot.dataManifests() :
+      List<ManifestFile> manifests = isStarting ? snapshot.dataManifests() :
           snapshot.dataManifests().stream().filter(m -> m.snapshotId().equals(snapshot.snapshotId()))
               .collect(Collectors.toList());
 
       List<Pair<ManifestFile, Integer>> manifestIndexes = indexManifests(manifests);
       List<Pair<ManifestFile, Integer>> skippedManifestIndexes = skipManifests(manifestIndexes, startFileIndex);
 
-      return generateMicroBatch(skippedManifestIndexes, startFileIndex, targetSizeInBytes, scanAllFiles);
+      return generateMicroBatch(skippedManifestIndexes, startFileIndex, targetSizeInBytes, isStarting);
     }
 
     /**
@@ -177,9 +177,10 @@ public class MicroBatches {
      * @param startFileIndex A startFileIndex used to skip processed files.
      * @param targetSizeInBytes Used to control the size of MicroBatch, the processed file bytes must be smaller than
      *                         this size.
-     * @param scanAllFiles Used to check whether all the data files should be processed, or only added files.
+     * @param scanAllFiles Used to check whether all the data file should be processed, or only added files.
      * @return A MicroBatch.
      */
+    @SuppressWarnings("CyclomaticComplexity")
     private MicroBatch generateMicroBatch(List<Pair<ManifestFile, Integer>> indexedManifests,
                                           long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
       if (indexedManifests.isEmpty()) {
@@ -195,8 +196,9 @@ public class MicroBatches {
       for (int idx = 0; idx < indexedManifests.size(); idx++) {
         currentFileIndex = indexedManifests.get(idx).second();
 
-        try (CloseableIterable<FileScanTask> taskIterable = open(indexedManifests.get(idx).first(), scanAllFiles);
-            CloseableIterator<FileScanTask> taskIter = taskIterable.iterator()) {
+        try (CloseableIterable<FileScanTask> taskIterable = open(indexedManifests.get(idx).first(),
+            scanAllFiles)) {
+          Iterator<FileScanTask> taskIter = taskIterable.iterator();
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
             if (currentFileIndex >= startFileIndex) {
