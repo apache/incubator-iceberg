@@ -20,6 +20,7 @@
 package org.apache.iceberg.hive;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -34,6 +35,7 @@ import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
@@ -115,12 +117,15 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         "Missing database in namespace: %s", namespace);
     String database = namespace.level(0);
 
+    String filter = String.format("%s%s = \"%s\"",
+        hive_metastoreConstants.HIVE_FILTER_FIELD_PARAMS,
+        BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
+
     try {
-      List<String> tableNames = clients.run(client -> client.getAllTables(database));
+      List<String> tableNames = clients.run(client -> client.listTableNamesByFilter(database, filter, (short) -1));
       List<Table> tableObjects = clients.run(client -> client.getTableObjectsByName(database, tableNames));
       List<TableIdentifier> tableIdentifiers = tableObjects.stream()
-          .filter(table -> table.getParameters() != null && BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
-                  .equalsIgnoreCase(table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
           .map(table -> TableIdentifier.of(namespace, table.getTableName()))
           .collect(Collectors.toList());
 
