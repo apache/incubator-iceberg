@@ -38,6 +38,7 @@ import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.TableMigrationUtil;
@@ -78,6 +79,7 @@ import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.NamedExpression;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
+import org.apache.spark.sql.types.StructType;
 import scala.Function2;
 import scala.Option;
 import scala.Predef;
@@ -379,6 +381,9 @@ public class SparkTableUtil {
     }
 
     try {
+      CatalogTable sourceCatalogTable = catalog.getTableMetadata(sourceTableIdent);
+      Preconditions.checkArgument(validateSchema(sourceCatalogTable.schema(), targetTable.schema()),
+          "The schemas of source table and target table dont match");
       PartitionSpec spec = SparkSchemaUtil.specForTable(spark, sourceTableIdentWithDB.unquotedString());
 
       if (Objects.equal(spec, PartitionSpec.unpartitioned())) {
@@ -441,6 +446,11 @@ public class SparkTableUtil {
       throw SparkExceptionUtil.toUncheckedException(
           e, "Unknown table: %s. Table not found in catalog.", sourceTableIdent);
     }
+  }
+
+  static boolean validateSchema(StructType srcSchema, Schema tgtSchema) {
+    StructType convertSchem = SparkSchemaUtil.convert(tgtSchema);
+    return srcSchema.equals(convertSchem);
   }
 
   /**
