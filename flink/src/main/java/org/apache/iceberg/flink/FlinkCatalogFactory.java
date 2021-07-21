@@ -131,7 +131,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
     return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, cacheEnabled);
   }
 
-  private static Configuration mergeHiveConf(Configuration hadoopConf, String hiveConfDir) {
+  static Configuration mergeHiveConf(Configuration hadoopConf, String hiveConfDir) {
     Configuration newConf = new Configuration(hadoopConf);
     if (!Strings.isNullOrEmpty(hiveConfDir)) {
       Preconditions.checkState(Files.exists(Paths.get(hiveConfDir, "hive-site.xml")),

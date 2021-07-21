@@ -51,7 +51,9 @@ public interface CatalogLoader extends Serializable {
   }
 
   static CatalogLoader hive(String name, Configuration hadoopConf, Map<String, String> properties) {
-    return new HiveCatalogLoader(name, hadoopConf, properties);
+    String hiveConfDir = properties.get(FlinkCatalogFactory.HIVE_CONF_DIR);
+    Configuration newHadoopConf = FlinkCatalogFactory.mergeHiveConf(hadoopConf, hiveConfDir);
+    return new HiveCatalogLoader(name, newHadoopConf, properties);
   }
 
   static CatalogLoader custom(String name, Map<String, String> properties, Configuration hadoopConf, String impl) {
