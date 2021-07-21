@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.LockRequest;
 import org.apache.hadoop.hive.metastore.api.LockResponse;
 import org.apache.hadoop.hive.metastore.api.LockState;
@@ -85,7 +86,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
       return spyClientRef.get();
     });
 
-    spyClientPool.run(HiveMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
+    spyClientPool.run(IMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
 
     spyCachedClientPool = spy(new CachedClientPool(hiveConf, Collections.emptyMap()));
     when(spyCachedClientPool.clientPool()).thenAnswer(invocation -> spyClientPool);

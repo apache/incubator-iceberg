@@ -26,13 +26,14 @@ import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 
-public class CachedClientPool implements ClientPool<HiveMetaStoreClient, TException> {
+public class CachedClientPool implements ClientPool<IMetaStoreClient, TException> {
 
   private static Cache<String, HiveClientPool> clientPoolCache;
 
@@ -72,7 +73,7 @@ public class CachedClientPool implements ClientPool<HiveMetaStoreClient, TExcept
   }
 
   @Override
-  public <R> R run(Action<R, HiveMetaStoreClient, TException> action) throws TException, InterruptedException {
+  public <R> R run(Action<R, IMetaStoreClient, TException> action) throws TException, InterruptedException {
     return clientPool().run(action);
   }
 }

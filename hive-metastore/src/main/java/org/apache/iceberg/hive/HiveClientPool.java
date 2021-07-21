@@ -22,6 +22,8 @@ package org.apache.iceberg.hive;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.RetryingMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.iceberg.ClientPoolImpl;
 import org.apache.iceberg.common.DynConstructors;
@@ -29,14 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
 
-public class HiveClientPool extends ClientPoolImpl<HiveMetaStoreClient, TException> {
-
-  // use appropriate ctor depending on whether we're working with Hive2 or Hive3 dependencies
-  // we need to do this because there is a breaking API change between Hive2 and Hive3
-  private static final DynConstructors.Ctor<HiveMetaStoreClient> CLIENT_CTOR = DynConstructors.builder()
-          .impl(HiveMetaStoreClient.class, HiveConf.class)
-          .impl(HiveMetaStoreClient.class, Configuration.class)
-          .build();
+public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException> {
 
   private final HiveConf hiveConf;
 
@@ -47,10 +42,10 @@ public class HiveClientPool extends ClientPoolImpl<HiveMetaStoreClient, TExcepti
   }
 
   @Override
-  protected HiveMetaStoreClient newClient()  {
+  protected IMetaStoreClient newClient()  {
     try {
       try {
-        return CLIENT_CTOR.newInstance(hiveConf);
+        return RetryingMetaStoreClient.getProxy(hiveConf, null, HiveMetaStoreClient.class.getName());
       } catch (RuntimeException e) {
         // any MetaException would be wrapped into RuntimeException during reflection, so let's double-check type here
         if (e.getCause() instanceof MetaException) {
@@ -72,7 +67,7 @@ public class HiveClientPool extends ClientPoolImpl<HiveMetaStoreClient, TExcepti
   }
 
   @Override
-  protected HiveMetaStoreClient reconnect(HiveMetaStoreClient client) {
+  protected IMetaStoreClient reconnect(IMetaStoreClient client) {
     try {
       client.close();
       client.reconnect();
@@ -89,7 +84,7 @@ public class HiveClientPool extends ClientPoolImpl<HiveMetaStoreClient, TExcepti
   }
 
   @Override
-  protected void close(HiveMetaStoreClient client) {
+  protected void close(IMetaStoreClient client) {
     client.close();
   }
 
