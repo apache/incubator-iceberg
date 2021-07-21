@@ -454,6 +454,7 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    @SuppressWarnings("ConsistentOverrides")
     public void commit(TableMetadata underlyingBase, TableMetadata metadata) {
       if (underlyingBase != current) {
         // trigger a refresh and retry

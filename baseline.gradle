@@ -80,8 +80,6 @@ subprojects {
           '-Xep:StrictUnusedVariable:OFF',
           '-Xep:TypeParameterShadowing:OFF',
           '-Xep:TypeParameterUnusedInFormals:OFF',
-          '-Xep:ConsistentOverrides:OFF',
-          '-Xep:JavaTimeSystemDefaultTimeZone:OFF'
       )
     }
   }
