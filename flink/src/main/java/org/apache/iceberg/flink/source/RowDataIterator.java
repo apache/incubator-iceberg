@@ -47,15 +47,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
-class RowDataIterator extends DataIterator<RowData> {
+public class RowDataIterator extends DataIterator<RowData> {
 
   private final Schema tableSchema;
   private final Schema projectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
 
-  RowDataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption, Schema tableSchema,
-                  Schema projectedSchema, String nameMapping, boolean caseSensitive) {
+  public RowDataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption, Schema tableSchema,
+                         Schema projectedSchema, String nameMapping, boolean caseSensitive) {
     super(task, io, encryption);
     this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
@@ -72,7 +72,6 @@ class RowDataIterator extends DataIterator<RowData> {
 
     FlinkDeleteFilter deletes = new FlinkDeleteFilter(task, tableSchema, projectedSchema);
     CloseableIterable<RowData> iterable = deletes.filter(newIterable(task, deletes.requiredSchema(), idToConstant));
-
     return iterable.iterator();
   }
 

@@ -141,6 +141,7 @@ subprojects {
     def buildLog = new File(logFile)
     addTestOutputListener(new TestOutputListener() {
       def lastDescriptor
+
       @Override
       void onOutput(TestDescriptor testDescriptor, TestOutputEvent testOutputEvent) {
         if (lastDescriptor != testDescriptor) {
@@ -331,8 +332,17 @@ project(':iceberg-flink') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
+    // flink-dist doesn't include these two modules (FLINK-20098).
+    // Hence we should add them as compile deps.
+    // This doesn't affect iceberg-flink-runtime shadow jar,
+    // since it excludes all flink jars.
+    compile "org.apache.flink:flink-connector-base"
+    compile "org.apache.flink:flink-connector-files"
+
+    testCompile "org.apache.flink:flink-connector-test-utils"
     testCompile "org.apache.flink:flink-core"
     testCompile "org.apache.flink:flink-runtime_2.12"
+    testCompile "org.apache.flink:flink-streaming-java_2.12"
     testCompile "org.apache.flink:flink-table-planner-blink_2.12"
     testCompile ("org.apache.flink:flink-test-utils-junit") {
       exclude group: 'junit'
