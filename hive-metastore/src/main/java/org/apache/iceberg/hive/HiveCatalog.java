@@ -72,9 +72,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   /**
    * Hive Catalog constructor.
    *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.13.0
    * @param conf Hadoop Configuration
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * * v0.13.0
    */
   @Deprecated
   public HiveCatalog(Configuration conf) {

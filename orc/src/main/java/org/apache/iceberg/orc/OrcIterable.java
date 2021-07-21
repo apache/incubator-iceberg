@@ -148,7 +148,7 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
 
     @Override
     public boolean hasNext() {
-      return (current != null && nextRow < currentBatchSize) || batchIter.hasNext();
+      return current != null && nextRow < currentBatchSize || batchIter.hasNext();
     }
 
     @Override

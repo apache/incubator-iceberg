@@ -164,7 +164,7 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     TableMetadata updateMeta = base.removeSnapshotsIf(snapshot ->
         idsToRemove.contains(snapshot.snapshotId()) ||
-        (snapshot.timestampMillis() < expireOlderThan && !idsToRetain.contains(snapshot.snapshotId())));
+            snapshot.timestampMillis() < expireOlderThan && !idsToRetain.contains(snapshot.snapshotId()));
     List<Snapshot> updateSnapshots = updateMeta.snapshots();
     List<Snapshot> baseSnapshots = base.snapshots();
     return updateSnapshots.size() != baseSnapshots.size() ? updateMeta : base;

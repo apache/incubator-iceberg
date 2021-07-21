@@ -253,13 +253,13 @@ public class SparkTableUtil {
    *
    * For Parquet and ORC partitions, this will read metrics from the file footer. For Avro partitions,
    * metrics are set to null.
-   * @deprecated use {@link TableMigrationUtil#listPartition(Map, String, String, PartitionSpec, Configuration,
-   * MetricsConfig, NameMapping)}
    *
    * @param partition a partition
    * @param conf a serializable Hadoop conf
    * @param metricsConfig a metrics conf
    * @return a List of DataFile
+   * @deprecated use {@link TableMigrationUtil#listPartition(Map, String, String, PartitionSpec, Configuration,
+   *    MetricsConfig, NameMapping)}
    */
   @Deprecated
   public static List<DataFile> listPartition(SparkPartition partition, PartitionSpec spec,
@@ -272,14 +272,14 @@ public class SparkTableUtil {
    *
    * For Parquet and ORC partitions, this will read metrics from the file footer. For Avro partitions,
    * metrics are set to null.
-   * @deprecated use {@link TableMigrationUtil#listPartition(Map, String, String, PartitionSpec, Configuration,
-   * MetricsConfig, NameMapping)}
    *
    * @param partition a partition
    * @param conf a serializable Hadoop conf
    * @param metricsConfig a metrics conf
    * @param mapping a name mapping
    * @return a List of DataFile
+   * @deprecated use {@link TableMigrationUtil#listPartition(Map, String, String, PartitionSpec, Configuration,
+   *    MetricsConfig, NameMapping)}
    */
   @Deprecated
   public static List<DataFile> listPartition(SparkPartition partition, PartitionSpec spec,

@@ -429,7 +429,7 @@ public class StrictMetricsEvaluator {
     }
 
     private boolean canContainNulls(Integer id) {
-      return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) > 0);
+      return nullCounts == null || nullCounts.containsKey(id) && nullCounts.get(id) > 0;
     }
 
     private boolean canContainNaNs(Integer id) {

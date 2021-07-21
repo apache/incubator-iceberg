@@ -178,7 +178,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     boolean batchReadsEnabled = batchReadsEnabled(allParquetFileScanTasks, allOrcFileScanTasks);
 
     boolean readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
-        (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
+        allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives);
 
     return new ReaderFactory(readUsingBatch ? batchSize : 0);
   }

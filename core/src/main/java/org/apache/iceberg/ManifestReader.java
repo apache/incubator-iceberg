@@ -168,8 +168,8 @@ public class ManifestReader<F extends ContentFile<F>>
   }
 
   CloseableIterable<ManifestEntry<F>> entries() {
-    if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
-        (partFilter != null && partFilter != Expressions.alwaysTrue())) {
+    if (rowFilter != null && rowFilter != Expressions.alwaysTrue() ||
+        partFilter != null && partFilter != Expressions.alwaysTrue()) {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
 

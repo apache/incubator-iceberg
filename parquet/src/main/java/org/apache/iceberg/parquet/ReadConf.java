@@ -104,9 +104,8 @@ class ReadConf<T> {
     for (int i = 0; i < shouldSkip.length; i += 1) {
       BlockMetaData rowGroup = rowGroups.get(i);
       startRowPositions[i] = offsetToStartPos == null ? 0 : offsetToStartPos.get(rowGroup.getStartingPos());
-      boolean shouldRead = filter == null || (
-          statsFilter.shouldRead(typeWithIds, rowGroup) &&
-              dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
+      boolean shouldRead = filter == null || statsFilter.shouldRead(typeWithIds, rowGroup) &&
+          dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup));
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
         computedTotalValues += rowGroup.getRowCount();

@@ -224,7 +224,7 @@ class SchemaUpdate implements UpdateSchema {
     Types.NestedField field = schema.findField(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
 
-    if ((!isOptional && field.isRequired()) || (isOptional && field.isOptional())) {
+    if (!isOptional && field.isRequired() || isOptional && field.isOptional()) {
       // if the change is a noop, allow it even if allowIncompatibleChanges is false
       return;
     }
