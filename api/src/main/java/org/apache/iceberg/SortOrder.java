@@ -286,7 +286,7 @@ public class SortOrder implements Serializable {
     }
   }
 
-  static void checkCompatibility(SortOrder sortOrder, Schema schema) {
+  public static void checkCompatibility(SortOrder sortOrder, Schema schema) {
     for (SortField field : sortOrder.fields) {
       Type sourceType = schema.findType(field.sourceId());
       ValidationException.check(

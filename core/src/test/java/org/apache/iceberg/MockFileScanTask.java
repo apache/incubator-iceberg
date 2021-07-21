@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import org.mockito.Mockito;
+
 public class MockFileScanTask extends BaseFileScanTask {
 
   private final long length;
@@ -26,6 +28,18 @@ public class MockFileScanTask extends BaseFileScanTask {
   public MockFileScanTask(long length) {
     super(null, null, null, null, null);
     this.length = length;
+  }
+
+  public MockFileScanTask(DataFile file) {
+    super(file, null, null, null, null);
+    this.length = file.fileSizeInBytes();
+  }
+
+  public static MockFileScanTask mockTask(long length, int sortOrderId) {
+    DataFile mockFile = Mockito.mock(DataFile.class);
+    Mockito.when(mockFile.fileSizeInBytes()).thenReturn(length);
+    Mockito.when(mockFile.sortOrderId()).thenReturn(sortOrderId);
+    return new MockFileScanTask(mockFile);
   }
 
   @Override

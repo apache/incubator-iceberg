@@ -986,7 +986,14 @@ if (jdkVersion == '8') {
 }
 
 project(':iceberg-spark3') {
+  apply plugin: 'scala'
+
   sourceSets {
+    main {
+      scala.srcDirs = ['src/main/scala', 'src/main/java']
+      java.srcDirs = []
+    }
+
     // Compile test source against Spark 3.1 and main classes compiled against Spark 3.0
     spark31 {
       java.srcDir "$projectDir/src/test/java"
