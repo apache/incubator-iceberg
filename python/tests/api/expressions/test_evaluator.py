@@ -29,6 +29,10 @@ STRUCT = StructType.of([NestedField.required(13, "x", IntegerType.get()),
                        NestedField.required(14, "y", IntegerType.get()),
                        NestedField.optional(15, "z", IntegerType.get())])
 
+STRINGS_STRUCT = StructType.of([NestedField.required(13, "x", StringType.get()),
+                                NestedField.required(14, "y", StringType.get()),
+                                NestedField.optional(15, "z", StringType.get())])
+
 
 def test_less_than(row_of):
     evaluator = exp.evaluator.Evaluator(STRUCT,
@@ -72,6 +76,22 @@ def test_not_equal(row_of):
                                         exp.expressions.Expressions.not_equal("x", 7))
     assert not evaluator.eval(row_of((7, 8, None)))
     assert evaluator.eval(row_of((6, 8, None)))
+
+
+def test_starts_with(row_of):
+    evaluator = exp.evaluator.Evaluator(STRINGS_STRUCT,
+                                        exp.expressions.Expressions.starts_with("x", "cheeseburger"))
+    assert not evaluator.eval(row_of(("frenchfries", "cheese", None)))
+    assert not evaluator.eval(row_of(("you should buy your friends cheeseburgers", "buttons", None)))
+    assert evaluator.eval(row_of(("cheeseburgers are delicious with frenchfries.", "buttons", None)))
+
+
+def test_startswith(row_of):
+    evaluator = exp.evaluator.Evaluator(STRINGS_STRUCT,
+                                        exp.expressions.Expressions.startswith("x", "cheeseburger"))
+    assert not evaluator.eval(row_of(("frenchfries", "cheese", None)))
+    assert not evaluator.eval(row_of(("you should buy your friends cheeseburgers", "buttons", None)))
+    assert evaluator.eval(row_of(("cheeseburgers are delicious with frenchfries.", "buttons", None)))
 
 
 def test_always_true(row_of):

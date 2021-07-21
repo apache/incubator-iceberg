@@ -106,6 +106,16 @@ class Expressions(object):
     def not_equal(name, value):
         return UnboundPredicate(Operation.NOT_EQ, Expressions.ref(name), value)
 
+    # startswith matches the Python API folks are used to using on strings.
+    @staticmethod
+    def startswith(name, value):
+        return UnboundPredicate(Operation.STARTS_WITH, Expressions.ref(name), value)
+
+    # starts_with matches the camelCase to snake_case conversion used elsewhere.
+    @staticmethod
+    def starts_with(name, value):
+        return UnboundPredicate(Operation.STARTS_WITH, Expressions.ref(name), value)
+
     @staticmethod
     def predicate(op, name, value=None, lit=None):
         if value is not None and op not in (Operation.IS_NULL, Operation.NOT_NULL):
@@ -147,7 +157,8 @@ class Expressions(object):
                     "missing": (Expressions.is_null,),
                     "neq": (Expressions.not_equal,),
                     "not": (Expressions.not_,),
-                    "or": (Expressions.or_,)}
+                    "or": (Expressions.or_,),
+                    "startsWith": (Expressions.starts_with,)}
 
         return parse_expr_string(predicate_string, expr_map)
 
@@ -229,6 +240,9 @@ class ExpressionVisitors(object):
         def not_eq(self, ref, lit):
             return None
 
+        def starts_with(self, ref, lit):
+            return None
+
         def in_(self, ref, lit):
             return None
 
@@ -262,6 +276,8 @@ class ExpressionVisitors(object):
                 return self.in_(pred.ref, pred.lit)
             elif pred.op == Operation.NOT_IN:
                 return self.not_in(pred.ref, pred.lit)
+            elif pred.op == Operation.STARTS_WITH:
+                return self.starts_with(pred.ref, pred.lit)
             else:
                 raise RuntimeError("Unknown operation for Predicate: {}".format(pred.op))
 

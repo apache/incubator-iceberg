@@ -95,6 +95,12 @@ def test_not_equal():
     assert expected_expr == conv_expr
 
 
+def test_starts_with():
+    expected_expr = Expressions.starts_with("col_a", "cheeseburgers")
+    conv_expr = Expressions.convert_string_to_expr("col_a startsWith cheeseburgers")
+    assert expected_expr == conv_expr
+
+
 def test_not_equal_alt_syntax():
     expected_expr = Expressions.not_equal("col_a", 7)
     conv_expr = Expressions.convert_string_to_expr("col_a != 7")

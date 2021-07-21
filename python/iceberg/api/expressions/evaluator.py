@@ -85,6 +85,9 @@ class Evaluator(object):
         def not_eq(self, ref, lit):
             return ref.get(self.struct) != lit.value
 
+        def starts_with(self, ref, lit):
+            return ref.get(self.struct).startswith(lit.value)
+
         def in_(self, ref, lit):
             raise NotImplementedError()
 

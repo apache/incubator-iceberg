@@ -74,6 +74,9 @@ class ResidualVisitor(ExpressionVisitors.BoundExpressionVisitor):
     def not_eq(self, ref, lit):
         return self.always_true() if ref.get(self.struct) != lit.value else self.always_false()
 
+    def starts_with(self, ref, lit):
+        return self.always_true() if ref.get(self.struct).startsWith(lit.value) else self.always_false()
+
     def not_(self, result):
         return Expressions.not_(result)
 
