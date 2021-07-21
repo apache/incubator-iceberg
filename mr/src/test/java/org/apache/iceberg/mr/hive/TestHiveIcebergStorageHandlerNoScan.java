@@ -274,6 +274,26 @@ public class TestHiveIcebergStorageHandlerNoScan {
   }
 
   @Test
+  public void testCreateTableWithComplexPartitionSpecText() {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    // We need the location for HadoopTable based tests only
+    shell.executeStatement("CREATE EXTERNAL TABLE customers " +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        testTables.locationForCreateTableSQL(identifier) +
+        "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
+        SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "', " +
+        "'" + InputFormatConfig.PARTITIONING + "'='bucket(16, first_name)|last_name', " +
+        "'" + InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "')");
+
+    // Check the Iceberg table partition data
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
+    Assert.assertEquals(PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+        .bucket("first_name", 16)
+        .identity("last_name")
+        .build(), icebergTable.spec());
+  }
+
+  @Test
   public void testDeleteBackingTable() throws TException, IOException, InterruptedException {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 

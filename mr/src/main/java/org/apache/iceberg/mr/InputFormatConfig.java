@@ -96,6 +96,20 @@ public class InputFormatConfig {
 
   public static final String CATALOG_CONFIG_PREFIX = "iceberg.catalog.";
 
+  /**
+   * Property used to input Iceberg partitioning strategy through table property.
+   * The partition text is a list of partition transforms delimited by pipe
+   * <p>
+   * For example:
+   * <pre>
+   *   CREATE TABLE table (id bigint, category string)
+   *   TBLPROPERTIES ('iceberg.partitioning'='bucket(16,id)|category')
+   * </pre>
+   * <p>
+   * To reference column names with special characters, use backquote to escape, such as bucket(16,`co,l`)
+   */
+  public static final String PARTITIONING = "iceberg.partitioning";
+
   public enum InMemoryDataModel {
     PIG,
     HIVE,

@@ -22,6 +22,7 @@ package org.apache.iceberg.mr.hive;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -51,7 +52,7 @@ import org.slf4j.LoggerFactory;
 public class HiveIcebergMetaHook implements HiveMetaHook {
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergMetaHook.class);
   private static final Set<String> PARAMETERS_TO_REMOVE = ImmutableSet
-      .of(InputFormatConfig.TABLE_SCHEMA, Catalogs.LOCATION, Catalogs.NAME);
+      .of(InputFormatConfig.TABLE_SCHEMA, Catalogs.LOCATION, Catalogs.NAME, InputFormatConfig.PARTITIONING);
   private static final Set<String> PROPERTIES_TO_REMOVE = ImmutableSet
       // We don't want to push down the metadata location props to Iceberg from HMS,
       // since the snapshot pointer in HMS would always be one step ahead
@@ -249,13 +250,28 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
 
   private static PartitionSpec spec(Schema schema, Properties properties,
       org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+    String partitionSpecJson = hmsTable.getParameters().get(InputFormatConfig.PARTITION_SPEC);
+    String partitionSpecText = hmsTable.getParameters().get(InputFormatConfig.PARTITIONING);
+    boolean hasHsmTablePartitionKeys = hmsTable.isSetPartitionKeys() && !hmsTable.getPartitionKeys().isEmpty();
 
-    if (hmsTable.getParameters().get(InputFormatConfig.PARTITION_SPEC) != null) {
-      Preconditions.checkArgument(!hmsTable.isSetPartitionKeys() || hmsTable.getPartitionKeys().isEmpty(),
-          "Provide only one of the following: Hive partition specification, or the " +
-              InputFormatConfig.PARTITION_SPEC + " property");
-      return PartitionSpecParser.fromJson(schema, hmsTable.getParameters().get(InputFormatConfig.PARTITION_SPEC));
-    } else if (hmsTable.isSetPartitionKeys() && !hmsTable.getPartitionKeys().isEmpty()) {
+    if (Stream.of(hasHsmTablePartitionKeys, partitionSpecJson != null, partitionSpecText != null)
+        .filter(x -> x).count() > 1) {
+      throw new IllegalArgumentException("Provide only one of the following: Hive partition specification, " +
+          InputFormatConfig.PARTITION_SPEC + " property, or the "  +
+          InputFormatConfig.PARTITIONING + " property");
+    }
+
+    if (partitionSpecText != null) {
+      LOG.warn("{} usage detected! This is a temporary workaround for users to upgrade to Hive 4 " +
+          "and use the PARTITIONED BY SPEC syntax. It is not advised to take long-term dependency on it.",
+          InputFormatConfig.PARTITIONING);
+    }
+
+    if (partitionSpecJson != null) {
+      return PartitionSpecParser.fromJson(schema, partitionSpecJson);
+    } else if (partitionSpecText != null) {
+      return HiveIcebergConfigTextParser.fromPartitioningText(schema, partitionSpecText);
+    } else if (hasHsmTablePartitionKeys) {
       // If the table is partitioned then generate the identity partition definitions for the Iceberg table
       return HiveSchemaUtil.spec(schema, hmsTable.getPartitionKeys());
     } else {
