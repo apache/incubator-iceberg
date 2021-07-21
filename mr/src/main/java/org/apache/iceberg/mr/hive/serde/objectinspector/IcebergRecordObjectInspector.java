@@ -72,7 +72,7 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
 
   @Override
   public Object getStructFieldData(Object o, StructField structField) {
-    return ((Record) o).get(((IcebergRecordStructField) structField).position());
+    return ((Record) o).getField(((IcebergRecordStructField) structField).getFieldName());
   }
 
   @Override
