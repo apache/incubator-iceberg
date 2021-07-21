@@ -31,9 +31,12 @@ import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class CachedClientPool implements ClientPool<HiveMetaStoreClient, TException> {
 
+  private static final Logger LOG = LoggerFactory.getLogger(CachedClientPool.class);
   private static Cache<String, HiveClientPool> clientPoolCache;
 
   private final Configuration conf;
@@ -64,6 +67,16 @@ public class CachedClientPool implements ClientPool<HiveMetaStoreClient, TExcept
               .removalListener((key, value, cause) -> ((HiveClientPool) value).close())
               .build();
     }
+    Runtime.getRuntime().addShutdownHook(new Thread() {
+      @Override
+      public void run() {
+        LOG.trace("Before being closed, the size of connections from current metastore uri {} in clientPoolCache is {}",
+            metastoreUri,  clientPool().getCurrentSize());
+        clientPool().close();
+        LOG.trace("After being closed, the size of connections from current metastore uri {} in clientPoolCache is {}",
+            metastoreUri,  clientPool().getCurrentSize());
+      }
+    });
   }
 
   @VisibleForTesting

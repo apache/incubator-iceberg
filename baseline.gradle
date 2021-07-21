@@ -79,6 +79,7 @@ subprojects {
           '-Xep:StrictUnusedVariable:OFF',
           '-Xep:TypeParameterShadowing:OFF',
           '-Xep:TypeParameterUnusedInFormals:OFF',
+          '-Xep:ShutdownHook:OFF',
       )
     }
   }

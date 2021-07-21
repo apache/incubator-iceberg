@@ -140,4 +140,8 @@ public abstract class ClientPoolImpl<C, E extends Exception> implements Closeabl
   public int poolSize() {
     return poolSize;
   }
+
+  public int getCurrentSize() {
+    return currentSize;
+  }
 }
