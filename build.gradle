@@ -24,7 +24,7 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
+    classpath 'com.github.jengelman.gradle.plugins:shadow:5.2.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:3.36.2'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:5.14.0'
@@ -1225,6 +1225,8 @@ project(':iceberg-spark3-runtime') {
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
     inputs.file(shadowJar.archiveFile.get().asFile.path)
+            .withPropertyName("shadowedJarArchive")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
   }
   integrationTest.dependsOn shadowJar
 
