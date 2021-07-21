@@ -406,6 +406,7 @@ project(':iceberg-flink-runtime') {
     compile(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
+    compile(project(':iceberg-dell'))
   }
 
   shadowJar {
@@ -945,6 +946,7 @@ if (jdkVersion == '8') {
       compile(project(':iceberg-nessie')) {
         exclude group: 'com.google.code.findbugs', module: 'jsr305'
       }
+      compile(project(':iceberg-dell'))
     }
 
     shadowJar {
@@ -1169,6 +1171,7 @@ project(':iceberg-spark3-runtime') {
     compile(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
+    compile(project(':iceberg-dell'))
 
     integrationImplementation "org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}"
     integrationImplementation 'org.junit.vintage:junit-vintage-engine'
@@ -1282,6 +1285,14 @@ project(':iceberg-nessie') {
     compileOnly "org.apache.hadoop:hadoop-common"
 
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+  }
+}
+
+project(':iceberg-dell') {
+
+  dependencies {
+    compile project(':iceberg-core')
+    compileOnly 'com.amazonaws:aws-java-sdk-s3'
   }
 }
 
