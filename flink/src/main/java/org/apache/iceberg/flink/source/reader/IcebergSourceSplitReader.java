@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
 class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, IcebergSourceSplit> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSourceSplitReader.class);
 
-  private final ReaderFactory<T> readerFactory;
+  private final ReaderFunction<T> readerFunction;
   private final Queue<IcebergSourceSplit> splits;
 
   @Nullable
@@ -44,8 +44,8 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
   @Nullable
   private String currentSplitId;
 
-  IcebergSourceSplitReader(ReaderFactory<T> readerFactory) {
-    this.readerFactory = readerFactory;
+  IcebergSourceSplitReader(ReaderFunction<T> readerFunction) {
+    this.readerFunction = readerFunction;
     this.splits = new ArrayDeque<>();
   }
 
@@ -92,7 +92,7 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
       throw new IOException("No split remaining");
     }
     currentSplitId = nextSplit.splitId();
-    currentReader = readerFactory.apply(nextSplit);
+    currentReader = readerFunction.apply(nextSplit);
   }
 
   private FileRecords<T> finishSplit() throws IOException {

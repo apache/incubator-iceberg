@@ -53,7 +53,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public abstract class ReaderFactoryTestBase<T> {
+public abstract class ReaderFunctionTestBase<T> {
 
   @Parameterized.Parameters(name = "fileFormat={0}")
   public static Object[][] parameters() {
@@ -75,13 +75,13 @@ public abstract class ReaderFactoryTestBase<T> {
   public final HadoopTableResource tableResource = new HadoopTableResource(TEMPORARY_FOLDER,
       TestFixtures.DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
 
-  protected abstract ReaderFactory<T> getReaderFactory();
+  protected abstract ReaderFunction<T> readerFunction();
 
   protected abstract void assertRecords(List<Record> expected, List<T> actual, Schema schema);
 
   private final FileFormat fileFormat;
 
-  public ReaderFactoryTestBase(FileFormat fileFormat) {
+  public ReaderFunctionTestBase(FileFormat fileFormat) {
     this.fileFormat = fileFormat;
   }
 
@@ -156,7 +156,7 @@ public abstract class ReaderFactoryTestBase<T> {
   @Test
   public void testNoCheckpointedPosition() throws IOException {
     final IcebergSourceSplit split = icebergSplit;
-    final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = getReaderFactory().apply(split);
+    final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch0 = reader.next();
     final List<T> actual0 = extractRecordsAndAssertPosition(batch0, recordBatchList.get(0).size(), 0L, 0L);
@@ -179,7 +179,7 @@ public abstract class ReaderFactoryTestBase<T> {
     final IcebergSourceSplit split = new IcebergSourceSplit(
         icebergSplit.task(),
         new Position(0L, 0L));
-    final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = getReaderFactory().apply(split);
+    final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch0 = reader.next();
     final List<T> actual0 = extractRecordsAndAssertPosition(batch0, recordBatchList.get(0).size(), 0L, 0L);
@@ -202,7 +202,7 @@ public abstract class ReaderFactoryTestBase<T> {
     final IcebergSourceSplit split = new IcebergSourceSplit(
         icebergSplit.task(),
         new Position(0L, 1L));
-    final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = getReaderFactory().apply(split);
+    final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch0 = reader.next();
     final List<T> actual0 = extractRecordsAndAssertPosition(batch0, 1L, 0L, 1L);
@@ -225,7 +225,7 @@ public abstract class ReaderFactoryTestBase<T> {
     final IcebergSourceSplit split = new IcebergSourceSplit(
         icebergSplit.task(),
         new Position(0L, 2L));
-    final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = getReaderFactory().apply(split);
+    final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch0 = reader.next();
     final List<T> actual1 = extractRecordsAndAssertPosition(batch0, recordBatchList.get(1).size(), 1L, 0L);
@@ -243,7 +243,7 @@ public abstract class ReaderFactoryTestBase<T> {
     final IcebergSourceSplit split = new IcebergSourceSplit(
         icebergSplit.task(),
         new Position(1L, 0L));
-    final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = getReaderFactory().apply(split);
+    final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch1 = reader.next();
     final List<T> actual1 = extractRecordsAndAssertPosition(batch1, recordBatchList.get(1).size(), 1L, 0L);
@@ -261,7 +261,7 @@ public abstract class ReaderFactoryTestBase<T> {
     final IcebergSourceSplit split = new IcebergSourceSplit(
         icebergSplit.task(),
         new Position(1L, 1L));
-    final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = getReaderFactory().apply(split);
+    final CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
 
     final RecordsWithSplitIds<RecordAndPosition<T>> batch1 = reader.next();
     final List<T> actual1 = extractRecordsAndAssertPosition(batch1, 1L, 1L, 1L);
