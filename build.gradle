@@ -262,6 +262,35 @@ project(':iceberg-data') {
   }
 }
 
+project(':iceberg-aliyun') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-core')
+
+    compileOnly 'com.aliyun.oss:aliyun-sdk-oss'
+
+    compileOnly("org.apache.hadoop:hadoop-common") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'javax.servlet', module: 'servlet-api'
+      exclude group: 'com.google.code.gson', module: 'gson'
+    }
+
+    testCompile 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.9.9'
+    testCompile 'org.springframework:spring-web'
+    testCompile('org.springframework.boot:spring-boot-starter-jetty') {
+      exclude module: 'logback-classic'
+      exclude group: 'org.eclipse.jetty.websocket', module: 'javax-websocket-server-impl'
+      exclude group: 'org.eclipse.jetty.websocket', module: 'websocket-server'
+    }
+    testCompile('org.springframework.boot:spring-boot-starter-web') {
+      exclude module: 'logback-classic'
+      exclude module: 'spring-boot-starter-logging'
+    }
+    testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+  }
+}
+
 project(':iceberg-aws') {
   dependencies {
     compile project(':iceberg-api')
@@ -403,6 +432,7 @@ project(':iceberg-flink-runtime') {
   dependencies {
     compile project(':iceberg-flink')
     compile project(':iceberg-aws')
+    compile project(':iceberg-aliyun')
     compile(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
@@ -942,6 +972,8 @@ if (jdkVersion == '8') {
     dependencies {
       compile project(':iceberg-spark2')
       compile project(':iceberg-aws')
+      compile project(':iceberg-aliyun')
+      compile 'org.apache.spark:spark-hive_2.11'
       compile(project(':iceberg-nessie')) {
         exclude group: 'com.google.code.findbugs', module: 'jsr305'
       }
@@ -1166,6 +1198,8 @@ project(':iceberg-spark3-runtime') {
     compile project(':iceberg-spark3')
     compile project(':iceberg-spark3-extensions')
     compile project(':iceberg-aws')
+    compile project(':iceberg-aliyun')
+    compile 'org.apache.spark:spark-hive_2.11'
     compile(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
