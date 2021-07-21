@@ -40,4 +40,10 @@ public class FlinkConfigOptions {
           .intType()
           .defaultValue(100)
           .withDescription("Sets max infer parallelism for source operator.");
+
+  public static final ConfigOption<Integer> SOURCE_READER_FETCH_BATCH_SIZE = ConfigOptions
+      .key("source.iceberg.reader.fetch-batch-size")
+      .intType()
+      .defaultValue(2048)
+      .withDescription("The target batch size for split reader fetch.");
 }

@@ -34,7 +34,7 @@ import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 /**
  * Context object with optional arguments for a Flink Scan.
  */
-class ScanContext implements Serializable {
+public class ScanContext implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
@@ -105,63 +105,63 @@ class ScanContext implements Serializable {
     this.limit = limit;
   }
 
-  boolean caseSensitive() {
+  public boolean caseSensitive() {
     return caseSensitive;
   }
 
-  Long snapshotId() {
+  public Long snapshotId() {
     return snapshotId;
   }
 
-  Long startSnapshotId() {
+  public Long startSnapshotId() {
     return startSnapshotId;
   }
 
-  Long endSnapshotId() {
+  public Long endSnapshotId() {
     return endSnapshotId;
   }
 
-  Long asOfTimestamp() {
+  public Long asOfTimestamp() {
     return asOfTimestamp;
   }
 
-  Long splitSize() {
+  public Long splitSize() {
     return splitSize;
   }
 
-  Integer splitLookback() {
+  public Integer splitLookback() {
     return splitLookback;
   }
 
-  Long splitOpenFileCost() {
+  public Long splitOpenFileCost() {
     return splitOpenFileCost;
   }
 
-  boolean isStreaming() {
+  public boolean isStreaming() {
     return isStreaming;
   }
 
-  Duration monitorInterval() {
+  public Duration monitorInterval() {
     return monitorInterval;
   }
 
-  String nameMapping() {
+  public String nameMapping() {
     return nameMapping;
   }
 
-  Schema project() {
+  public Schema project() {
     return schema;
   }
 
-  List<Expression> filters() {
+  public List<Expression> filters() {
     return filters;
   }
 
-  long limit() {
+  public long limit() {
     return limit;
   }
 
-  ScanContext copyWithAppendsBetween(long newStartSnapshotId, long newEndSnapshotId) {
+  public ScanContext copyWithAppendsBetween(long newStartSnapshotId, long newEndSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
         .useSnapshotId(null)
@@ -180,7 +180,7 @@ class ScanContext implements Serializable {
         .build();
   }
 
-  ScanContext copyWithSnapshotId(long newSnapshotId) {
+  public ScanContext copyWithSnapshotId(long newSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
         .useSnapshotId(newSnapshotId)
@@ -199,11 +199,11 @@ class ScanContext implements Serializable {
         .build();
   }
 
-  static Builder builder() {
+  public static Builder builder() {
     return new Builder();
   }
 
-  static class Builder {
+  public static class Builder {
     private boolean caseSensitive = CASE_SENSITIVE.defaultValue();
     private Long snapshotId = SNAPSHOT_ID.defaultValue();
     private Long startSnapshotId = START_SNAPSHOT_ID.defaultValue();
@@ -222,77 +222,77 @@ class ScanContext implements Serializable {
     private Builder() {
     }
 
-    Builder caseSensitive(boolean newCaseSensitive) {
+    public Builder caseSensitive(boolean newCaseSensitive) {
       this.caseSensitive = newCaseSensitive;
       return this;
     }
 
-    Builder useSnapshotId(Long newSnapshotId) {
+    public Builder useSnapshotId(Long newSnapshotId) {
       this.snapshotId = newSnapshotId;
       return this;
     }
 
-    Builder startSnapshotId(Long newStartSnapshotId) {
+    public Builder startSnapshotId(Long newStartSnapshotId) {
       this.startSnapshotId = newStartSnapshotId;
       return this;
     }
 
-    Builder endSnapshotId(Long newEndSnapshotId) {
+    public Builder endSnapshotId(Long newEndSnapshotId) {
       this.endSnapshotId = newEndSnapshotId;
       return this;
     }
 
-    Builder asOfTimestamp(Long newAsOfTimestamp) {
+    public Builder asOfTimestamp(Long newAsOfTimestamp) {
       this.asOfTimestamp = newAsOfTimestamp;
       return this;
     }
 
-    Builder splitSize(Long newSplitSize) {
+    public Builder splitSize(Long newSplitSize) {
       this.splitSize = newSplitSize;
       return this;
     }
 
-    Builder splitLookback(Integer newSplitLookback) {
+    public Builder splitLookback(Integer newSplitLookback) {
       this.splitLookback = newSplitLookback;
       return this;
     }
 
-    Builder splitOpenFileCost(Long newSplitOpenFileCost) {
+    public Builder splitOpenFileCost(Long newSplitOpenFileCost) {
       this.splitOpenFileCost = newSplitOpenFileCost;
       return this;
     }
 
-    Builder streaming(boolean streaming) {
+    public Builder streaming(boolean streaming) {
       this.isStreaming = streaming;
       return this;
     }
 
-    Builder monitorInterval(Duration newMonitorInterval) {
+    public Builder monitorInterval(Duration newMonitorInterval) {
       this.monitorInterval = newMonitorInterval;
       return this;
     }
 
-    Builder nameMapping(String newNameMapping) {
+    public Builder nameMapping(String newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
     }
 
-    Builder project(Schema newProjectedSchema) {
+    public Builder project(Schema newProjectedSchema) {
       this.projectedSchema = newProjectedSchema;
       return this;
     }
 
-    Builder filters(List<Expression> newFilters) {
+    public Builder filters(List<Expression> newFilters) {
       this.filters = newFilters;
       return this;
     }
 
-    Builder limit(long newLimit) {
+    public Builder limit(long newLimit) {
       this.limit = newLimit;
       return this;
     }
 
-    Builder fromProperties(Map<String, String> properties) {
+    public Builder fromProperties(Map<String, String> properties) {
       Configuration config = new Configuration();
       properties.forEach(config::setString);
 

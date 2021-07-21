@@ -189,7 +189,7 @@ public abstract class TestFlinkScan {
   private void validateIdentityPartitionProjections(
       Table table, List<String> projectedFields, List<Record> inputRecords) throws Exception {
     List<Row> rows = runWithProjection(projectedFields.toArray(new String[0]));
-
+    Assert.assertEquals(inputRecords.size(), rows.size());
     for (int pos = 0; pos < inputRecords.size(); pos++) {
       Record inputRecord = inputRecords.get(pos);
       Row actualRecord = rows.get(pos);
@@ -268,7 +268,7 @@ public abstract class TestFlinkScan {
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
     DataFile dataFile1 = helper.writeFile(org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
     DataFile dataFile2 = helper.writeFile(org.apache.iceberg.TestHelpers.Row.of("2020-03-21", 0),
-        RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L));
+            RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
     TestHelpers.assertRecords(runWithFilter(
         Expressions.equal("dt", "2020-03-20"), "where dt='2020-03-20'"),
