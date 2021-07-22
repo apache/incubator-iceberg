@@ -642,18 +642,24 @@ if (jdkVersion == '8') {
 
       // We really only need Iceberg and Orc classes, but with relocated references for storage-api classes (see above)
       // Unfortunately the include list feature of this shader plugin doesn't work as expected
-      exclude 'com/**/*'
-      exclude 'edu/**/*'
-      exclude 'io/**'
-      exclude 'javax/**'
-      exclude 'org/apache/avro/**/*'
-      exclude 'org/apache/commons/**/*'
-      exclude 'org/checkerframework/**/*'
-      exclude 'org/codehaus/**/*'
-      exclude 'org/intellij/**/*'
-      exclude 'org/jetbrains/**/*'
-      exclude 'org/slf4j/**/*'
-      exclude 'org/threeten/**/*'
+      dependencies {
+        exclude 'com/**/*'
+        exclude 'edu/**/*'
+        exclude 'io/**'
+        exclude 'javax/**'
+        exclude 'org/apache/avro/**/*'
+        exclude 'org/apache/commons/**/*'
+        exclude 'org/checkerframework/**/*'
+        exclude 'org/codehaus/**/*'
+        exclude 'org/intellij/**/*'
+        exclude 'org/jetbrains/**/*'
+        exclude 'org/slf4j/**/*'
+        exclude 'org/threeten/**/*'
+        exclude 'org/xerial/**/*'
+        exclude 'org/apache/parquet/**/*'
+        exclude 'org/apache/yetus/**/*'
+        exclude 'shaded/parquet/**/*'
+      }
 
       classifier null
     }
@@ -1326,6 +1332,15 @@ project(':iceberg-spark3-runtime') {
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
     // relocate Antlr runtime and related deps to shade Iceberg specific version
     relocate 'org.antlr.v4.runtime', 'org.apache.iceberg.shaded.org.antlr.v4.runtime'
+
+    dependencies {
+      exclude 'org/antlr/runtime/**/*'
+      exclude 'org/abego/treelayout/**/*'
+      exclude 'com/ibm/icu/**/*'
+      exclude 'javax/json/**/*'
+      exclude 'org/glassfish/**/*'
+      exclude 'org/stringtemplate/**/*'
+    }
 
     classifier null
   }
