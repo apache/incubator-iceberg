@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Base {@link Table} implementation.
@@ -72,6 +73,57 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   @Override
   public Map<Integer, Schema> schemas() {
     return ops.current().schemasById();
+  }
+
+  /**
+   * Return the {@link Schema schema} for this table at the time of the snapshot
+   * specified by the snapshotId.
+   *
+   * @return the schema
+   */
+  public Schema schemaForSnapshot(long snapshotId) {
+    TableMetadata current = ops.current();
+    // First, check if the snapshot has a schema id associated with it
+    Snapshot snapshot = current.snapshot(snapshotId);
+    Preconditions.checkArgument(snapshot != null, "Cannot find snapshot %s", snapshotId);
+    Integer schemaId = snapshot.schemaId();
+    if (schemaId != null) {
+      return current.schemasById().get(schemaId);
+    }
+    // Otherwise, read each of the previous metadata files until we find one whose current
+    // snapshot id is the snapshot id
+    Schema schemaForSnapshot = null;
+    for (TableMetadata.MetadataLogEntry logEntry : current.previousFiles()) {
+      String metadataFile = logEntry.file();
+      TableMetadata metadata = TableMetadataParser.read(io(), metadataFile);
+      if (metadata.currentSnapshot() != null &&
+          metadata.currentSnapshot().snapshotId() == snapshotId) {
+        schemaForSnapshot = metadata.schema();
+        break;
+      }
+    }
+    Preconditions.checkArgument(schemaForSnapshot != null,
+        "Cannot find a metadata file corresponding to the snapshot %s", snapshotId);
+    return schemaForSnapshot;
+  }
+
+  /**
+   * Return the {@link Schema schema} for this table at the time of the most recent
+   * snapshot as of the specified timestampMillis.
+   * Note: This is not necessarily the schema at the time of the specified timestampMillis.
+   *
+   * @return the schema
+   */
+  public Schema schemaForSnapshotAsOfTime(long timestampMillis) {
+    Long snapshotId = null;
+    for (HistoryEntry logEntry : ops.current().snapshotLog()) {
+      if (logEntry.timestampMillis() <= timestampMillis) {
+        snapshotId = logEntry.snapshotId();
+      }
+    }
+    Preconditions.checkArgument(snapshotId != null,
+        "Cannot find a snapshot older than %s", timestampMillis);
+    return schemaForSnapshot(snapshotId);
   }
 
   @Override

@@ -28,6 +28,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -157,7 +158,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       this.localityPreferred = false;
     }
 
-    this.schema = table.schema();
+    this.schema = snapshotSchema();
     this.caseSensitive = caseSensitive;
     this.batchSize = options.get(SparkReadOptions.VECTORIZATION_BATCH_SIZE).map(Integer::parseInt).orElseGet(() ->
         PropertyUtil.propertyAsInt(table.properties(),
@@ -166,13 +167,23 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.readTimestampWithoutZone = SparkUtil.canHandleTimestampWithoutZone(options.asMap(), sessionConf);
   }
 
+  protected Schema snapshotSchema() {
+    if (snapshotId != null && table instanceof BaseTable) {
+      return ((BaseTable) table).schemaForSnapshot(snapshotId);
+    } else if (asOfTimestamp != null && table instanceof BaseTable) {
+      return ((BaseTable) table).schemaForSnapshotAsOfTime(asOfTimestamp);
+    } else {
+      return table.schema();
+    }
+  }
+
   private Schema lazySchema() {
     if (schema == null) {
       if (requestedSchema != null) {
         // the projection should include all columns that will be returned, including those only used in filters
-        this.schema = SparkSchemaUtil.prune(table.schema(), requestedSchema, filterExpression(), caseSensitive);
+        this.schema = SparkSchemaUtil.prune(snapshotSchema(), requestedSchema, filterExpression(), caseSensitive);
       } else {
-        this.schema = table.schema();
+        this.schema = snapshotSchema();
       }
     }
     return schema;

@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -76,24 +77,21 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       TableCapability.OVERWRITE_DYNAMIC);
 
   private final Table icebergTable;
-  private final StructType requestedSchema;
+  private final Long snapshotId;
+  private final Long asOfTimestamp;
   private final boolean refreshEagerly;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
 
   public SparkTable(Table icebergTable, boolean refreshEagerly) {
-    this(icebergTable, null, refreshEagerly);
+    this(icebergTable, null, null, refreshEagerly);
   }
 
-  public SparkTable(Table icebergTable, StructType requestedSchema, boolean refreshEagerly) {
+  public SparkTable(Table icebergTable, Long snapshotId, Long asOfTimestamp, boolean refreshEagerly) {
     this.icebergTable = icebergTable;
-    this.requestedSchema = requestedSchema;
+    this.snapshotId = snapshotId;
+    this.asOfTimestamp = asOfTimestamp;
     this.refreshEagerly = refreshEagerly;
-
-    if (requestedSchema != null) {
-      // convert the requested schema to throw an exception if any requested fields are unknown
-      SparkSchemaUtil.convert(icebergTable.schema(), requestedSchema);
-    }
   }
 
   private SparkSession sparkSession() {
@@ -113,14 +111,20 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     return icebergTable.toString();
   }
 
+  private Schema snapshotSchema() {
+    if (snapshotId != null && icebergTable instanceof BaseTable) {
+      return ((BaseTable) icebergTable).schemaForSnapshot(snapshotId);
+    } else if (asOfTimestamp != null && icebergTable instanceof BaseTable) {
+      return ((BaseTable) icebergTable).schemaForSnapshotAsOfTime(asOfTimestamp);
+    } else {
+      return icebergTable.schema();
+    }
+  }
+
   @Override
   public StructType schema() {
     if (lazyTableSchema == null) {
-      if (requestedSchema != null) {
-        this.lazyTableSchema = SparkSchemaUtil.convert(SparkSchemaUtil.prune(icebergTable.schema(), requestedSchema));
-      } else {
-        this.lazyTableSchema = SparkSchemaUtil.convert(icebergTable.schema());
-      }
+      this.lazyTableSchema = SparkSchemaUtil.convert(snapshotSchema());
     }
 
     return lazyTableSchema;
@@ -171,13 +175,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       icebergTable.refresh();
     }
 
-    SparkScanBuilder scanBuilder = new SparkScanBuilder(sparkSession(), icebergTable, options);
-
-    if (requestedSchema != null) {
-      scanBuilder.pruneColumns(requestedSchema);
-    }
-
-    return scanBuilder;
+    return new SparkScanBuilder(sparkSession(), icebergTable, options);
   }
 
   @Override

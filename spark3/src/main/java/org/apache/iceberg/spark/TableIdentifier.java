@@ -19,29 +19,23 @@
 
 package org.apache.iceberg.spark;
 
-import java.util.List;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.spark.sql.connector.catalog.Identifier;
 
-public class PathIdentifier implements SnapshotAwareIdentifier {
-  private static final Splitter SPLIT = Splitter.on("/");
-  private static final Joiner JOIN = Joiner.on("/");
+public class TableIdentifier implements SnapshotAwareIdentifier {
   private final String[] namespace;
   private final String name;
-  private final String location;
   private final Long snapshotId;
   private final Long asOfTimestamp;
 
-  public PathIdentifier(String location, Long snapshotId, Long asOfTimestamp) {
-    this.location = location;
+  public static Identifier of(String[] namespace, String name, Long snapshotId, Long asOfTimestamp) {
+    return new TableIdentifier(namespace, name, snapshotId, asOfTimestamp);
+  }
+
+  public TableIdentifier(String[] namespace, String name, Long snapshotId, Long asOfTimestamp) {
+    this.namespace = namespace;
+    this.name = name;
     this.snapshotId = snapshotId;
     this.asOfTimestamp = asOfTimestamp;
-    List<String> pathParts = SPLIT.splitToList(location);
-    name = Iterables.getLast(pathParts);
-    namespace = pathParts.size() > 1 ?
-        new String[]{JOIN.join(pathParts.subList(0, pathParts.size() - 1))} :
-        new String[0];
   }
 
   @Override
@@ -52,10 +46,6 @@ public class PathIdentifier implements SnapshotAwareIdentifier {
   @Override
   public String name() {
     return name;
-  }
-
-  public String location() {
-    return location;
   }
 
   @Override
