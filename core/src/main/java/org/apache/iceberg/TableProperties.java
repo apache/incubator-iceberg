@@ -58,24 +58,31 @@ public class TableProperties {
   public static final boolean MANIFEST_MERGE_ENABLED_DEFAULT = true;
 
   public static final String DEFAULT_FILE_FORMAT = "write.format.default";
+  public static final String DELETE_DEFAULT_FILE_FORMAT = "write.delete.format.default";
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
 
   public static final String PARQUET_ROW_GROUP_SIZE_BYTES = "write.parquet.row-group-size-bytes";
+  public static final String DELETE_PARQUET_ROW_GROUP_SIZE_BYTES = "write.delete.parquet.row-group-size-bytes";
   public static final String PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = "134217728"; // 128 MB
 
   public static final String PARQUET_PAGE_SIZE_BYTES = "write.parquet.page-size-bytes";
+  public static final String DELETE_PARQUET_PAGE_SIZE_BYTES = "write.delete.parquet.page-size-bytes";
   public static final String PARQUET_PAGE_SIZE_BYTES_DEFAULT = "1048576"; // 1 MB
 
   public static final String PARQUET_DICT_SIZE_BYTES = "write.parquet.dict-size-bytes";
+  public static final String DELETE_PARQUET_DICT_SIZE_BYTES = "write.delete.parquet.dict-size-bytes";
   public static final String PARQUET_DICT_SIZE_BYTES_DEFAULT = "2097152"; // 2 MB
 
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
+  public static final String DELETE_PARQUET_COMPRESSION = "write.delete.parquet.compression-codec";
   public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
 
   public static final String PARQUET_COMPRESSION_LEVEL = "write.parquet.compression-level";
+  public static final String DELETE_PARQUET_COMPRESSION_LEVEL = "write.delete.parquet.compression-level";
   public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
 
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
+  public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
 
   public static final String SPLIT_SIZE = "read.split.target-size";
@@ -142,6 +149,7 @@ public class TableProperties {
   public static final String WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT = "false";
 
   public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
+  public static final String DELETE_TARGET_FILE_SIZE_BYTES = "write.delete.target-file-size-bytes";
   public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = 536870912; // 512 MB
 
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";

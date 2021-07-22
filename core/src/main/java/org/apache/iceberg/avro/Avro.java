@@ -61,6 +61,7 @@ import org.apache.iceberg.util.ArrayUtil;
 
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
+import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION;
 
 public class Avro {
   private Avro() {
@@ -107,6 +108,7 @@ public class Avro {
     private Function<Schema, DatumWriter<?>> createWriterFunc = null;
     private boolean overwrite;
     private MetricsConfig metricsConfig;
+    private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -167,13 +169,10 @@ public class Avro {
       return this;
     }
 
-    private CodecFactory codec() {
-      String codec = config.getOrDefault(AVRO_COMPRESSION, AVRO_COMPRESSION_DEFAULT);
-      try {
-        return CodecName.valueOf(codec.toUpperCase(Locale.ENGLISH)).get();
-      } catch (IllegalArgumentException e) {
-        throw new IllegalArgumentException("Unsupported compression codec: " + codec);
-      }
+    // supposed to always be a private method used strictly by data and delete write builders
+    private WriteBuilder createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
+      this.createContextFunc = newCreateContextFunc;
+      return this;
     }
 
     public <D> FileAppender<D> build() throws IOException {
@@ -190,8 +189,48 @@ public class Avro {
       // add the Iceberg schema to keyValueMetadata
       meta("iceberg.schema", SchemaParser.toJson(schema));
 
+      Context context = createContextFunc.apply(config);
+      CodecFactory codec = context.codec();
+
       return new AvroFileAppender<>(
-          schema, AvroSchemaUtil.convert(schema, name), file, writerFunc, codec(), metadata, metricsConfig, overwrite);
+          schema, AvroSchemaUtil.convert(schema, name), file, writerFunc, codec, metadata, metricsConfig, overwrite);
+    }
+
+    private static class Context {
+      private final CodecFactory codec;
+
+      private Context(CodecFactory codec) {
+        this.codec = codec;
+      }
+
+      public static Context dataContext(Map<String, String> config) {
+        String codecAsString = config.getOrDefault(AVRO_COMPRESSION, AVRO_COMPRESSION_DEFAULT);
+        CodecFactory codec = toCodec(codecAsString);
+
+        return new Context(codec);
+      }
+
+      public static Context deleteContext(Map<String, String> config) {
+        // default delete config using data config
+        Context dataContext = dataContext(config);
+
+        String codecAsString = config.get(DELETE_AVRO_COMPRESSION);
+        CodecFactory codec = codecAsString != null ? toCodec(codecAsString) : dataContext.codec();
+
+        return new Context(codec);
+      }
+
+      private static CodecFactory toCodec(String codecAsString) {
+        try {
+          return CodecName.valueOf(codecAsString.toUpperCase(Locale.ENGLISH)).get();
+        } catch (IllegalArgumentException e) {
+          throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
+        }
+      }
+
+      public CodecFactory codec() {
+        return codec;
+      }
     }
   }
 
@@ -305,6 +344,7 @@ public class Avro {
       // the appender uses the row schema without extra columns
       appenderBuilder.schema(rowSchema);
       appenderBuilder.createWriterFunc(createWriterFunc);
+      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
       return new EqualityDeleteWriter<>(
           appenderBuilder.build(), FileFormat.AVRO, location, spec, partition, keyMetadata, sortOrder,
@@ -328,6 +368,8 @@ public class Avro {
 
         appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
       }
+
+      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
       return new PositionDeleteWriter<>(
           appenderBuilder.build(), FileFormat.AVRO, location, spec, partition, keyMetadata);
