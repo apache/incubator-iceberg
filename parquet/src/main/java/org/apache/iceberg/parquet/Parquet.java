@@ -49,6 +49,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
@@ -61,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroReadSupport;
@@ -76,6 +78,11 @@ import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
 
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_DICT_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
@@ -109,6 +116,7 @@ public class Parquet {
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
+    private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -187,21 +195,17 @@ public class Parquet {
       }
     }
 
-    private CompressionCodecName codec() {
-      String codec = config.getOrDefault(PARQUET_COMPRESSION, PARQUET_COMPRESSION_DEFAULT);
-      try {
-        return CompressionCodecName.valueOf(codec.toUpperCase(Locale.ENGLISH));
-      } catch (IllegalArgumentException e) {
-        throw new IllegalArgumentException("Unsupported compression codec: " + codec);
-      }
-    }
-
     /*
      * Sets the writer version. Default value is PARQUET_1_0 (v1).
      */
     @VisibleForTesting
     WriteBuilder withWriterVersion(WriterVersion version) {
       this.writerVersion = version;
+      return this;
+    }
+
+    private WriteBuilder createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
+      this.createContextFunc = newCreateContextFunc;
       return this;
     }
 
@@ -213,17 +217,16 @@ public class Parquet {
       meta("iceberg.schema", SchemaParser.toJson(schema));
 
       // Map Iceberg properties to pass down to the Parquet writer
-      int rowGroupSize = Integer.parseInt(config.getOrDefault(
-          PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT));
-      int pageSize = Integer.parseInt(config.getOrDefault(
-          PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT));
-      int dictionaryPageSize = Integer.parseInt(config.getOrDefault(
-          PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
-      String compressionLevel = config.getOrDefault(
-          PARQUET_COMPRESSION_LEVEL, PARQUET_COMPRESSION_LEVEL_DEFAULT);
+      Context context = createContextFunc.apply(config);
+
+      int rowGroupSize = context.rowGroupSize();
+      int pageSize = context.pageSize();
+      int dictionaryPageSize = context.dictionaryPageSize();
+      String compressionLevel = context.compressionLevel();
+      CompressionCodecName codec = context.codec();
 
       if (compressionLevel != null) {
-        switch (codec()) {
+        switch (codec) {
           case GZIP:
             config.put("zlib.compress.level", compressionLevel);
             break;
@@ -262,7 +265,7 @@ public class Parquet {
             .build();
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
-            conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec(),
+            conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec,
             parquetProperties, metricsConfig, writeMode);
       } else {
         return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
@@ -271,7 +274,7 @@ public class Parquet {
             .setConfig(config)
             .setKeyValueMetadata(metadata)
             .setWriteSupport(getWriteSupport(type))
-            .withCompressionCodec(codec())
+            .withCompressionCodec(codec)
             .withWriteMode(writeMode)
             .withRowGroupSize(rowGroupSize)
             .withPageSize(pageSize)
@@ -279,6 +282,176 @@ public class Parquet {
             .build(),
             metricsConfig);
       }
+    }
+
+    private static class Context {
+      private final int rowGroupSize;
+      private final int pageSize;
+      private final int dictionaryPageSize;
+      private final CompressionCodecName codec;
+      private final String compressionLevel;
+
+      private Context(int rowGroupSize, int pageSize, int dictionaryPageSize,
+                      CompressionCodecName codec, String compressionLevel) {
+        this.rowGroupSize = rowGroupSize;
+        this.pageSize = pageSize;
+        this.dictionaryPageSize = dictionaryPageSize;
+        this.codec = codec;
+        this.compressionLevel = compressionLevel;
+      }
+
+      public static Context dataContext(Map<String, String> props) {
+        int rowGroupSize = Integer.parseInt(props.getOrDefault(
+            PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT));
+
+        int pageSize = Integer.parseInt(props.getOrDefault(
+            PARQUET_PAGE_SIZE_BYTES, PARQUET_PAGE_SIZE_BYTES_DEFAULT));
+
+        int dictionaryPageSize = Integer.parseInt(props.getOrDefault(
+            PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
+
+        String codecAsString = props.getOrDefault(PARQUET_COMPRESSION, PARQUET_COMPRESSION_DEFAULT);
+        CompressionCodecName codec = toCodec(codecAsString);
+
+        String compressionLevel = props.getOrDefault(PARQUET_COMPRESSION_LEVEL, PARQUET_COMPRESSION_LEVEL_DEFAULT);
+
+        return new Context(rowGroupSize, pageSize, dictionaryPageSize, codec, compressionLevel);
+      }
+
+      public static Context deleteContext(Map<String, String> props) {
+        // default delete config using data config
+        Context dataContext = dataContext(props);
+
+        int rowGroupSize = PropertyUtil.propertyAsInt(props,
+            DELETE_PARQUET_ROW_GROUP_SIZE_BYTES, dataContext.rowGroupSize());
+
+        int pageSize = PropertyUtil.propertyAsInt(props,
+            DELETE_PARQUET_PAGE_SIZE_BYTES, dataContext.pageSize());
+
+        int dictionaryPageSize = PropertyUtil.propertyAsInt(props,
+            DELETE_PARQUET_DICT_SIZE_BYTES, dataContext.dictionaryPageSize());
+
+        String codecAsString = props.get(DELETE_PARQUET_COMPRESSION);
+        CompressionCodecName codec = codecAsString != null ? toCodec(codecAsString) : dataContext.codec();
+
+        String compressionLevel = props.getOrDefault(DELETE_PARQUET_COMPRESSION_LEVEL, dataContext.compressionLevel());
+
+        return new Context(rowGroupSize, pageSize, dictionaryPageSize, codec, compressionLevel);
+      }
+
+      private static CompressionCodecName toCodec(String codecAsString) {
+        try {
+          return CompressionCodecName.valueOf(codecAsString.toUpperCase(Locale.ENGLISH));
+        } catch (IllegalArgumentException e) {
+          throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
+        }
+      }
+
+      public int rowGroupSize() {
+        return rowGroupSize;
+      }
+
+      public int pageSize() {
+        return pageSize;
+      }
+
+      public int dictionaryPageSize() {
+        return dictionaryPageSize;
+      }
+
+      public CompressionCodecName codec() {
+        return codec;
+      }
+
+      public String compressionLevel() {
+        return compressionLevel;
+      }
+    }
+  }
+
+  public static DataWriteBuilder writeData(OutputFile file) {
+    return new DataWriteBuilder(file);
+  }
+
+  public static class DataWriteBuilder {
+    private final WriteBuilder appenderBuilder;
+    private final String location;
+    private PartitionSpec spec = null;
+    private StructLike partition = null;
+    private EncryptionKeyMetadata keyMetadata = null;
+
+    private DataWriteBuilder(OutputFile file) {
+      this.appenderBuilder = write(file);
+      this.location = file.location();
+    }
+
+    public DataWriteBuilder forTable(Table table) {
+      schema(table.schema());
+      spec(table.spec());
+      setAll(table.properties());
+      metricsConfig(MetricsConfig.fromProperties(table.properties()));
+      return this;
+    }
+
+    public DataWriteBuilder schema(Schema newSchema) {
+      appenderBuilder.schema(newSchema);
+      return this;
+    }
+
+    public DataWriteBuilder set(String property, String value) {
+      appenderBuilder.set(property, value);
+      return this;
+    }
+
+    public DataWriteBuilder setAll(Map<String, String> properties) {
+      appenderBuilder.setAll(properties);
+      return this;
+    }
+
+    public DataWriteBuilder meta(String property, String value) {
+      appenderBuilder.meta(property, value);
+      return this;
+    }
+
+    public DataWriteBuilder overwrite() {
+      return overwrite(true);
+    }
+
+    public DataWriteBuilder overwrite(boolean enabled) {
+      appenderBuilder.overwrite(enabled);
+      return this;
+    }
+
+    public DataWriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
+      appenderBuilder.metricsConfig(newMetricsConfig);
+      return this;
+    }
+
+    public DataWriteBuilder createWriterFunc(Function<MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      appenderBuilder.createWriterFunc(newCreateWriterFunc);
+      return this;
+    }
+
+    public DataWriteBuilder spec(PartitionSpec newSpec) {
+      this.spec = newSpec;
+      return this;
+    }
+
+    public DataWriteBuilder partition(StructLike key) {
+      this.partition = key;
+      return this;
+    }
+
+    public DataWriteBuilder keyMetadata(EncryptionKeyMetadata metadata) {
+      this.keyMetadata = metadata;
+      return this;
+    }
+
+    public <T> DataWriter<T> buildDataWriter() throws IOException {
+      Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
+
+      FileAppender<T> fileAppender = appenderBuilder.build();
+      return new DataWriter<>(fileAppender, FileFormat.PARQUET, location, spec, partition, keyMetadata);
     }
   }
 
@@ -305,7 +478,7 @@ public class Parquet {
 
     public DeleteWriteBuilder forTable(Table table) {
       rowSchema(table.schema());
-      withSpec(table.spec());
+      spec(table.spec());
       setAll(table.properties());
       metricsConfig(MetricsConfig.fromProperties(table.properties()));
       return this;
@@ -351,17 +524,17 @@ public class Parquet {
       return this;
     }
 
-    public DeleteWriteBuilder withSpec(PartitionSpec newSpec) {
+    public DeleteWriteBuilder spec(PartitionSpec newSpec) {
       this.spec = newSpec;
       return this;
     }
 
-    public DeleteWriteBuilder withPartition(StructLike key) {
+    public DeleteWriteBuilder partition(StructLike key) {
       this.partition = key;
       return this;
     }
 
-    public DeleteWriteBuilder withKeyMetadata(EncryptionKeyMetadata metadata) {
+    public DeleteWriteBuilder keyMetadata(EncryptionKeyMetadata metadata) {
       this.keyMetadata = metadata;
       return this;
     }
@@ -381,7 +554,7 @@ public class Parquet {
       return this;
     }
 
-    public DeleteWriteBuilder withSortOrder(SortOrder newSortOrder) {
+    public DeleteWriteBuilder sortOrder(SortOrder newSortOrder) {
       this.sortOrder = newSortOrder;
       return this;
     }
@@ -400,6 +573,7 @@ public class Parquet {
       // the appender uses the row schema without extra columns
       appenderBuilder.schema(rowSchema);
       appenderBuilder.createWriterFunc(createWriterFunc);
+      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
       return new EqualityDeleteWriter<>(
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata,
@@ -410,6 +584,8 @@ public class Parquet {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
 
       meta("delete-type", "position");
+
+      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
       if (rowSchema != null && createWriterFunc != null) {
         // the appender uses the row schema wrapped with position fields

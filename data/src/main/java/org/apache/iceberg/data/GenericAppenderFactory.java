@@ -145,25 +145,25 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         case AVRO:
           return Avro.writeDeletes(file.encryptingOutputFile())
               .createWriterFunc(DataWriter::create)
-              .withPartition(partition)
+              .partition(partition)
               .overwrite()
               .setAll(config)
               .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
+              .spec(spec)
+              .keyMetadata(file.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
 
         case PARQUET:
           return Parquet.writeDeletes(file.encryptingOutputFile())
               .createWriterFunc(GenericParquetWriter::buildWriter)
-              .withPartition(partition)
+              .partition(partition)
               .overwrite()
               .setAll(config)
               .metricsConfig(metricsConfig)
               .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
+              .spec(spec)
+              .keyMetadata(file.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
 
@@ -185,24 +185,24 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         case AVRO:
           return Avro.writeDeletes(file.encryptingOutputFile())
               .createWriterFunc(DataWriter::create)
-              .withPartition(partition)
+              .partition(partition)
               .overwrite()
               .setAll(config)
               .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
+              .spec(spec)
+              .keyMetadata(file.keyMetadata())
               .buildPositionWriter();
 
         case PARQUET:
           return Parquet.writeDeletes(file.encryptingOutputFile())
               .createWriterFunc(GenericParquetWriter::buildWriter)
-              .withPartition(partition)
+              .partition(partition)
               .overwrite()
               .setAll(config)
               .metricsConfig(metricsConfig)
               .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
+              .spec(spec)
+              .keyMetadata(file.keyMetadata())
               .buildPositionWriter();
 
         default:

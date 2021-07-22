@@ -81,7 +81,7 @@ public class TestParquetDeleteWriters {
         .createWriterFunc(GenericParquetWriter::buildWriter)
         .overwrite()
         .rowSchema(SCHEMA)
-        .withSpec(PartitionSpec.unpartitioned())
+        .spec(PartitionSpec.unpartitioned())
         .equalityFieldIds(1)
         .buildEqualityWriter();
 
@@ -125,7 +125,7 @@ public class TestParquetDeleteWriters {
         .createWriterFunc(GenericParquetWriter::buildWriter)
         .overwrite()
         .rowSchema(SCHEMA)
-        .withSpec(PartitionSpec.unpartitioned())
+        .spec(PartitionSpec.unpartitioned())
         .buildPositionWriter();
 
     try (PositionDeleteWriter<Record> writer = deleteWriter) {
@@ -173,7 +173,7 @@ public class TestParquetDeleteWriters {
     PositionDeleteWriter<Void> deleteWriter = Parquet.writeDeletes(out)
         .createWriterFunc(GenericParquetWriter::buildWriter)
         .overwrite()
-        .withSpec(PartitionSpec.unpartitioned())
+        .spec(PartitionSpec.unpartitioned())
         .buildPositionWriter();
 
     try (PositionDeleteWriter<Void> writer = deleteWriter) {

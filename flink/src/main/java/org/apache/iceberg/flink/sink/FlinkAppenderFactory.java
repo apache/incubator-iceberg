@@ -153,25 +153,25 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
         case AVRO:
           return Avro.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(ignore -> new FlinkAvroWriter(lazyEqDeleteFlinkSchema()))
-              .withPartition(partition)
+              .partition(partition)
               .overwrite()
               .setAll(props)
               .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(outputFile.keyMetadata())
+              .spec(spec)
+              .keyMetadata(outputFile.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
 
         case PARQUET:
           return Parquet.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(lazyEqDeleteFlinkSchema(), msgType))
-              .withPartition(partition)
+              .partition(partition)
               .overwrite()
               .setAll(props)
               .metricsConfig(metricsConfig)
               .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(outputFile.keyMetadata())
+              .spec(spec)
+              .keyMetadata(outputFile.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
 
@@ -193,25 +193,25 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
         case AVRO:
           return Avro.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(ignore -> new FlinkAvroWriter(lazyPosDeleteFlinkSchema()))
-              .withPartition(partition)
+              .partition(partition)
               .overwrite()
               .setAll(props)
               .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(outputFile.keyMetadata())
+              .spec(spec)
+              .keyMetadata(outputFile.keyMetadata())
               .buildPositionWriter();
 
         case PARQUET:
           RowType flinkPosDeleteSchema = FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
           return Parquet.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkPosDeleteSchema, msgType))
-              .withPartition(partition)
+              .partition(partition)
               .overwrite()
               .setAll(props)
               .metricsConfig(metricsConfig)
               .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(outputFile.keyMetadata())
+              .spec(spec)
+              .keyMetadata(outputFile.keyMetadata())
               .transformPaths(path -> StringData.fromString(path.toString()))
               .buildPositionWriter();
 

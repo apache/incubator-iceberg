@@ -50,6 +50,7 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
@@ -61,6 +62,7 @@ import org.apache.iceberg.util.ArrayUtil;
 
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
+import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION;
 
 public class Avro {
   private Avro() {
@@ -107,6 +109,7 @@ public class Avro {
     private Function<Schema, DatumWriter<?>> createWriterFunc = null;
     private boolean overwrite;
     private MetricsConfig metricsConfig;
+    private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -167,13 +170,9 @@ public class Avro {
       return this;
     }
 
-    private CodecFactory codec() {
-      String codec = config.getOrDefault(AVRO_COMPRESSION, AVRO_COMPRESSION_DEFAULT);
-      try {
-        return CodecName.valueOf(codec.toUpperCase(Locale.ENGLISH)).get();
-      } catch (IllegalArgumentException e) {
-        throw new IllegalArgumentException("Unsupported compression codec: " + codec);
-      }
+    private WriteBuilder createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
+      this.createContextFunc = newCreateContextFunc;
+      return this;
     }
 
     public <D> FileAppender<D> build() throws IOException {
@@ -190,8 +189,134 @@ public class Avro {
       // add the Iceberg schema to keyValueMetadata
       meta("iceberg.schema", SchemaParser.toJson(schema));
 
+      Context context = createContextFunc.apply(config);
+      CodecFactory codec = context.codec();
+
       return new AvroFileAppender<>(
-          schema, AvroSchemaUtil.convert(schema, name), file, writerFunc, codec(), metadata, metricsConfig, overwrite);
+          schema, AvroSchemaUtil.convert(schema, name), file, writerFunc, codec, metadata, metricsConfig, overwrite);
+    }
+
+    private static class Context {
+      private final CodecFactory codec;
+
+      private Context(CodecFactory codec) {
+        this.codec = codec;
+      }
+
+      public static Context dataContext(Map<String, String> props) {
+        String codecAsString = props.getOrDefault(AVRO_COMPRESSION, AVRO_COMPRESSION_DEFAULT);
+        CodecFactory codec = toCodec(codecAsString);
+
+        return new Context(codec);
+      }
+
+      public static Context deleteContext(Map<String, String> props) {
+        // default delete config using data config
+        Context dataContext = dataContext(props);
+
+        String codecAsString = props.get(DELETE_AVRO_COMPRESSION);
+        CodecFactory codec = codecAsString != null ? toCodec(codecAsString) : dataContext.codec();
+
+        return new Context(codec);
+      }
+
+      private static CodecFactory toCodec(String codecAsString) {
+        try {
+          return CodecName.valueOf(codecAsString.toUpperCase(Locale.ENGLISH)).get();
+        } catch (IllegalArgumentException e) {
+          throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
+        }
+      }
+
+      public CodecFactory codec() {
+        return codec;
+      }
+    }
+  }
+
+  public static DataWriteBuilder writeData(OutputFile file) {
+    return new DataWriteBuilder(file);
+  }
+
+  public static class DataWriteBuilder {
+    private final WriteBuilder appenderBuilder;
+    private final String location;
+    private PartitionSpec spec = null;
+    private StructLike partition = null;
+    private EncryptionKeyMetadata keyMetadata = null;
+
+    private DataWriteBuilder(OutputFile file) {
+      this.appenderBuilder = write(file);
+      this.location = file.location();
+    }
+
+    public DataWriteBuilder forTable(Table table) {
+      schema(table.schema());
+      spec(table.spec());
+      setAll(table.properties());
+      metricsConfig(MetricsConfig.fromProperties(table.properties()));
+      return this;
+    }
+
+    public DataWriteBuilder schema(org.apache.iceberg.Schema newSchema) {
+      appenderBuilder.schema(newSchema);
+      return this;
+    }
+
+    public DataWriteBuilder set(String property, String value) {
+      appenderBuilder.set(property, value);
+      return this;
+    }
+
+    public DataWriteBuilder setAll(Map<String, String> properties) {
+      appenderBuilder.setAll(properties);
+      return this;
+    }
+
+    public DataWriteBuilder meta(String property, String value) {
+      appenderBuilder.meta(property, value);
+      return this;
+    }
+
+    public DataWriteBuilder overwrite() {
+      return overwrite(true);
+    }
+
+    public DataWriteBuilder overwrite(boolean enabled) {
+      appenderBuilder.overwrite(enabled);
+      return this;
+    }
+
+    public DataWriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
+      appenderBuilder.metricsConfig(newMetricsConfig);
+      return this;
+    }
+
+    public DataWriteBuilder createWriterFunc(Function<Schema, DatumWriter<?>> newCreateWriterFunc) {
+      appenderBuilder.createWriterFunc(newCreateWriterFunc);
+      return this;
+    }
+
+    public DataWriteBuilder spec(PartitionSpec newSpec) {
+      this.spec = newSpec;
+      return this;
+    }
+
+    public DataWriteBuilder partition(StructLike key) {
+      this.partition = key;
+      return this;
+    }
+
+    public DataWriteBuilder keyMetadata(EncryptionKeyMetadata metadata) {
+      this.keyMetadata = metadata;
+      return this;
+    }
+
+    public <T> DataWriter<T> buildDataWriter() throws IOException {
+      Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
+
+      FileAppender<T> fileAppender = appenderBuilder.build();
+      return new DataWriter<>(fileAppender, FileFormat.AVRO, location, spec, partition, keyMetadata);
     }
   }
 
@@ -217,7 +342,7 @@ public class Avro {
 
     public DeleteWriteBuilder forTable(Table table) {
       rowSchema(table.schema());
-      withSpec(table.spec());
+      spec(table.spec());
       setAll(table.properties());
       return this;
     }
@@ -261,17 +386,17 @@ public class Avro {
       return this;
     }
 
-    public DeleteWriteBuilder withSpec(PartitionSpec newSpec) {
+    public DeleteWriteBuilder spec(PartitionSpec newSpec) {
       this.spec = newSpec;
       return this;
     }
 
-    public DeleteWriteBuilder withPartition(StructLike key) {
+    public DeleteWriteBuilder partition(StructLike key) {
       this.partition = key;
       return this;
     }
 
-    public DeleteWriteBuilder withKeyMetadata(EncryptionKeyMetadata metadata) {
+    public DeleteWriteBuilder keyMetadata(EncryptionKeyMetadata metadata) {
       this.keyMetadata = metadata;
       return this;
     }
@@ -286,7 +411,7 @@ public class Avro {
       return this;
     }
 
-    public DeleteWriteBuilder withSortOrder(SortOrder newSortOrder) {
+    public DeleteWriteBuilder sortOrder(SortOrder newSortOrder) {
       this.sortOrder = newSortOrder;
       return this;
     }
@@ -305,6 +430,7 @@ public class Avro {
       // the appender uses the row schema without extra columns
       appenderBuilder.schema(rowSchema);
       appenderBuilder.createWriterFunc(createWriterFunc);
+      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
       return new EqualityDeleteWriter<>(
           appenderBuilder.build(), FileFormat.AVRO, location, spec, partition, keyMetadata, sortOrder,
@@ -315,6 +441,8 @@ public class Avro {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
 
       meta("delete-type", "position");
+
+      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
       if (rowSchema != null && createWriterFunc != null) {
         // the appender uses the row schema wrapped with position fields

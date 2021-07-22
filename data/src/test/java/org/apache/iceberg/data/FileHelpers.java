@@ -54,7 +54,7 @@ public class FileHelpers {
       throws IOException {
     PositionDeleteWriter<?> writer = Parquet.writeDeletes(out)
         .forTable(table)
-        .withPartition(partition)
+        .partition(partition)
         .overwrite()
         .buildPositionWriter();
 
@@ -76,7 +76,7 @@ public class FileHelpers {
                                            List<Record> deletes, Schema deleteRowSchema) throws IOException {
     EqualityDeleteWriter<Record> writer = Parquet.writeDeletes(out)
         .forTable(table)
-        .withPartition(partition)
+        .partition(partition)
         .rowSchema(deleteRowSchema)
         .createWriterFunc(GenericParquetWriter::buildWriter)
         .overwrite()

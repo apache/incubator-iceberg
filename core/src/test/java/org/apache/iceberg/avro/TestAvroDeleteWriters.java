@@ -80,7 +80,7 @@ public class TestAvroDeleteWriters {
         .createWriterFunc(DataWriter::create)
         .overwrite()
         .rowSchema(SCHEMA)
-        .withSpec(PartitionSpec.unpartitioned())
+        .spec(PartitionSpec.unpartitioned())
         .equalityFieldIds(1)
         .buildEqualityWriter();
 
@@ -124,7 +124,7 @@ public class TestAvroDeleteWriters {
         .createWriterFunc(DataWriter::create)
         .overwrite()
         .rowSchema(SCHEMA)
-        .withSpec(PartitionSpec.unpartitioned())
+        .spec(PartitionSpec.unpartitioned())
         .buildPositionWriter();
 
     try (PositionDeleteWriter<Record> writer = deleteWriter) {
@@ -172,7 +172,7 @@ public class TestAvroDeleteWriters {
     PositionDeleteWriter<Void> deleteWriter = Avro.writeDeletes(out)
         .createWriterFunc(DataWriter::create)
         .overwrite()
-        .withSpec(PartitionSpec.unpartitioned())
+        .spec(PartitionSpec.unpartitioned())
         .buildPositionWriter();
 
     try (PositionDeleteWriter<Void> writer = deleteWriter) {

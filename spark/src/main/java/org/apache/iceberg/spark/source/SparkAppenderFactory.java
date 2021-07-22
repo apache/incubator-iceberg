@@ -207,10 +207,10 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(lazyEqDeleteSparkType(), msgType))
               .overwrite()
               .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
-              .withPartition(partition)
+              .spec(spec)
+              .partition(partition)
               .equalityFieldIds(equalityFieldIds)
-              .withKeyMetadata(file.keyMetadata())
+              .keyMetadata(file.keyMetadata())
               .buildEqualityWriter();
 
         case AVRO:
@@ -218,10 +218,10 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .createWriterFunc(ignored -> new SparkAvroWriter(lazyEqDeleteSparkType()))
               .overwrite()
               .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
-              .withPartition(partition)
+              .spec(spec)
+              .partition(partition)
               .equalityFieldIds(equalityFieldIds)
-              .withKeyMetadata(file.keyMetadata())
+              .keyMetadata(file.keyMetadata())
               .buildEqualityWriter();
 
         default:
@@ -245,9 +245,9 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(sparkPosDeleteSchema, msgType))
               .overwrite()
               .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
-              .withPartition(partition)
-              .withKeyMetadata(file.keyMetadata())
+              .spec(spec)
+              .partition(partition)
+              .keyMetadata(file.keyMetadata())
               .transformPaths(path -> UTF8String.fromString(path.toString()))
               .buildPositionWriter();
 
@@ -256,9 +256,9 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .createWriterFunc(ignored -> new SparkAvroWriter(lazyPosDeleteSparkType()))
               .overwrite()
               .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
-              .withPartition(partition)
-              .withKeyMetadata(file.keyMetadata())
+              .spec(spec)
+              .partition(partition)
+              .keyMetadata(file.keyMetadata())
               .buildPositionWriter();
 
         default:
