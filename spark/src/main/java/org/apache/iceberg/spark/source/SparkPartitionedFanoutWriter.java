@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
@@ -35,10 +36,10 @@ public class SparkPartitionedFanoutWriter extends PartitionedFanoutWriter<Intern
   private final InternalRowWrapper internalRowWrapper;
 
   public SparkPartitionedFanoutWriter(PartitionSpec spec, FileFormat format,
-      FileAppenderFactory<InternalRow> appenderFactory,
-      OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-      Schema schema, StructType sparkSchema) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+                                      FileAppenderFactory<InternalRow> appenderFactory,
+                                      OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                                      Map<String, String> properties, Schema schema, StructType sparkSchema) {
+    super(spec, format, appenderFactory, fileFactory, io, targetFileSize, properties);
     this.partitionKey = new PartitionKey(spec, schema);
     this.internalRowWrapper = new InternalRowWrapper(sparkSchema);
   }

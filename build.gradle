@@ -225,6 +225,7 @@ project(':iceberg-core') {
     compile "com.fasterxml.jackson.core:jackson-databind"
     compile "com.fasterxml.jackson.core:jackson-core"
     compile "com.github.ben-manes.caffeine:caffeine"
+    compile "org.rocksdb:rocksdbjni"
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'

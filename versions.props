@@ -17,6 +17,7 @@ org.apache.arrow:arrow-vector = 2.0.0
 org.apache.arrow:arrow-memory-netty = 2.0.0
 com.github.stephenc.findbugs:findbugs-annotations = 1.3.9-1
 software.amazon.awssdk:* = 2.15.7
+org.rocksdb:rocksdbjni = 6.6.4
 org.scala-lang:scala-library = 2.12.10
 org.projectnessie:* = 0.8.3
 

@@ -30,8 +30,9 @@ public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   private final Map<PartitionKey, RollingFileWriter> writers = Maps.newHashMap();
 
   protected PartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                          OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+                                    OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                                    Map<String, String> properties) {
+    super(spec, format, appenderFactory, fileFactory, io, targetFileSize, properties);
   }
 
   /**

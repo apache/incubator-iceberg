@@ -238,6 +238,8 @@ public class ValueWriters {
         encoder.writeString((Utf8) s);
       } else if (s instanceof String) {
         encoder.writeString(new Utf8((String) s));
+      } else if (s instanceof CharSequence) {
+        encoder.writeString((CharSequence) s);
       } else if (s == null) {
         throw new IllegalArgumentException("Cannot write null to required string column");
       } else {

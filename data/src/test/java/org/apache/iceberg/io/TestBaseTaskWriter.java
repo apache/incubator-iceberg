@@ -37,6 +37,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
 import org.junit.Before;
@@ -218,7 +219,7 @@ public class TestBaseTaskWriter extends TableTestBase {
                            FileAppenderFactory<Record> appenderFactory,
                            OutputFileFactory fileFactory, FileIO io,
                            long targetFileSize) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+      super(spec, format, appenderFactory, fileFactory, io, targetFileSize, Maps.newHashMap());
       this.dataWriter = new RollingFileWriter(null);
       this.deleteWriter = new RollingEqDeleteWriter(null);
     }

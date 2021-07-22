@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -39,10 +40,12 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
                            OutputFileFactory fileFactory,
                            FileIO io,
                            long targetFileSize,
+                           Map<String, String> properties,
                            Schema schema,
                            RowType flinkSchema,
                            List<Integer> equalityFieldIds) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize, schema, flinkSchema, equalityFieldIds);
+    super(spec, format, appenderFactory, fileFactory, io, targetFileSize, properties, schema, flinkSchema,
+        equalityFieldIds);
     this.writer = new RowDataDeltaWriter(null);
   }
 

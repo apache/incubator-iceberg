@@ -35,8 +35,9 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
-import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.StructLikeMapUtil;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 
@@ -51,15 +52,18 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final OutputFileFactory fileFactory;
   private final FileIO io;
   private final long targetFileSize;
+  private final Map<String, String> properties;
 
   protected BaseTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                           OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+                           OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                           Map<String, String> properties) {
     this.spec = spec;
     this.format = format;
     this.appenderFactory = appenderFactory;
     this.fileFactory = fileFactory;
     this.io = io;
     this.targetFileSize = targetFileSize;
+    this.properties = properties;
   }
 
   protected PartitionSpec spec() {
@@ -96,7 +100,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private RollingFileWriter dataWriter;
     private RollingEqDeleteWriter eqDeleteWriter;
     private SortedPosDeleteWriter<T> posDeleteWriter;
-    private Map<StructLike, PathOffset> insertedRowMap;
+    private Map<StructLike, StructLike> insertedRowMap;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
@@ -106,7 +110,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.dataWriter = new RollingFileWriter(partition);
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
       this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
-      this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
+
+      this.insertedRowMap = StructLikeMapUtil.load(deleteSchema.asStruct(), PATH_OFFSET_SCHEMA.asStruct(), properties);
     }
 
     /**
@@ -121,13 +126,19 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       StructLike copiedKey = StructCopy.copy(structProjection.wrap(asStructLike(row)));
 
       // Adding a pos-delete to replace the old path-offset.
-      PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
+      StructLike previous = insertedRowMap.put(copiedKey, pathOffset);
       if (previous != null) {
-        // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        posDeleteWriter.delete(previous.path, previous.rowOffset, null);
+        writePosDelete(previous, null);
       }
 
       dataWriter.write(row);
+    }
+
+    private void writePosDelete(StructLike pathOffset, T row) {
+      Preconditions.checkNotNull(pathOffset, "StructLike pathOffset cannot be null.");
+      CharSequence path = pathOffset.get(0, CharSequence.class);
+      long offset = pathOffset.get(1, Long.class);
+      posDeleteWriter.delete(path, offset, row);
     }
 
     /**
@@ -136,11 +147,10 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param key has the same columns with the equality fields.
      */
     private void internalPosDelete(StructLike key) {
-      PathOffset previous = insertedRowMap.remove(key);
+      StructLike previous = insertedRowMap.remove(key);
 
       if (previous != null) {
-        // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        posDeleteWriter.delete(previous.path, previous.rowOffset, null);
+        writePosDelete(previous, null);
       }
     }
 
@@ -196,9 +206,14 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
   }
 
-  private static class PathOffset {
-    private final CharSequence path;
-    private final long rowOffset;
+  private static final Schema PATH_OFFSET_SCHEMA = new Schema(
+      Types.NestedField.required(0, "path", Types.StringType.get()),
+      Types.NestedField.required(1, "row_offset", Types.LongType.get())
+  );
+
+  private static class PathOffset implements StructLike {
+    private CharSequence path;
+    private long rowOffset;
 
     private PathOffset(CharSequence path, long rowOffset) {
       this.path = path;
@@ -215,6 +230,41 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
           .add("path", path)
           .add("row_offset", rowOffset)
           .toString();
+    }
+
+    @Override
+    public int size() {
+      return 2;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      switch (pos) {
+        case 0:
+          return javaClass.cast(path);
+        case 1:
+          return javaClass.cast(rowOffset);
+        default:
+          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      }
+    }
+
+    private void put(int pos, Object value) {
+      switch (pos) {
+        case 0:
+          this.path = (CharSequence) value;
+          break;
+        case 1:
+          this.rowOffset = (long) value;
+          break;
+        default:
+          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      }
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      put(pos, value);
     }
   }
 
