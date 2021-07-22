@@ -96,7 +96,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
 
     if (hasChange) {
       return copyRecord(record, filteredFields);
-    } else if (filteredFields.size() == record.getFields().size()) {
+    } else if (record.getFields().size() != 0 && filteredFields.size() == record.getFields().size()) {
       return record;
     } else if (!filteredFields.isEmpty()) {
       return copyRecord(record, filteredFields);

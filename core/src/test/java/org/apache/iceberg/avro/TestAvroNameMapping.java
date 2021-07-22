@@ -300,7 +300,8 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     Record record = super.writeAndRead(desc, writeSchema, readSchema, inputRecord);
     Record projectedWithNameMapping = writeAndRead(
         writeSchema, readSchema, inputRecord, MappingUtil.create(writeSchema));
-    Assert.assertEquals(record, projectedWithNameMapping);
+    // Ignore anonymous field names, we want positions and values to be the same
+    Assert.assertEquals(record.toString(), projectedWithNameMapping.toString());
     return record;
   }
 

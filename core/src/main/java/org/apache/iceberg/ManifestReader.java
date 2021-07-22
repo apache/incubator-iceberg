@@ -193,7 +193,11 @@ public class ManifestReader<F extends ContentFile<F>>
 
     List<Types.NestedField> fields = Lists.newArrayList();
     fields.addAll(projection.asStruct().fields());
-    fields.add(MetadataColumns.ROW_POSITION);
+
+    if (fields.size() != 0) {
+      // Empty Projection, don't add metadata columns
+      fields.add(MetadataColumns.ROW_POSITION);
+    }
 
     switch (format) {
       case AVRO:
@@ -201,6 +205,7 @@ public class ManifestReader<F extends ContentFile<F>>
             .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
             .rename("manifest_entry", GenericManifestEntry.class.getName())
             .rename("partition", PartitionData.class.getName())
+            .rename("partition_r102", PartitionData.class.getName())
             .rename("r102", PartitionData.class.getName())
             .rename("data_file", content.fileClass())
             .rename("r2", content.fileClass())
