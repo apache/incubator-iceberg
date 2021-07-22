@@ -27,6 +27,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -71,6 +72,12 @@ public abstract class SparkCatalogTestBase extends SparkTestBase {
             "default-namespace", "default",
             "parquet-enabled", "true",
             "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
+        ) },
+        { "spark_catalog_with_unique_location", SparkCatalog.class.getName(),
+           ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default",
+            HiveCatalog.APPEND_UUID_SUFFIX_TO_TABLE_LOCATION, "true"
         ) }
     };
   }
