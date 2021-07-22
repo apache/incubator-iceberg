@@ -141,6 +141,8 @@ A table's **schema** is a list of named columns. All data types are either primi
 
 For the representations of these types in Avro, ORC, and Parquet file formats, see Appendix A.
 
+Default values for fields are supported, see Neted Types below.
+
 #### Nested Types
 
 A **`struct`** is a tuple of typed values. Each field in the tuple is named and has an integer id that is unique in the table schema. Each field can be either optional or required, meaning that values can (or cannot) be null. Fields may be any type. Fields may have an optional comment or doc string.
@@ -148,6 +150,13 @@ A **`struct`** is a tuple of typed values. Each field in the tuple is named and 
 A **`list`** is a collection of values with some element type. The element field has an integer id that is unique in the table schema. Elements can be either optional or required. Element types may be any type.
 
 A **`map`** is a collection of key-value pairs with a key type and a value type. Both the key field and value field each have an integer id that is unique in the table schema. Map keys are required and map values can be either optional or required. Both map keys and map values may be any type, including nested types.
+
+Iceberg supports default-value semantics for fields of nested types (i.e., struct, list and map). Specifically, a field 
+of a nested type field can have a default value that will be returned upon reading this field, if it is not manifested. 
+The default value can be defined with both required and optional fields. Null default values are allowed with optional
+fields only, and it's behavior is identical to optional fields with no default value, that is a Null is returned upon
+reading this field when it is not manifested.
+
 
 #### Primitive Types
 
@@ -1001,7 +1010,17 @@ This serialization scheme is for storing single values as individual binary valu
 | **`list`**                   | Not supported                                                                                                |
 | **`map`**                    | Not supported                                                                                                |
 
+<<<<<<< HEAD
+## Appendix E: Default value Semantics
 
+Iceberg supports default-value semantics for fields of container
+types (i.e., struct, list and map). Specifically, a field of 
+type NestedField can have a default value that will be returned
+upon reading this field, if it is not manifested. The default value
+can be defined with both required and optional fields. 
+
+=======
+>>>>>>> 437db162 ([#2039] Support default value semantics - API changes)
 ## Format version changes
 
 ### Version 2
