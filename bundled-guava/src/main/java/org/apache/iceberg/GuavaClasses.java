@@ -93,6 +93,4 @@ public class GuavaClasses {
     Iterables.class.getName();
     CountingOutputStream.class.getName();
   }
-
 }
-

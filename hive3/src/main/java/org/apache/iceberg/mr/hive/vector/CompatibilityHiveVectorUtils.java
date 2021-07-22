@@ -59,7 +59,7 @@ public class CompatibilityHiveVectorUtils {
    * Returns serialized mapwork instance from a job conf - ported from Hive source code LlapHiveUtils#findMapWork
    *
    * @param job JobConf instance
-   * @return
+   * @return A serialized {@link MapWork} based on the given job conf
    */
   public static MapWork findMapWork(JobConf job) {
     String inputName = job.get(Utilities.INPUT_NAME, null);

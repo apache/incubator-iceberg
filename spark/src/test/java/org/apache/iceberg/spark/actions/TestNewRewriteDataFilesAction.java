@@ -693,10 +693,10 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
           T rightLower = right.first();
           T rightUpper = right.second();
           boolean boundsOverlap =
-              (comparator.compare(leftUpper, rightLower) > 0 && comparator.compare(leftUpper, rightUpper) < 0) ||
-                  (comparator.compare(leftLower, rightLower) > 0 && comparator.compare(leftLower, rightUpper) < 0);
+              comparator.compare(leftUpper, rightLower) > 0 && comparator.compare(leftUpper, rightUpper) < 0 ||
+                  comparator.compare(leftLower, rightLower) > 0 && comparator.compare(leftLower, rightUpper) < 0;
 
-          return (left != right) && boundsOverlap;
+          return left != right && boundsOverlap;
         })
         .collect(Collectors.toList());
     return overlappingFiles;

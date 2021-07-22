@@ -90,7 +90,7 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
   }
 
   private static <T> T visitArray(Type type, Schema array, AvroSchemaWithTypeVisitor<T> visitor) {
-    if (array.getLogicalType() instanceof LogicalMap || (type != null && type.isMapType())) {
+    if (array.getLogicalType() instanceof LogicalMap || type != null && type.isMapType()) {
       Preconditions.checkState(
           AvroSchemaUtil.isKeyValueSchema(array.getElementType()),
           "Cannot visit invalid logical map type: %s", array);

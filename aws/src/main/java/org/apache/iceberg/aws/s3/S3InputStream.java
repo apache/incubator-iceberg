@@ -105,12 +105,12 @@ class S3InputStream extends SeekableInputStream {
   }
 
   private void positionStream() throws IOException {
-    if ((stream != null) && (next == pos)) {
+    if (stream != null && next == pos) {
       // already at specified position
       return;
     }
 
-    if ((stream != null) && (next > pos)) {
+    if (stream != null && next > pos) {
       // seeking forwards
       long skip = next - pos;
       if (skip <= Math.max(stream.available(), skipSize)) {

@@ -407,7 +407,7 @@ public class Tasks {
 
         } catch (Exception e) {
           long durationMs = System.currentTimeMillis() - start;
-          if (attempt >= maxAttempts || (durationMs > maxDurationMs && attempt > 1)) {
+          if (attempt >= maxAttempts || durationMs > maxDurationMs && attempt > 1) {
             if (durationMs > maxDurationMs) {
               LOG.info("Stopping retries after {} ms", durationMs);
             }

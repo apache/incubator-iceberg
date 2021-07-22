@@ -164,7 +164,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   @Override
   public Schema array(Schema array, Supplier<Schema> element) {
     if (array.getLogicalType() instanceof LogicalMap ||
-        (current.isMapType() && AvroSchemaUtil.isKeyValueSchema(array.getElementType()))) {
+        current.isMapType() && AvroSchemaUtil.isKeyValueSchema(array.getElementType())) {
       Preconditions.checkArgument(current.isMapType(), "Incompatible projected type: %s", current);
       Types.MapType asMapType = current.asNestedType().asMapType();
       this.current = Types.StructType.of(asMapType.fields()); // create a struct to correspond to element

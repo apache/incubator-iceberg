@@ -149,7 +149,7 @@ public class RewriteDataFilesCommitManager {
           }
 
           // Either we have a full commit group, or we have completed writing and need to commit what is left over
-          if (completedRewrites.size() >= rewritesPerCommit || (!running.get() && completedRewrites.size() > 0)) {
+          if (completedRewrites.size() >= rewritesPerCommit || !running.get() && completedRewrites.size() > 0) {
             Set<RewriteFileGroup> batch = Sets.newHashSetWithExpectedSize(rewritesPerCommit);
             for (int i = 0; i < rewritesPerCommit && !completedRewrites.isEmpty(); i++) {
               batch.add(completedRewrites.poll());

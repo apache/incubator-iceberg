@@ -349,7 +349,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       F file = entry.file();
       boolean fileDelete = deletePaths.contains(file.path()) ||
           dropPartitions.contains(file.specId(), file.partition()) ||
-          (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
+          isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber;
       if (fileDelete || inclusive.eval(file.partition())) {
         ValidationException.check(
             fileDelete || strict.eval(file.partition()) || metricsEvaluator.eval(file),
@@ -384,7 +384,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
           F file = entry.file();
           boolean fileDelete = deletePaths.contains(file.path()) ||
               dropPartitions.contains(file.specId(), file.partition()) ||
-              (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
+              isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber;
           if (entry.status() != ManifestEntry.Status.DELETED) {
             if (fileDelete || inclusive.eval(file.partition())) {
               ValidationException.check(

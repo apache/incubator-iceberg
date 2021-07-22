@@ -123,8 +123,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   @Override
   public VectorHolder read(VectorHolder reuse, int numValsToRead) {
     boolean dictEncoded = vectorizedColumnIterator.producesDictionaryEncodedVector();
-    if (reuse == null || (!dictEncoded && readType == ReadType.DICTIONARY) ||
-        (dictEncoded && readType != ReadType.DICTIONARY)) {
+    if (reuse == null || !dictEncoded && readType == ReadType.DICTIONARY ||
+        dictEncoded && readType != ReadType.DICTIONARY) {
       allocateFieldVector(dictEncoded);
       nullabilityHolder = new NullabilityHolder(batchSize);
     } else {
