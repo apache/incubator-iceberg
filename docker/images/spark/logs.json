@@ -1,0 +1,6 @@
+{"level": "INFO", "event_time": 1591430621, "message": "Containers are ready.", "call_stack": []}
+{"level": "INFO", "event_time": 1591430621, "message": "Start working with Iceberg!", "call_stack": []}
+{"level": "WARN", "event_time": 1591430621, "message": "This is a warn meesage", "call_stack": ["functionA", "functionB"]}
+{"level": "ERROR", "event_time": 1591430621, "message": "NullPointerException", "call_stack": ["String.substring(int, int)"]}
+{"level": "ERROR", "event_time": 1591430621, "message": "IllegalArgumentException", "call_stack": ["unknow stack"]}
+{"level": "INFO", "event_time": 1591430621, "message": "The cluster is shutting donw.", "call_stack": []}
