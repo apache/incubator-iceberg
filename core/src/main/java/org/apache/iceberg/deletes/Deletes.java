@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.MetadataColumns;
@@ -113,6 +114,13 @@ public class Deletes {
     return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
   }
 
+  public static <T> CloseableIterable<T> streamingDeletedRowMarker(CloseableIterable<T> rows,
+                                                                   Function<T, Long> rowToPosition,
+                                                                   CloseableIterable<Long> posDeletes,
+                                                                   Consumer<T> deleteMarker) {
+    return new PositionStreamDeletedRowMarker<>(rows, rowToPosition, posDeletes, deleteMarker);
+  }
+
   public static CloseableIterable<Long> deletePositions(CharSequence dataLocation,
                                                         CloseableIterable<StructLike> deleteFile) {
     return deletePositions(dataLocation, ImmutableList.of(deleteFile));
@@ -176,7 +184,7 @@ public class Deletes {
 
       CloseableIterator<T> iter;
       if (deletePosIterator.hasNext()) {
-        iter = new PositionFilterIterator(rows.iterator(), deletePosIterator);
+        iter = positionIterator(rows.iterator(), deletePosIterator);
       } else {
         iter = rows.iterator();
         try {
@@ -191,7 +199,12 @@ public class Deletes {
       return iter;
     }
 
-    private class PositionFilterIterator extends FilterIterator<T> {
+    protected FilterIterator<T> positionIterator(CloseableIterator<T> items,
+                                                 CloseableIterator<Long> newDeletePositions) {
+      return new PositionFilterIterator(items, newDeletePositions);
+    }
+
+    protected class PositionFilterIterator extends FilterIterator<T> {
       private final CloseableIterator<Long> deletePosIterator;
       private long nextDeletePos;
 
@@ -229,6 +242,37 @@ public class Deletes {
         } catch (IOException e) {
           throw new UncheckedIOException("Failed to close delete positions iterator", e);
         }
+      }
+    }
+  }
+
+  static class PositionStreamDeletedRowMarker<T> extends PositionStreamDeleteFilter<T> {
+    private final Consumer<T> deleteMarker;
+
+    private PositionStreamDeletedRowMarker(CloseableIterable<T> rows, Function<T, Long> extractPos,
+                                           CloseableIterable<Long> deletePositions,
+                                           Consumer<T> deleteMarker) {
+      super(rows, extractPos, deletePositions);
+      this.deleteMarker = deleteMarker;
+    }
+
+    @Override
+    protected FilterIterator<T> positionIterator(CloseableIterator<T> items,
+                                                 CloseableIterator<Long> deletePositions) {
+      return new PositionMarkerIterator(items, deletePositions);
+    }
+
+    private class PositionMarkerIterator extends PositionFilterIterator {
+      private PositionMarkerIterator(CloseableIterator<T> items, CloseableIterator<Long> deletePositions) {
+        super(items, deletePositions);
+      }
+
+      @Override
+      protected boolean shouldKeep(T row) {
+        if (!super.shouldKeep(row)) {
+          deleteMarker.accept(row);
+        }
+        return true;
       }
     }
   }

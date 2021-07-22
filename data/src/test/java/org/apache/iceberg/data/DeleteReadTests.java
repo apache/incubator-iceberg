@@ -62,7 +62,7 @@ public abstract class DeleteReadTests {
   private String tableName = null;
   protected Table table = null;
   private List<Record> records = null;
-  private DataFile dataFile = null;
+  protected DataFile dataFile = null;
 
   @Before
   public void writeTestDataFile() throws IOException {

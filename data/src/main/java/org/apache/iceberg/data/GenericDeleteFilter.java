@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.data;
 
+import java.util.function.Consumer;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -38,6 +39,16 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
   @Override
   protected long pos(Record record) {
     return (Long) posAccessor().get(record);
+  }
+
+  @Override
+  protected Consumer<Record> deleteMarker() {
+    return record -> record.set(deleteMarkerIndex(), true);
+  }
+
+  @Override
+  protected boolean isDeletedRow(Record record) {
+    return record.get(deleteMarkerIndex(), Boolean.class);
   }
 
   @Override

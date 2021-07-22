@@ -20,7 +20,10 @@
 package org.apache.iceberg.flink.source;
 
 import java.util.Map;
+import java.util.function.Consumer;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.UpdatableRowData;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -159,6 +162,24 @@ class RowDataIterator extends DataIterator<RowData> {
     FlinkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
       super(task, tableSchema, requestedSchema);
       this.asStructLike = new RowDataWrapper(FlinkSchemaUtil.convert(requiredSchema()), requiredSchema().asStruct());
+    }
+
+    @Override
+    protected Consumer<RowData> deleteMarker() {
+      return record -> {
+        if (record instanceof GenericRowData) {
+          ((GenericRowData) record).setField(deleteMarkerIndex(), true);
+        } else if (record instanceof UpdatableRowData) {
+          ((UpdatableRowData) record).setField(deleteMarkerIndex(), true);
+        } else {
+          throw new UnsupportedOperationException("Can not mark row data");
+        }
+      };
+    }
+
+    @Override
+    protected boolean isDeletedRow(RowData row) {
+      return row.getBoolean(deleteMarkerIndex());
     }
 
     @Override

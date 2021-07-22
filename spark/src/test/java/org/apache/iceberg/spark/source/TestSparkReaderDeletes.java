@@ -26,6 +26,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -49,6 +50,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkStructLike;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.Dataset;
@@ -205,7 +208,8 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
         TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
     for (CombinedScanTask task : tasks) {
-      try (EqualityDeleteRowReader reader = new EqualityDeleteRowReader(task, table, table.schema(), false)) {
+      try (DeleteRowReader reader = new DeleteRowReader(task, table, table.schema(), false,
+          FileContent.EQUALITY_DELETES)) {
         while (reader.next()) {
           actualRowSet.add(new InternalRowWrapper(SparkSchemaUtil.convert(table.schema())).wrap(reader.get().copy()));
         }
@@ -213,6 +217,98 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
     }
 
     Assert.assertEquals("should include 4 deleted row", 4, actualRowSet.size());
+    Assert.assertEquals("deleted row should be matched", expectedRowSet, actualRowSet);
+  }
+
+  @Test
+  public void testReadPositionDeleteRows() throws IOException {
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
+        Pair.of(dataFile.path(), 0L), // id = 29
+        Pair.of(dataFile.path(), 3L), // id = 89
+        Pair.of(dataFile.path(), 6L) // id = 122
+    );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+
+    table.newRowDelta()
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    StructLikeSet expectedRowSet = rowSetWithIds(29, 89, 122);
+
+    Types.StructType type = table.schema().asStruct();
+    StructLikeSet actualRowSet = StructLikeSet.create(type);
+
+    CloseableIterable<CombinedScanTask> tasks = TableScanUtil.planTasks(
+        table.newScan().planFiles(),
+        TableProperties.METADATA_SPLIT_SIZE_DEFAULT,
+        TableProperties.SPLIT_LOOKBACK_DEFAULT,
+        TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+
+    for (CombinedScanTask task : tasks) {
+      try (DeleteRowReader reader = new DeleteRowReader(task, table, table.schema(), false,
+          FileContent.POSITION_DELETES)) {
+        while (reader.next()) {
+          actualRowSet.add(new InternalRowWrapper(SparkSchemaUtil.convert(table.schema())).wrap(reader.get().copy()));
+        }
+      }
+    }
+
+    Assert.assertEquals("should include 3 deleted row", 3, actualRowSet.size());
+    Assert.assertEquals("deleted row should be matched", expectedRowSet, actualRowSet);
+  }
+
+  @Test
+  public void testReadDeleteRows() throws IOException {
+    Schema deleteSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+            dataDelete.copy("data", "b"), // id = 43
+            dataDelete.copy("data", "f"), // id = 121
+            dataDelete.copy("data", "g") // id = 122
+    );
+
+    DeleteFile eqDelete = FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteSchema);
+
+
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
+            Pair.of(dataFile.path(), 0L), // id = 29
+            Pair.of(dataFile.path(), 3L), // id = 89
+            Pair.of(dataFile.path(), 6L) // id = 122
+    );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+
+    table.newRowDelta()
+            .addDeletes(posDeletes.first())
+            .addDeletes(eqDelete)
+            .validateDataFilesExist(posDeletes.second())
+            .commit();
+
+    StructLikeSet expectedRowSet = rowSetWithIds(29, 43, 89, 121, 122);
+
+    Types.StructType type = table.schema().asStruct();
+    StructLikeSet actualRowSet = StructLikeSet.create(type);
+
+    CloseableIterable<CombinedScanTask> tasks = TableScanUtil.planTasks(
+            table.newScan().planFiles(),
+            TableProperties.METADATA_SPLIT_SIZE_DEFAULT,
+            TableProperties.SPLIT_LOOKBACK_DEFAULT,
+            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+
+    for (CombinedScanTask task : tasks) {
+      try (DeleteRowReader reader = new DeleteRowReader(task, table, table.schema(), false, null)) {
+        while (reader.next()) {
+          actualRowSet.add(new InternalRowWrapper(SparkSchemaUtil.convert(table.schema())).wrap(reader.get().copy()));
+        }
+      }
+    }
+
+    Assert.assertEquals("should include 5 deleted row", 5, actualRowSet.size());
     Assert.assertEquals("deleted row should be matched", expectedRowSet, actualRowSet);
   }
 }
