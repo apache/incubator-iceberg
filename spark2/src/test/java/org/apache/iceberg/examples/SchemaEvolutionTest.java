@@ -159,7 +159,7 @@ public class SchemaEvolutionTest {
         first.get().dataType() == LongType$.MODULE$);
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void updateColumnTypeIntToString() {
     table.updateSchema().updateColumn("price", Types.StringType.get()).commit();
   }

@@ -416,7 +416,7 @@
         </module>
         <module name="CyclomaticComplexity"> <!-- Java Coding Guidelines: Reduce Cyclomatic Complexity -->
           <property name="switchBlockAsSingleDecisionPoint" value="true"/>
-          <property name="max" value="12"/>
+          <property name="max" value="16"/>
         </module>
         <module name="JavadocMethod"> <!-- Java Style Guide: Where Javadoc is used -->
             <property name="scope" value="public"/>

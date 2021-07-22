@@ -241,23 +241,41 @@ public class TypeUtil {
 
     switch (from.typeId()) {
       case INTEGER:
-        return to == Types.LongType.get();
+        return (to == Types.LongType.get()) || (to == Types.FloatType.get()) ||
+            (to == Types.DoubleType.get()) || (to.typeId() == Type.TypeID.DECIMAL) ||
+            (to == Types.StringType.get());
+
+      case LONG:
+        return (to == Types.FloatType.get()) || (to == Types.DoubleType.get()) ||
+            (to.typeId() == Type.TypeID.DECIMAL) || (to == Types.StringType.get());
 
       case FLOAT:
-        return to == Types.DoubleType.get();
+        return (to == Types.DoubleType.get()) || (to.typeId() == Type.TypeID.DECIMAL) ||
+            (to == Types.StringType.get());
 
       case DECIMAL:
-        Types.DecimalType fromDecimal = (Types.DecimalType) from;
-        if (to.typeId() != Type.TypeID.DECIMAL) {
-          return false;
+        if (to.typeId() == Type.TypeID.DECIMAL) {
+          Types.DecimalType fromDecimal = (Types.DecimalType) from;
+          Types.DecimalType toDecimal = (Types.DecimalType) to;
+          return fromDecimal.scale() == toDecimal.scale() &&
+              fromDecimal.precision() <= toDecimal.precision();
         }
+        return to == Types.StringType.get();
 
-        Types.DecimalType toDecimal = (Types.DecimalType) to;
-        return fromDecimal.scale() == toDecimal.scale() &&
-            fromDecimal.precision() <= toDecimal.precision();
+      case DOUBLE:
+        return (to == Types.StringType.get()) || (to.typeId() == Type.TypeID.DECIMAL);
+
+      case STRING:
+        return (to == Types.DoubleType.get()) || (to.typeId() == Type.TypeID.DECIMAL);
+
+      case DATE:
+      case TIME:
+      case TIMESTAMP:
+        return to == Types.StringType.get();
+
+      default:
+        return false;
     }
-
-    return false;
   }
 
   /**

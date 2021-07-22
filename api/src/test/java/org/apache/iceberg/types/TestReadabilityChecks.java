@@ -180,14 +180,14 @@ public class TestReadabilityChecks {
         required(1, "from_field", Types.IntegerType.get())
     )));
     Schema read = new Schema(required(0, "nested", Types.StructType.of(
-        required(1, "to_field", Types.FloatType.get())
+        required(1, "to_field", Types.BooleanType.get())
     )));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
     Assert.assertEquals("Should produce 1 error message", 1, errors.size());
 
     Assert.assertTrue("Should complain about incompatible types",
-        errors.get(0).contains("cannot be promoted to float"));
+        errors.get(0).contains("cannot be promoted to boolean"));
   }
 
   @Test
@@ -211,7 +211,7 @@ public class TestReadabilityChecks {
         optional(1, "from_field", Types.IntegerType.get())
     )));
     Schema read = new Schema(required(0, "nested", Types.StructType.of(
-        required(1, "to_field", Types.FloatType.get())
+        required(1, "to_field", Types.BooleanType.get())
     )));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
@@ -220,7 +220,7 @@ public class TestReadabilityChecks {
     Assert.assertTrue("Should complain that a required field is optional",
         errors.get(0).contains("should be required, but is optional"));
     Assert.assertTrue("Should complain about incompatible types",
-        errors.get(1).contains("cannot be promoted to float"));
+        errors.get(1).contains("cannot be promoted to boolean"));
   }
 
   @Test
@@ -245,14 +245,14 @@ public class TestReadabilityChecks {
         1, 2, Types.IntegerType.get(), Types.StringType.get()
     )));
     Schema read = new Schema(required(0, "map_field", Types.MapType.ofOptional(
-        1, 2, Types.DoubleType.get(), Types.StringType.get()
+        1, 2, Types.BooleanType.get(), Types.StringType.get()
     )));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
     Assert.assertEquals("Should produce 1 error message", 1, errors.size());
 
     Assert.assertTrue("Should complain about incompatible types",
-        errors.get(0).contains("cannot be promoted to double"));
+        errors.get(0).contains("cannot be promoted to boolean"));
   }
 
   @Test
@@ -261,14 +261,14 @@ public class TestReadabilityChecks {
         1, 2, Types.StringType.get(), Types.IntegerType.get()
     )));
     Schema read = new Schema(required(0, "map_field", Types.MapType.ofOptional(
-        1, 2, Types.StringType.get(), Types.DoubleType.get()
+        1, 2, Types.StringType.get(), Types.BooleanType.get()
     )));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
     Assert.assertEquals("Should produce 1 error message", 1, errors.size());
 
     Assert.assertTrue("Should complain about incompatible types",
-        errors.get(0).contains("cannot be promoted to double"));
+        errors.get(0).contains("cannot be promoted to boolean"));
   }
 
   @Test
@@ -307,14 +307,14 @@ public class TestReadabilityChecks {
         1, Types.IntegerType.get()
     )));
     Schema read = new Schema(required(0, "list_field", Types.ListType.ofOptional(
-        1, Types.StringType.get()
+        1, Types.BooleanType.get()
     )));
 
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
     Assert.assertEquals("Should produce 1 error message", 1, errors.size());
 
     Assert.assertTrue("Should complain about incompatible types",
-        errors.get(0).contains("cannot be promoted to string"));
+        errors.get(0).contains("cannot be promoted to boolean"));
   }
 
   @Test

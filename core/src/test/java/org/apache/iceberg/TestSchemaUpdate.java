@@ -143,8 +143,35 @@ public class TestSchemaUpdate {
   @Test
   public void testUpdateFailure() {
     Set<Pair<Type.PrimitiveType, Type.PrimitiveType>> allowedUpdates = Sets.newHashSet(
+        // Integer Type
         Pair.of(Types.IntegerType.get(), Types.LongType.get()),
+        Pair.of(Types.IntegerType.get(), Types.FloatType.get()),
+        Pair.of(Types.IntegerType.get(), Types.DoubleType.get()),
+        Pair.of(Types.IntegerType.get(), Types.DecimalType.of(9, 2)),
+        Pair.of(Types.IntegerType.get(), Types.StringType.get()),
+        // Long Type
+        Pair.of(Types.LongType.get(), Types.FloatType.get()),
+        Pair.of(Types.LongType.get(), Types.DoubleType.get()),
+        Pair.of(Types.LongType.get(), Types.DecimalType.of(9, 2)),
+        Pair.of(Types.LongType.get(), Types.StringType.get()),
+        // Float Type
         Pair.of(Types.FloatType.get(), Types.DoubleType.get()),
+        Pair.of(Types.LongType.get(), Types.DecimalType.of(9, 2)),
+        Pair.of(Types.LongType.get(), Types.StringType.get()),
+        // Double Type
+        Pair.of(Types.DoubleType.get(), Types.DecimalType.of(9, 2)),
+        Pair.of(Types.DoubleType.get(), Types.StringType.get()),
+        // Decimal Type
+        Pair.of(Types.DecimalType.of(9, 2), Types.StringType.get()),
+        // String Type
+        Pair.of(Types.StringType.get(), Types.DoubleType.get()),
+        Pair.of(Types.StringType.get(), Types.DecimalType.of(9, 2)),
+        // Time/Date/Timestamp Type
+        Pair.of(Types.TimeType.get(), Types.StringType.get()),
+        Pair.of(Types.DateType.get(), Types.StringType.get()),
+        Pair.of(Types.TimestampType.withZone(), Types.StringType.get()),
+        Pair.of(Types.TimestampType.withoutZone(), Types.StringType.get()),
+        // DecimalType -> DecimalType
         Pair.of(Types.DecimalType.of(9, 2), Types.DecimalType.of(18, 2))
     );
 
@@ -171,9 +198,11 @@ public class TestSchemaUpdate {
         }
 
         String typeChange = fromType.toString() + " -> " + toType.toString();
-        AssertHelpers.assertThrows("Should reject update: " + typeChange,
-            IllegalArgumentException.class, "change column type: col: " + typeChange,
-            () -> new SchemaUpdate(fromSchema, 1).updateColumn("col", toType));
+        if (!TypeUtil.isPromotionAllowed(fromType, toType)) {
+          AssertHelpers.assertThrows("Should reject update: " + typeChange,
+              IllegalArgumentException.class, "change column type: col: " + typeChange,
+              () -> new SchemaUpdate(fromSchema, 1).updateColumn("col", toType));
+        }
       }
     }
   }
