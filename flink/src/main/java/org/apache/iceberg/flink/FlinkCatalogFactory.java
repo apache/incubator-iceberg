@@ -66,6 +66,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   public static final String HIVE_CONF_DIR = "hive-conf-dir";
   public static final String DEFAULT_DATABASE = "default-database";
+  public static final String DEFAULT_DATABASE_NAME = "default";
   public static final String BASE_NAMESPACE = "base-namespace";
   public static final String CACHE_ENABLED = "cache-enabled";
 
@@ -77,7 +78,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
    * @param hadoopConf Hadoop configuration for catalog
    * @return an Iceberg catalog loader
    */
-  protected CatalogLoader createCatalogLoader(String name, Map<String, String> properties, Configuration hadoopConf) {
+  static CatalogLoader createCatalogLoader(String name, Map<String, String> properties, Configuration hadoopConf) {
     String catalogImpl = properties.get(CatalogProperties.CATALOG_IMPL);
     if (catalogImpl != null) {
       return CatalogLoader.custom(name, properties, hadoopConf, catalogImpl);
@@ -120,7 +121,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {
     CatalogLoader catalogLoader = createCatalogLoader(name, properties, hadoopConf);
-    String defaultDatabase = properties.getOrDefault(DEFAULT_DATABASE, "default");
+    String defaultDatabase = properties.getOrDefault(DEFAULT_DATABASE, DEFAULT_DATABASE_NAME);
 
     Namespace baseNamespace = Namespace.empty();
     if (properties.containsKey(BASE_NAMESPACE)) {

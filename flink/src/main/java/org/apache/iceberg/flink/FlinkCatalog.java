@@ -360,6 +360,17 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public void createTable(ObjectPath tablePath, CatalogBaseTable table, boolean ignoreIfExists)
       throws CatalogException, TableAlreadyExistException {
+    if (Objects.equals(table.getOptions().get("connector"), FlinkDynamicTableFactory.FACTORY_IDENTIFIER)) {
+      throw new IllegalArgumentException("Cannot create the table with 'connector'='iceberg' table property in " +
+          "an iceberg catalog, Please create table with 'connector'='iceberg' property in a non-iceberg catalog or " +
+          "create table without 'connector'='iceberg' related properties in an iceberg table.");
+    }
+
+    createIcebergTable(tablePath, table, ignoreIfExists);
+  }
+
+  void createIcebergTable(ObjectPath tablePath, CatalogBaseTable table, boolean ignoreIfExists)
+      throws CatalogException, TableAlreadyExistException {
     validateFlinkTable(table);
 
     Schema icebergSchema = FlinkSchemaUtil.convert(table.getSchema());
