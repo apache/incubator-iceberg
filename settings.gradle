@@ -38,6 +38,7 @@ include 'spark3-runtime'
 include 'pig'
 include 'hive-metastore'
 include 'nessie'
+include 'dell'
 
 project(':api').name = 'iceberg-api'
 project(':common').name = 'iceberg-common'
@@ -59,6 +60,7 @@ project(':spark3-runtime').name = 'iceberg-spark3-runtime'
 project(':pig').name = 'iceberg-pig'
 project(':hive-metastore').name = 'iceberg-hive-metastore'
 project(':nessie').name = 'iceberg-nessie'
+project(':dell').name = 'iceberg-dell'
 
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   include 'spark2'
