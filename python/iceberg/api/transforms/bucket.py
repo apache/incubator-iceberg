@@ -28,6 +28,7 @@ from ..expressions import (Expressions,
                            Operation)
 from ..types.types import (IntegerType,
                            TypeID)
+from ...api.types.conversions import Conversions
 
 
 class Bucket(Transform):
@@ -69,7 +70,7 @@ class Bucket(Transform):
         return Bucket.__class__, self.n
 
     def __repr__(self):
-        return "Bucket(n)" % self.n
+        return "Bucket[%s]" % self.n
 
     def __str__(self):
         return "bucket[%s]" % self.n
@@ -167,14 +168,24 @@ class BucketString(Bucket):
 
 class BucketByteBuffer(Bucket):
     def __init__(self, n):
-        # super(BucketByteBuffer, self).__init__(n)
-        raise NotImplementedError()
+        super(BucketByteBuffer, self).__init__(n)
+
+    def hash(self, value):
+        return Bucket.MURMUR3.hash(value)
+
+    def can_transform(self, type_var):
+        return type_var.type_id in [TypeID.BINARY, TypeID.FIXED]
 
 
 class BucketUUID(Bucket):
     def __init__(self, n):
-        # super(BucketUUID, self).__init__(n)
-        raise NotImplementedError()
+        super(BucketUUID, self).__init__(n)
+
+    def hash(self, value):
+        return Bucket.MURMUR3.hash(Conversions.to_byte_buffer(TypeID.UUID, value))
+
+    def can_transform(self, type_var):
+        return type_var.type_id == TypeID.UUID
 
 
 def to_bytes(n, length, byteorder='big'):
