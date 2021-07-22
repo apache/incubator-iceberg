@@ -325,10 +325,26 @@ project(':iceberg-flink') {
     compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12"
     compileOnly "org.apache.flink:flink-table-planner-blink_2.12"
     compileOnly "org.apache.flink:flink-table-planner_2.12"
+    compileOnly "org.apache.flink:flink-connector-hive_2.12"
     compileOnly "org.apache.hadoop:hadoop-hdfs"
     compileOnly "org.apache.hadoop:hadoop-common"
     compileOnly("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
+    }
+    compileOnly("org.apache.hive:hive-metastore") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
     }
 
     testCompile "org.apache.flink:flink-core"

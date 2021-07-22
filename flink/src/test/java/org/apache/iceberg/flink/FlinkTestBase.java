@@ -47,7 +47,7 @@ public abstract class FlinkTestBase extends TestBaseUtils {
   @ClassRule
   public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
-  private static TestHiveMetastore metastore = null;
+  protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
   protected static HiveCatalog catalog = null;
 
@@ -96,6 +96,15 @@ public abstract class FlinkTestBase extends TestBaseUtils {
   }
 
   protected List<Row> sql(String query, Object... args) {
+    TableResult tableResult = exec(query, args);
+    try (CloseableIterator<Row> iter = tableResult.collect()) {
+      return Lists.newArrayList(iter);
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to collect table result", e);
+    }
+  }
+
+  protected List<Row> executeSql(String query, Object... args) {
     TableResult tableResult = exec(query, args);
     try (CloseableIterator<Row> iter = tableResult.collect()) {
       return Lists.newArrayList(iter);
