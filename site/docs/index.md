@@ -20,8 +20,7 @@
 # ![Iceberg](img/Iceberg-logo.png)
 
 
-**Apache Iceberg is an open table format for huge analytic datasets.** Iceberg adds tables to Trino and Spark that use a high-performance format that works just like a SQL table.
-
+**Apache Iceberg is an open table format for huge analytic datasets.** Iceberg adds tables to compute engines including Spark, Trino, PrestoDB, Flink and Hive using a high-performance format that works just like a SQL table.
 
 ### User experience
 

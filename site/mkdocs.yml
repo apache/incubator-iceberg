@@ -36,8 +36,8 @@ plugins:
   - redirects:
       redirect_maps:
         'time-travel.md': 'spark-queries/#time-travel'
-        'presto.md': 'trino.md'
-  - markdownextradata  
+        'presto.md': 'prestodb.md'
+  - markdownextradata
 markdown_extensions:
   - toc:
       permalink: True
@@ -55,6 +55,7 @@ nav:
     - Blogs: blogs.md
     - Trademarks: trademarks.md
     - How to Release: how-to-release.md
+  - Getting Started: getting-started.md
   - Tables:
     - Configuration: configuration.md
     - Schemas: schemas.md
@@ -63,18 +64,20 @@ nav:
     - Maintenance: maintenance.md
     - Performance: performance.md
     - Reliability: reliability.md
-  - Spark:
-    - Getting Started: getting-started.md
-    - Configuration: spark-configuration.md
-    - DDL: spark-ddl.md
-    - Queries: spark-queries.md
-    - Writes: spark-writes.md
-    - Maintenance Procedures: spark-procedures.md
-    - Structured Streaming: spark-structured-streaming.md
-    - Time Travel: spark-queries/#time-travel
-  - Trino: https://trino.io/docs/current/connector/iceberg.html
-  - Flink: flink.md
-  - Hive: hive.md
+  - Engines:
+    - Spark:
+      - Getting Started: getting-started.md
+      - Configuration: spark-configuration.md
+      - DDL: spark-ddl.md
+      - Queries: spark-queries.md
+      - Writes: spark-writes.md
+      - Maintenance Procedures: spark-procedures.md
+      - Structured Streaming: spark-structured-streaming.md
+      - Time Travel: spark-queries/#time-travel
+    - Flink: flink.md
+    - Hive: hive.md
+    - Trino: https://trino.io/docs/current/connector/iceberg.html
+    - PrestoDB: https://prestodb.io/docs/current/connector/iceberg.html
   - Integrations:
     - AWS: aws.md
     - Nessie: nessie.md
