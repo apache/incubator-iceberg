@@ -601,6 +601,74 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testBuildReplacementForV1Table() {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "y", Types.LongType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(0)
+        .identity("x")
+        .identity("y")
+        .build();
+    String location = "file://tmp/db/table";
+    TableMetadata metadata = TableMetadata.newTableMetadata(
+        schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), 1);
+    Assert.assertEquals(spec, metadata.spec());
+
+    Schema updatedSchema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "z", Types.StringType.get())
+    );
+    PartitionSpec updatedSpec = PartitionSpec.builderFor(updatedSchema).withSpecId(0)
+        .bucket("z", 8)
+        .identity("x")
+        .build();
+    TableMetadata updated = metadata.buildReplacement(
+        updatedSchema, updatedSpec, SortOrder.unsorted(), location, ImmutableMap.of());
+    PartitionSpec expected = PartitionSpec.builderFor(updated.schema()).withSpecId(1)
+        .add(3, 1000, "z_bucket", "bucket[8]")
+        .add(1, 1001, "x", "identity")
+        .build();
+    Assert.assertEquals(
+        "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",
+        expected, updated.spec());
+  }
+
+  @Test
+  public void testBuildReplacementForV2Table() {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "y", Types.LongType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(0)
+        .identity("x")
+        .identity("y")
+        .build();
+    String location = "file://tmp/db/table";
+    TableMetadata metadata = TableMetadata.newTableMetadata(
+        schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), 2);
+    Assert.assertEquals(spec, metadata.spec());
+
+    Schema updatedSchema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "z", Types.StringType.get())
+    );
+    PartitionSpec updatedSpec = PartitionSpec.builderFor(updatedSchema).withSpecId(0)
+        .bucket("z", 8)
+        .identity("x")
+        .build();
+    TableMetadata updated = metadata.buildReplacement(
+        updatedSchema, updatedSpec, SortOrder.unsorted(), location, ImmutableMap.of());
+    PartitionSpec expected = PartitionSpec.builderFor(updated.schema()).withSpecId(1)
+        .add(3, 1002, "z_bucket", "bucket[8]")
+        .add(1, 1000, "x", "identity")
+        .build();
+    Assert.assertEquals(
+        "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",
+        expected, updated.spec());
+  }
+
+  @Test
   public void testSortOrder() {
     Schema schema = new Schema(
         Types.NestedField.required(10, "x", Types.StringType.get())
