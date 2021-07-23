@@ -89,7 +89,7 @@ import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
-class SparkWrite {
+public class SparkWrite {
   private static final Logger LOG = LoggerFactory.getLogger(SparkWrite.class);
 
   private final JavaSparkContext sparkContext;
