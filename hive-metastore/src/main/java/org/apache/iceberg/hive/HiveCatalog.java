@@ -22,6 +22,7 @@ package org.apache.iceberg.hive;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
@@ -54,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,10 +63,14 @@ import org.slf4j.LoggerFactory;
 public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
+  public static final String APPEND_UUID_SUFFIX_TO_TABLE_LOCATION = "append-uuid-suffix-to-table-location";
+  public static final boolean APPEND_UUID_SUFFIX_TO_TABLE_LOCATION_DEFAULT = false;
+
   private String name;
   private Configuration conf;
   private FileIO fileIO;
   private ClientPool<HiveMetaStoreClient, TException> clients;
+  private boolean useUniqueTableName;
 
   public HiveCatalog() {
   }
@@ -107,6 +113,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.clients = new CachedClientPool(conf, properties);
+    if (properties.containsKey(APPEND_UUID_SUFFIX_TO_TABLE_LOCATION)) {
+      this.useUniqueTableName = PropertyUtil.propertyAsBoolean(properties,
+              APPEND_UUID_SUFFIX_TO_TABLE_LOCATION, APPEND_UUID_SUFFIX_TO_TABLE_LOCATION_DEFAULT);
+    }
   }
 
   @Override
@@ -438,7 +448,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       Database databaseData = clients.run(client -> client.getDatabase(tableIdentifier.namespace().levels()[0]));
       if (databaseData.getLocationUri() != null) {
         // If the database location is set use it as a base.
-        return String.format("%s/%s", databaseData.getLocationUri(), tableIdentifier.name());
+        return String.format("%s/%s", databaseData.getLocationUri(), getTableName(tableIdentifier));
       }
 
     } catch (TException e) {
@@ -455,13 +465,21 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         "%s/%s.db/%s",
         warehouseLocation,
         tableIdentifier.namespace().levels()[0],
-        tableIdentifier.name());
+        getTableName(tableIdentifier));
   }
 
   private String getWarehouseLocation() {
     String warehouseLocation = conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname);
     Preconditions.checkNotNull(warehouseLocation, "Warehouse location is not set: hive.metastore.warehouse.dir=null");
     return warehouseLocation;
+  }
+
+  private String getTableName(TableIdentifier tableIdentifier) {
+    if (useUniqueTableName) {
+      return String.format("%s-%s", tableIdentifier.name(), UUID.randomUUID());
+    } else {
+      return tableIdentifier.name();
+    }
   }
 
   private Map<String, String> convertToMetadata(Database database) {

@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -38,8 +39,14 @@ import org.junit.Assume;
 import org.junit.Test;
 
 public class TestCreateTable extends SparkCatalogTestBase {
+  private boolean shouldHaveUniqueTableLocation;
+
   public TestCreateTable(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
+
+    if ("true".equals(config.get(HiveCatalog.APPEND_UUID_SUFFIX_TO_TABLE_LOCATION))) {
+      this.shouldHaveUniqueTableLocation = true;
+    }
   }
 
   @After
@@ -220,5 +227,25 @@ public class TestCreateTable extends SparkCatalogTestBase {
     Assert.assertEquals("Should not be partitioned", 0, table.spec().fields().size());
     Assert.assertEquals("Should have property p1", "2", table.properties().get("p1"));
     Assert.assertEquals("Should have property p2", "x", table.properties().get("p2"));
+  }
+
+  @Test
+  public void testCreateTableWithUniqueLocation() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+    sql("CREATE TABLE %s (id BIGINT NOT NULL, data STRING) USING iceberg", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertNotNull("Should load the new table", table);
+
+    String location = table.location();
+    if (shouldHaveUniqueTableLocation) {
+      String tableNameWithUuidSuffix = ".*[0-9a-f]{8}\\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\\b[0-9a-f]{12}";
+      Assert.assertTrue(
+              "Should have uuid suffix in table name",
+              location.matches(tableNameWithUuidSuffix));
+    } else {
+      Assert.assertTrue("Should end with table name ",
+              location.endsWith(tableIdent.name()));
+    }
   }
 }
