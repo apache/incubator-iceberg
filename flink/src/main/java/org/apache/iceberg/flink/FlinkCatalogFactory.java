@@ -22,22 +22,22 @@ package org.apache.iceberg.flink;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.util.HadoopUtils;
 import org.apache.flink.table.catalog.Catalog;
-import org.apache.flink.table.descriptors.CatalogDescriptorValidator;
 import org.apache.flink.table.factories.CatalogFactory;
+import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * A Flink Catalog factory implementation that creates {@link FlinkCatalog}.
@@ -101,21 +101,37 @@ public class FlinkCatalogFactory implements CatalogFactory {
   }
 
   @Override
-  public Map<String, String> requiredContext() {
-    Map<String, String> context = Maps.newHashMap();
-    context.put(CatalogDescriptorValidator.CATALOG_TYPE, "iceberg");
-    context.put(CatalogDescriptorValidator.CATALOG_PROPERTY_VERSION, "1");
-    return context;
+  public String factoryIdentifier() {
+    return FlinkCatalogFactoryOptions.IDENTIFIER;
   }
 
   @Override
-  public List<String> supportedProperties() {
-    return ImmutableList.of("*");
+  public Set<ConfigOption<?>> requiredOptions() {
+    final Set<ConfigOption<?>> options = new HashSet<>();
+    options.add(FlinkCatalogFactoryOptions.CATALOG_TYPE);
+    return options;
   }
 
   @Override
-  public Catalog createCatalog(String name, Map<String, String> properties) {
-    return createCatalog(name, properties, clusterHadoopConf());
+  public Set<ConfigOption<?>> optionalOptions() {
+    final Set<ConfigOption<?>> options = new HashSet<>();
+    options.add(FlinkCatalogFactoryOptions.PROPERTY_VERSION);
+    options.add(FlinkCatalogFactoryOptions.URI);
+    options.add(FlinkCatalogFactoryOptions.WAREHOUSE);
+    options.add(FlinkCatalogFactoryOptions.CLIENTS);
+    options.add(FlinkCatalogFactoryOptions.BASE_NAMESPACE);
+    options.add(FlinkCatalogFactoryOptions.HIVE_CONF_DIF);
+    options.add(FlinkCatalogFactoryOptions.CACHE_ENABLED);
+    return options;
+  }
+
+  @Override
+  public Catalog createCatalog(Context context) {
+    final FactoryUtil.CatalogFactoryHelper helper =
+        FactoryUtil.createCatalogFactoryHelper(this, context);
+    helper.validate();
+
+    return createCatalog(context.getName(), context.getOptions(), clusterHadoopConf());
   }
 
   protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {
