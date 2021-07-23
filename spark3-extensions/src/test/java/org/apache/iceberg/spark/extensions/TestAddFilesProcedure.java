@@ -444,6 +444,145 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             catalogName, tableName, fileTableDir.getAbsolutePath()));
   }
 
+
+  @Test
+  public void addTwice() {
+    createPartitionedHiveTable();
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)";
+
+    sql(createIceberg, tableName);
+
+    Object result1 = scalarSql("CALL %s.system.add_files(" +
+            "table => '%s', " +
+            "source_table => '%s', " +
+            "partition_filter => map('id', 1))",
+        catalogName, tableName, sourceTableName);
+    Assert.assertEquals(2L, result1);
+
+    Object result2 = scalarSql("CALL %s.system.add_files(" +
+            "table => '%s', " +
+            "source_table => '%s', " +
+            "partition_filter => map('id', 2))",
+        catalogName, tableName, sourceTableName);
+    Assert.assertEquals(2L, result2);
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", tableName));
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 2 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 2 ORDER BY id", tableName));
+  }
+
+  @Test
+  public void duplicateDataPartitioned() {
+    createPartitionedHiveTable();
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)";
+
+    sql(createIceberg, tableName);
+
+    scalarSql("CALL %s.system.add_files(" +
+            "table => '%s', " +
+            "source_table => '%s', " +
+            "partition_filter => map('id', 1))",
+        catalogName, tableName, sourceTableName);
+
+    AssertHelpers.assertThrows("Should not allow adding duplicate files",
+        IllegalStateException.class,
+        "Cannot complete import because data files to be imported already" +
+            " exist within the target table",
+        () -> scalarSql("CALL %s.system.add_files(" +
+            "table => '%s', " +
+            "source_table => '%s', " +
+            "partition_filter => map('id', 1))",
+        catalogName, tableName, sourceTableName));
+  }
+
+  @Test
+  public void duplicateDataPartitionedAllowed() {
+    createPartitionedHiveTable();
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)";
+
+    sql(createIceberg, tableName);
+
+    Object result1 = scalarSql("CALL %s.system.add_files(" +
+            "table => '%s', " +
+            "source_table => '%s', " +
+            "partition_filter => map('id', 1))",
+        catalogName, tableName, sourceTableName);
+
+    Assert.assertEquals(2L, result1);
+
+    Object result2 = scalarSql("CALL %s.system.add_files(" +
+            "table => '%s', " +
+            "source_table => '%s', " +
+            "partition_filter => map('id', 1)," +
+            "check_duplicate_files => false)",
+        catalogName, tableName, sourceTableName);
+
+    Assert.assertEquals(2L, result2);
+
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 UNION ALL " +
+            "SELECT id, name, dept, subdept FROM %s WHERE id = 1", sourceTableName, sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s", tableName, tableName));
+  }
+
+  @Test
+  public void duplicateDataUnpartitioned() {
+    createUnpartitionedHiveTable();
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
+
+    sql(createIceberg, tableName);
+
+    scalarSql("CALL %s.system.add_files('%s', '%s')",
+        catalogName, tableName, sourceTableName);
+
+    AssertHelpers.assertThrows("Should not allow adding duplicate files",
+        IllegalStateException.class,
+        "Cannot complete import because data files to be imported already" +
+            " exist within the target table",
+        () -> scalarSql("CALL %s.system.add_files('%s', '%s')",
+            catalogName, tableName, sourceTableName));
+  }
+
+  @Test
+  public void duplicateDataUnpartitionedAllowed() {
+    createUnpartitionedHiveTable();
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
+
+    sql(createIceberg, tableName);
+
+    Object result1 = scalarSql("CALL %s.system.add_files('%s', '%s')",
+        catalogName, tableName, sourceTableName);
+    Assert.assertEquals(2L, result1);
+
+    Object result2 = scalarSql("CALL %s.system.add_files(" +
+        "table => '%s', " +
+            "source_table => '%s'," +
+            "check_duplicate_files => false)",
+        catalogName, tableName, sourceTableName);
+    Assert.assertEquals(2L, result2);
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT * FROM (SELECT * FROM %s UNION ALL " +
+            "SELECT * from %s) ORDER BY id", sourceTableName, sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+
+  }
+
   private static final StructField[] struct = {
       new StructField("id", DataTypes.IntegerType, false, Metadata.empty()),
       new StructField("name", DataTypes.StringType, false, Metadata.empty()),
@@ -462,7 +601,6 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   private static final Dataset<Row> partitionedDF =
       unpartitionedDF.select("name", "dept", "subdept", "id");
-
 
   private static final Dataset<Row> compositePartitionedDF =
       unpartitionedDF.select("name", "subdept", "id", "dept");
