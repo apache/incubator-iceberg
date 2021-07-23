@@ -109,8 +109,11 @@ public class SparkTableUtil {
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
 
-  private static final String duplicateFileMessage = "Duplicate data files will be added to this table: %s.  " +
-      "Enable ignore.duplicates flag to avoid this error";
+  private static final String duplicateFileMessage = "Cannot complete import because data files " +
+      "to be imported already exist within the target table: %s.  " +
+      "This is disabled by default as Iceberg is not designed for mulitple references to the same file" +
+      " within the same table.  If you are sure, you may set 'check_duplicate_files' to false to force the import.";
+
 
   private SparkTableUtil() {
   }

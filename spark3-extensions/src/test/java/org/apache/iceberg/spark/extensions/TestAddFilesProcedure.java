@@ -493,7 +493,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should not allow adding duplicate files",
         IllegalStateException.class,
-        "Duplicate data files will be added to this table",
+        "Cannot complete import because data files to be imported already" +
+            " exist within the target table",
         () -> scalarSql("CALL %s.system.add_files(" +
             "table => '%s', " +
             "source_table => '%s', " +
@@ -548,7 +549,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should not allow adding duplicate files",
         IllegalStateException.class,
-        "Duplicate data files will be added to this table",
+        "Cannot complete import because data files to be imported already" +
+            " exist within the target table",
         () -> scalarSql("CALL %s.system.add_files('%s', '%s')",
             catalogName, tableName, sourceTableName));
   }
